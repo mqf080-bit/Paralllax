@@ -1,6 +1,6 @@
 # prototype / STATUS
 
-> 更新：2026-10-18 10:05 CEST
+> 更新：2026-10-18 10:45 CEST
 > 当前 Step：**3 — shift（4 轨窗口滑动），待你验收**
 > 设计真相：`../parallax-idea.md`｜施工协议：`../agent.md`
 
@@ -581,3 +581,24 @@ design.md §2 已经补上这条。
 - 调试面板的「X」现在是**额外偏移**（默认 0），Y / Z 仍是绝对位置。
 
 这样左 shift 时它不会贴到轨道上，右 shift 时也不会离得太远。
+
+## 24. 谱面格式 v0
+
+按 Arcaea 的 AFF 做了一轮对照，格式定在 `prototype/CHART.md`，代码在 `src/chart/`：
+
+| 文件 | 内容 |
+| --- | --- |
+| `chart/schema.ts` | 类型：meta / timing / sections / speed / shift / notes（hit / drag / hold / arc） |
+| `chart/timeline.ts` | 速度积分（SV）、窗口插值、小节拍号、`validateChart()` |
+| `chart/demo.ts` | 12 秒示例：hit → drag → hold → 左 shift → arc → SV 掉速 / 倒流 → 回正 |
+
+要点：
+
+- 时间统一毫秒；`offset` 对应 `AudioOffset`。
+- **SV 独立成轨**（不用 BPM），`multiplier` 支持 0 / 负数 / 极端值；位置 = 判定带 − ∫速度 dt，判定只看绝对时间。
+- **shift 事件**带 `duration`（窗口滑动速度），校验器检查每颗 note 是否落在当时的窗口里。
+- **arc 用点列 + 每段缓动**记录形状：连续 linear 段 = 直角 / 钝角，sine / cosine / bezier = 曲线；`keyObjects` = 关键物量（对应 AFF 的 `arctap`）。
+- 轨号用**绝对 0–5**，不是窗口内 0–3。
+- dev 启动时会自动校验示例谱面，控制台打印 `[chart] demo chart ok`。
+
+**还没做**：播放器（把 `playfield` 从写死的测试串改成读谱面）、制谱器。

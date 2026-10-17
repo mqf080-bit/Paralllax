@@ -1,0 +1,79 @@
+import type { Chart } from './schema';
+
+/**
+ * 示例谱面：只用来验证格式能不能表达该表达的东西。
+ *
+ * 时间线：
+ *   0.0s       A 段：4 颗 hit（左右手交替）
+ *   2.4s       3 条 drag 楼梯
+ *   3.2s       hold（4 个物量）
+ *   4.0s       左 shift（0–3 窗口）
+ *   4.6s       arc：两个直角 + 两段曲线，中间两个关键物量
+ *   6.0s       SV 掉到 0.4（带 300ms 过渡）
+ *   8.0s       回到常态窗口
+ *   9.6s       SV 倒流（-1）——极端 SV 的表达
+ */
+
+export const DEMO_CHART: Chart = {
+  meta: {
+    title: 'ANTAGONISM',
+    artist: 'demo',
+    charter: 'demo',
+    difficulty: 'IN 7',
+    offset: 0,
+  },
+
+  timing: [{ time: 0, bpm: 180, beats: 4 }],
+
+  sections: [
+    { time: 0, label: 'A' },
+    { time: 4000, label: 'B' },
+    { time: 8000, label: 'C' },
+  ],
+
+  speed: [
+    { time: 0, multiplier: 1 },
+    { time: 6000, multiplier: 0.4, easing: 'sine', duration: 300 },
+    { time: 7600, multiplier: 1, easing: 'sine', duration: 300 },
+    { time: 9600, multiplier: -1, easing: 'sine', duration: 400 },
+    { time: 10400, multiplier: 1, easing: 'sine', duration: 400 },
+  ],
+
+  shift: [
+    { time: 4000, target: 'left', duration: 350 },
+    { time: 8000, target: 'normal', duration: 350 },
+  ],
+
+  notes: [
+    { type: 'hit', time: 1000, lane: 1, hand: 'left' },
+    { type: 'hit', time: 1300, lane: 4, hand: 'right' },
+    { type: 'hit', time: 1600, lane: 2, hand: 'left' },
+    { type: 'hit', time: 1900, lane: 3, hand: 'right' },
+
+    { type: 'drag', time: 2400, lane: 1 },
+    { type: 'drag', time: 2650, lane: 2 },
+    { type: 'drag', time: 2900, lane: 3 },
+
+    { type: 'hold', time: 3200, duration: 800, lane: 2, objects: 4 },
+
+    {
+      type: 'arc',
+      time: 4600,
+      hand: 'right',
+      notesPerSecond: 4,
+      keyObjects: [400, 800],
+      points: [
+        { time: 0, x: 1, y: 0.08, easing: 'linear' },
+        { time: 400, x: 1, y: 0.4, easing: 'sine' },
+        { time: 800, x: 3, y: 0.4, easing: 'linear' },
+        { time: 1200, x: 3, y: 0.08, easing: 'sine' },
+      ],
+    },
+
+    { type: 'hit', time: 8600, lane: 1, hand: 'left' },
+    { type: 'hit', time: 8900, lane: 4, hand: 'right' },
+    { type: 'hit', time: 9200, lane: 3, hand: 'right' },
+
+    { type: 'hold', time: 11000, duration: 600, lane: 3, objects: 3 },
+  ],
+};

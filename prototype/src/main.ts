@@ -265,6 +265,16 @@ const controllers = createControllers(renderer, scene, {
 });
 updateHandsRow();
 
+// —— 谱面自检（dev）：先验证示例谱面能被格式与校验器接受 ——
+if (import.meta.env.DEV) {
+  void import('./chart/timeline').then(async ({ validateChart }) => {
+    const { DEMO_CHART } = await import('./chart/demo');
+    const issues = validateChart(DEMO_CHART);
+    if (issues.length > 0) console.warn('[chart] demo issues:', issues);
+    else console.info('[chart] demo chart ok');
+  });
+}
+
 // —— Enter VR ——
 const vrButton = VRButton.createButton(renderer, {
   optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
