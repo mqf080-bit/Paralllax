@@ -10,6 +10,7 @@ import {
   createSmudgeRoughnessMap,
   type BrushedMaps,
 } from './textures';
+import { HAND_LEFT, HAND_RIGHT, NEUTRAL_GLAZE } from './palette';
 
 /**
  * 材质库。
@@ -45,14 +46,26 @@ export interface MaterialLibrary {
   readonly steel: THREE.MeshStandardMaterial;
   readonly wire: THREE.MeshStandardMaterial;
 
-  /** 暗瓷（hit 的材质比喻）。 */
+  /** 无釉瓷（中性 hit）。 */
   readonly ceramic: THREE.MeshPhysicalMaterial;
+  /** 青釉（左手 hit）。 */
+  readonly ceramicLeft: THREE.MeshPhysicalMaterial;
+  /** 赤釉（右手 hit）。 */
+  readonly ceramicRight: THREE.MeshPhysicalMaterial;
   /** 烟熏玻璃。 */
   readonly smokedGlass: THREE.MeshPhysicalMaterial;
-  /** 清玻璃（hold / arc 的管壁）。 */
+  /** 清玻璃（hold 的管壁，中性）。 */
   readonly clearGlass: THREE.MeshPhysicalMaterial;
-  /** 玻璃管内的光带。 */
+  /** 青玻璃（左手 arc）。 */
+  readonly clearGlassLeft: THREE.MeshPhysicalMaterial;
+  /** 赤玻璃（右手 arc）。 */
+  readonly clearGlassRight: THREE.MeshPhysicalMaterial;
+  /** 玻璃管内的光带（中性）。 */
   readonly glassCore: THREE.MeshBasicMaterial;
+  /** 青色光带（左手 arc）。 */
+  readonly glassCoreLeft: THREE.MeshBasicMaterial;
+  /** 赤色光带（右手 arc）。 */
+  readonly glassCoreRight: THREE.MeshBasicMaterial;
   /** 冰的内部冷光。 */
   readonly iceCore: THREE.MeshBasicMaterial;
   /** 冰条（drag）用的更亮的冰。 */
@@ -187,17 +200,32 @@ export function createMaterialLibrary(): MaterialLibrary {
   });
 
   // —— 釉面：低频起伏 + 手摸过的粗糙度斑 ——
-  const ceramic = new THREE.MeshPhysicalMaterial({
-    color: 0x2b323b,
-    metalness: 0.0,
-    roughness: 0.45,
-    clearcoat: 1.0,
-    clearcoatRoughness: 0.14,
-    envMapIntensity: 1.05,
-    normalMap: createGlassNormalMap(128, 5),
-    roughnessMap: createSmudgeRoughnessMap(),
-  });
-  ceramic.normalScale = new THREE.Vector2(0.22, 0.22);
+  // 三套釉（无釉 / 青 / 赤）共用同一对贴图：釉的「手感」不该随机型改变。
+  const glazeNormal = createGlassNormalMap(128, 5);
+  const glazeRoughness = createSmudgeRoughnessMap();
+
+  function createGlaze(color: number, emissive: number, emissiveIntensity: number): THREE.MeshPhysicalMaterial {
+    const material = new THREE.MeshPhysicalMaterial({
+      color,
+      metalness: 0.0,
+      roughness: 0.4,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.12,
+      envMapIntensity: 1.05,
+      emissive,
+      emissiveIntensity,
+      normalMap: glazeNormal,
+      roughnessMap: glazeRoughness,
+    });
+    material.normalScale = new THREE.Vector2(0.22, 0.22);
+    return material;
+  }
+
+  // 无釉：亮瓷白偏灰，不带色相。
+  const ceramic = createGlaze(NEUTRAL_GLAZE.glaze, NEUTRAL_GLAZE.emissive, NEUTRAL_GLAZE.emissiveIntensity);
+  // 青釉 / 赤釉：手别标记。
+  const ceramicLeft = createGlaze(HAND_LEFT.glaze, HAND_LEFT.emissive, HAND_LEFT.emissiveIntensity);
+  const ceramicRight = createGlaze(HAND_RIGHT.glaze, HAND_RIGHT.emissive, HAND_RIGHT.emissiveIntensity);
 
   // —— 烟熏玻璃：波纹法线 + 斑块粗糙度 + 强 clearcoat ——
   const smokedGlass = new THREE.MeshPhysicalMaterial({
@@ -217,23 +245,35 @@ export function createMaterialLibrary(): MaterialLibrary {
   });
   smokedGlass.normalScale = new THREE.Vector2(0.35, 0.35);
 
-  // —— 清玻璃：hold / arc 的管壁 ——
+  // —— 玻璃：hold 用中性清玻璃，arc 用青 / 赤玻璃 ——
   // 不用 transmission：它在这个亮台面上会变成一块发白的板。
   // 回到透明混合 + 冷色基色：背后的东西看得见，颜色也不会被亮背景吃掉。
-  const clearGlass = new THREE.MeshPhysicalMaterial({
-    color: 0x9fc0d4,
-    metalness: 0.0,
-    roughness: 0.04,
-    transparent: true,
-    depthWrite: false,
-    opacity: 0.32,
-    ior: 1.5,
-    clearcoat: 0.6,
-    clearcoatRoughness: 0.06,
-    envMapIntensity: 1.0,
-    normalMap: createGlassNormalMap(128, 4),
-  });
-  clearGlass.normalScale = new THREE.Vector2(1.2, 1.2);
+  const glassNormal = createGlassNormalMap(128, 4);
+
+  function createGlass(color: number, emissive: number, emissiveIntensity: number, opacity: number) {
+    const material = new THREE.MeshPhysicalMaterial({
+      color,
+      metalness: 0.0,
+      roughness: 0.04,
+      transparent: true,
+      depthWrite: false,
+      opacity,
+      ior: 1.5,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.06,
+      envMapIntensity: 1.0,
+      emissive,
+      emissiveIntensity,
+      normalMap: glassNormal,
+    });
+    material.normalScale = new THREE.Vector2(1.2, 1.2);
+    return material;
+  }
+
+  const clearGlass = createGlass(0x9fc0d4, 0x000000, 0, 0.32);
+  // 带手别的玻璃：比中性那条更实（0.42），否则釉色透在暗背景上就洗没了。
+  const clearGlassLeft = createGlass(HAND_LEFT.glass, HAND_LEFT.emissive, 0.6, 0.42);
+  const clearGlassRight = createGlass(HAND_RIGHT.glass, HAND_RIGHT.emissive, 0.6, 0.42);
 
   // —— 冰：Worley 晶面 + 透明混合 ——
   const ice = new THREE.MeshPhysicalMaterial({
@@ -345,6 +385,17 @@ export function createMaterialLibrary(): MaterialLibrary {
     opacity: 0.9,
   });
 
+  // 手别光带：满不透明 + 不过 tone mapping，色相才不会被压成白。
+  const glassCoreLeft = new THREE.MeshBasicMaterial({
+    color: HAND_LEFT.core,
+    toneMapped: false,
+  });
+
+  const glassCoreRight = new THREE.MeshBasicMaterial({
+    color: HAND_RIGHT.core,
+    toneMapped: false,
+  });
+
   const laneDigits = Array.from({ length: 6 }, (_, i) => {
     const texture = createDigitTexture(i);
     return new THREE.MeshBasicMaterial({
@@ -371,9 +422,15 @@ export function createMaterialLibrary(): MaterialLibrary {
     steel,
     wire,
     ceramic,
+    ceramicLeft,
+    ceramicRight,
     smokedGlass,
     clearGlass,
+    clearGlassLeft,
+    clearGlassRight,
     glassCore,
+    glassCoreLeft,
+    glassCoreRight,
     iceCore,
     iceBar,
     ice,
@@ -401,9 +458,15 @@ export function createMaterialLibrary(): MaterialLibrary {
         steel,
         wire,
         ceramic,
+        ceramicLeft,
+        ceramicRight,
         smokedGlass,
         clearGlass,
+        clearGlassLeft,
+        clearGlassRight,
         glassCore,
+        glassCoreLeft,
+        glassCoreRight,
         iceCore,
         iceBar,
         ice,
