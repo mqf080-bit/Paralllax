@@ -2,7 +2,7 @@ import GUI from 'lil-gui';
 import type * as THREE from 'three';
 
 import { DEFAULT_PARAMS, type TableParams } from '../config';
-import type { PlayfieldSettings } from '../game/playfield';
+import type { PlayerSettings } from '../game/player';
 import { DEFAULT_DISPLAY, type DisplayPlacement } from '../scene/display';
 
 /**
@@ -16,7 +16,7 @@ export interface DebugOptions {
   params: TableParams;
   display: DisplayPlacement;
   lab: { visible: boolean };
-  play: PlayfieldSettings;
+  play: PlayerSettings;
   shift: { mode: 'normal' | 'left' | 'right' };
   preview: { visible: boolean };
   renderer: THREE.WebGLRenderer;
@@ -50,11 +50,9 @@ export function createDebug(options: DebugOptions): DebugHandle {
   layout.add(shift, 'mode', ['normal', 'left', 'right']).name('shift 窗口');
 
   const playFolder = gui.addFolder('打击单');
-  playFolder.add(play, 'enabled').name('生成键');
-  playFolder.add(play, 'flowSpeed', 1, 6, 0.1).name('流速 m/s');
-  playFolder.add(play, 'interval', 0.1, 0.5, 0.01).name('楼梯间隔 s');
-  playFolder.add(play, 'holdTicks', 1, 12, 1).name('hold 物量个数');
-  playFolder.add(play, 'auto').name('自动扫（演示）');
+  playFolder.add(play, 'enabled').name('播放谱面');
+  playFolder.add(play, 'flowSpeed', 1, 6, 0.1).name('基准流速 m/s');
+  playFolder.add(play, 'auto').name('自动打（演示）');
   playFolder.add({ restart: onPlayRestart }, 'restart').name('重开这一波');
 
   const floating = gui.addFolder('浮空显示');

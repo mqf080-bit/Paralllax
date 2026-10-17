@@ -5,7 +5,8 @@ import Stats from 'three/examples/jsm/libs/stats.module.js';
 
 import { DEFAULT_PARAMS, type TableParams } from './config';
 import { createHands } from './game/hands';
-import { createPlayfield, type Playfield, type PlayfieldSettings } from './game/playfield';
+import { DEMO_CHART } from './chart/demo';
+import { createPlayer, type Player, type PlayerSettings } from './game/player';
 import { createEnvironment } from './materials/environment';
 import { createMaterialLibrary } from './materials/library';
 import { buildBackdrop } from './scene/backdrop';
@@ -32,7 +33,7 @@ const params: TableParams = { ...DEFAULT_PARAMS };
 
 // 键型预览与打击练习的开关；也接受 ?preview=1 / ?auto=1。
 const previewState = { visible: false };
-const playSettings: PlayfieldSettings = { enabled: true, flowSpeed: 3.0, interval: 0.22, holdTicks: 4, auto: false };
+const playSettings: PlayerSettings = { enabled: true, flowSpeed: 3.0, auto: false };
 
 // shift 状态：4 轨窗口的位置。-1 = 左移一轨，0 = 常态，1 = 右移一轨。
 // 过渡值是连续的，做淡入淡出与判定带的交叉过渡。
@@ -188,7 +189,7 @@ const playHooks = {
   },
 };
 
-let playfield: Playfield = createPlayfield(params, table.geometry, lib, playSettings, playHooks, () => shiftState.mode === 'left' ? -1 : shiftState.mode === 'right' ? 1 : 0);
+let playfield: Player = createPlayer(params, table.geometry, lib, DEMO_CHART, playSettings, playHooks);
 scene.add(playfield.group);
 
 // dev：?warp=1.6 先把练习快进若干秒，配合 ?freeze=1 冻结在那一帧（headless 帧率低，等不到）。
@@ -230,13 +231,16 @@ function rebuild(): void {
   scene.add(notes.group);
   notes.group.visible = previewState.visible;
 
-  playfield = createPlayfield(params, table.geometry, lib, playSettings, playHooks, () => shiftState.mode === 'left' ? -1 : shiftState.mode === 'right' ? 1 : 0);
+  playfield = createPlayer(params, table.geometry, lib, DEMO_CHART, playSettings, playHooks);
   scene.add(playfield.group);
 }
 
+/** 当前生效的窗口值：谱面播放时由谱面驱动，否则用键盘 / 面板的手动值。 */
+let currentWindow = 0;
+
 /** 浮空显示绑定在「窗口右缘 + 固定距离」上：shift 时跟着窗口走。 */
 function moveDisplay(): void {
-  const rightEdge = (2 + shiftValue) * params.laneWidth;
+  const rightEdge = (2 + currentWindow) * params.laneWidth;
   const x = rightEdge + DISPLAY_GAP + DISPLAY_WIDTH / 2 + displayPlacement.x;
   display.group.position.set(x, displayPlacement.y, displayPlacement.z);
   display.aimAt(camera.position);
@@ -392,7 +396,10 @@ renderer.setAnimationLoop((frameTime: number) => {
   // 窗口滑动：约 0.35s 的过渡，挡板 / 分割线 / 判定带一起交叉。
   const shiftTarget = shiftState.mode === 'left' ? -1 : shiftState.mode === 'right' ? 1 : 0;
   shiftValue += (shiftTarget - shiftValue) * Math.min(1, dt * 7);
-  table.setWindow(shiftValue);
+
+  // 谱面播放时，窗口由谱面的 shift 事件驱动；关掉播放才用手动状态。
+  currentWindow = playSettings.enabled ? playfield.windowValue : shiftValue;
+  table.setWindow(currentWindow);
   moveDisplay();
 
   const { perfect, good, miss, lastGrade, lastOffsetMs } = playfield.stats;
