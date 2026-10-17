@@ -10,6 +10,7 @@ import { buildBackdrop } from './scene/backdrop';
 import { createControllers } from './scene/controllers';
 import { buildDisplay, createDisplayTextures, DEFAULT_DISPLAY, type DisplayPlacement } from './scene/display';
 import { buildMaterialLab } from './scene/materialLab';
+import { buildNotesPreview } from './scene/notes';
 import { buildTable } from './scene/table';
 import { createDiagnostics } from './ui/diagnostics';
 import { probeXr } from './xr/xr-support';
@@ -134,10 +135,10 @@ scene.add(display.group);
 // 材质实验台：dev 下默认显示，?lab=0 关掉。不参与玩法，只在调材质时打开。
 const lab = buildMaterialLab(lib);
 scene.add(lab.group);
-const labState = { visible: import.meta.env.DEV };
+const labState = { visible: false };
 if (import.meta.env.DEV) {
   const query = new URLSearchParams(window.location.search);
-  if (query.get('lab') === '0') labState.visible = false;
+  if (query.get('lab') === '1') labState.visible = true;
 }
 function applyLab(): void {
   lab.group.visible = labState.visible;
@@ -147,11 +148,22 @@ applyLab();
 let table = buildTable(params, lib);
 scene.add(table.group);
 
+// 键型预览：四种键各一份，用来定造型与材质。
+const notes = buildNotesPreview(params, table.geometry, lib);
+scene.add(notes.group);
+
 function rebuild(): void {
   scene.remove(table.group);
   table.dispose();
+  scene.remove(notes.group);
+  notes.dispose();
   table = buildTable(params, lib);
   scene.add(table.group);
+  const rebuilt = buildNotesPreview(params, table.geometry, lib);
+  notes.group = rebuilt.group;
+  notes.update = rebuilt.update;
+  notes.dispose = rebuilt.dispose;
+  scene.add(notes.group);
 }
 
 function moveDisplay(): void {
@@ -300,6 +312,8 @@ import.meta.hot?.dispose(() => {
   controllers.dispose();
   scene.remove(table.group);
   table.dispose();
+  scene.remove(notes.group);
+  notes.dispose();
   scene.remove(lab.group);
   lab.dispose();
   scene.remove(display.group);

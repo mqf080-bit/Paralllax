@@ -55,6 +55,8 @@ export interface MaterialLibrary {
   readonly glassCore: THREE.MeshBasicMaterial;
   /** 冰的内部冷光。 */
   readonly iceCore: THREE.MeshBasicMaterial;
+  /** 冰条（drag）用的更亮的冰。 */
+  readonly iceBar: THREE.MeshPhysicalMaterial;
   /** 冰（drag 的材质比喻）。 */
   readonly ice: THREE.MeshPhysicalMaterial;
 
@@ -186,7 +188,7 @@ export function createMaterialLibrary(): MaterialLibrary {
 
   // —— 釉面：低频起伏 + 手摸过的粗糙度斑 ——
   const ceramic = new THREE.MeshPhysicalMaterial({
-    color: 0x1a1d24,
+    color: 0x2b323b,
     metalness: 0.0,
     roughness: 0.45,
     clearcoat: 1.0,
@@ -307,6 +309,24 @@ export function createMaterialLibrary(): MaterialLibrary {
     depthWrite: false,
   });
 
+  // 冰条（drag）：比实验台的冰更亮，因为它要在一排里被一眼看见。
+  const iceBar = new THREE.MeshPhysicalMaterial({
+    color: 0x8fd0ec,
+    metalness: 0.0,
+    roughness: 0.18,
+    transparent: true,
+    depthWrite: false,
+    opacity: 0.6,
+    ior: 1.31,
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.1,
+    envMapIntensity: 1.0,
+    emissive: 0x1f5a78,
+    emissiveIntensity: 2.2,
+    normalMap: createIceNormalMap(128, 30, 9),
+  });
+  iceBar.normalScale = new THREE.Vector2(0.9, 0.9);
+
   // 冰的内部冷光：假次表面散射，让冰锥不是一块白塑料。
   const iceCore = new THREE.MeshBasicMaterial({
     color: 0x8fd0ec,
@@ -355,6 +375,7 @@ export function createMaterialLibrary(): MaterialLibrary {
     clearGlass,
     glassCore,
     iceCore,
+    iceBar,
     ice,
     edgeFade,
     band,
@@ -384,6 +405,7 @@ export function createMaterialLibrary(): MaterialLibrary {
         clearGlass,
         glassCore,
         iceCore,
+        iceBar,
         ice,
         edgeFade,
         band,

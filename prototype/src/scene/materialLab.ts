@@ -39,8 +39,8 @@ export function buildMaterialLab(lib: MaterialLibrary): MaterialLab {
   group.add(ceramic);
   items.push(ceramic);
 
-  // 冰锥：七棱锥，法线贴图给棱面，透一点冷光。
-  const ice = new THREE.Mesh(new THREE.ConeGeometry(0.042, 0.18, 7), lib.ice);
+  // 冰：横置细条（和 drag 同形），法线贴图给晶面。
+  const ice = new THREE.Mesh(new RoundedBoxGeometry(0.18, 0.022, 0.04, 2, 0.005), lib.iceBar);
   ice.position.x = -0.09;
   group.add(ice);
   items.push(ice);
