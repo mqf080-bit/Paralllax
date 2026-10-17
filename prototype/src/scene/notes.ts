@@ -135,6 +135,14 @@ export function buildNotesPreview(params: TableParams, g: TableGeometry, lib: Ma
   group.add(holdSheet);
 
   // 灌注不是盖一层白板：是一条比片子窄得多的光带，读作「片子里被点亮的那一段」。
+  // 辉光：和 drag 同一种加法渐变片，铺在片子底下；玻璃半透，光从片里透出来。
+  const holdGlow = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 1.5), lib.dragGlow);
+  holdGlow.rotation.x = -Math.PI / 2;
+  holdGlow.position.set(holdX, topY + 0.0025, holdZ);
+  holdGlow.name = 'note-hold-glow';
+  holdGlow.renderOrder = 4;
+  group.add(holdGlow);
+
   const holdFillLength = holdLength * 0.55;
   const holdFill = new THREE.Mesh(
     new THREE.BoxGeometry(0.07, 0.0025, holdFillLength),
@@ -155,6 +163,7 @@ export function buildNotesPreview(params: TableParams, g: TableGeometry, lib: Ma
     core: THREE.Material,
     glowColor: number,
     haloColor: number,
+    poolMaterial: THREE.Material,
   ): void => {
     const points = [
       new THREE.Vector3(x, topY + 0.04, g.nearZ - 1.35),
@@ -171,22 +180,30 @@ export function buildNotesPreview(params: TableParams, g: TableGeometry, lib: Ma
     group.add(arcCore);
 
     // 两层泛光：内层紧、外层散。
-    const glowMaterial = createGlowMaterial(glowColor, 0.75, 2.2);
-    const glow = tubeAlong(points, 0.028, glowMaterial, 96, 12);
+    // 内层：贴着管壁，负责「光来自管内」；外层：更松的菲涅耳，负责在边缘晕一圈。
+    const glowMaterial = createGlowMaterial(glowColor, 0.9, 2.0);
+    const glow = tubeAlong(points, 0.032, glowMaterial, 96, 12);
     glow.renderOrder = 4;
     group.add(glow);
 
-    const haloMaterial = createGlowMaterial(haloColor, 0.3, 3.2);
-    const halo = tubeAlong(points, 0.055, haloMaterial, 96, 12);
+    const haloMaterial = createGlowMaterial(haloColor, 0.3, 2.6);
+    const halo = tubeAlong(points, 0.062, haloMaterial, 96, 12);
     halo.renderOrder = 3;
     group.add(halo);
+
+    // 台面上的光斑：和 drag / hold 同一套加法渐变，说明「光是从这条弧上洒下来的」。
+    const pool = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 1.7), poolMaterial);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.set(x, topY + 0.0025, (points[0]!.z + points[4]!.z) / 2);
+    pool.renderOrder = 2;
+    group.add(pool);
 
     arcGlowMaterials.push(glowMaterial);
     arcHaloMaterials.push(haloMaterial);
   };
 
-  addArc(g.laneX[1]!, lib.clearGlassLeft, lib.glassCoreLeft, HAND_LEFT.glow, HAND_LEFT.core);
-  addArc(g.laneX[2]!, lib.clearGlassRight, lib.glassCoreRight, HAND_RIGHT.glow, HAND_RIGHT.core);
+  addArc(g.laneX[1]!, lib.clearGlassLeft, lib.glassCoreLeft, HAND_LEFT.glow, HAND_LEFT.core, lib.glowLeft);
+  addArc(g.laneX[2]!, lib.clearGlassRight, lib.glassCoreRight, HAND_RIGHT.glow, HAND_RIGHT.core, lib.glowRight);
 
   return {
     group,
@@ -194,8 +211,8 @@ export function buildNotesPreview(params: TableParams, g: TableGeometry, lib: Ma
       // 光带的呼吸：只是让泛光看得出来，不是节奏判定。
       // 两条 arc 同步呼吸，否则会被误读成「有先后」。
       const breath = Math.sin(elapsed * 1.6);
-      for (const material of arcGlowMaterials) material.uniforms.uIntensity!.value = 0.7 + breath * 0.12;
-      for (const material of arcHaloMaterials) material.uniforms.uIntensity!.value = 0.28 + breath * 0.05;
+      for (const material of arcGlowMaterials) material.uniforms.uIntensity!.value = 0.85 + breath * 0.12;
+      for (const material of arcHaloMaterials) material.uniforms.uIntensity!.value = 0.3 + breath * 0.05;
     },
     dispose(): void {
       group.traverse((object) => {

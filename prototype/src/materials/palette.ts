@@ -32,8 +32,8 @@ export interface HandColor {
 
 /** 左手：青。 */
 export const HAND_LEFT: HandColor = {
-  glaze: 0x0a4e5a,
-  glass: 0x1a7f92,
+  glaze: 0x1b363c,
+  glass: 0x2e6b76,
   emissive: 0x03262c,
   emissiveIntensity: 0.45,
   core: 0x6fe3f2,
@@ -42,8 +42,8 @@ export const HAND_LEFT: HandColor = {
 
 /** 右手：赤。 */
 export const HAND_RIGHT: HandColor = {
-  glaze: 0x6a0f18,
-  glass: 0x9a1f31,
+  glaze: 0x431e24,
+  glass: 0x743038,
   emissive: 0x24030a,
   emissiveIntensity: 0.45,
   core: 0xff7d93,

@@ -73,6 +73,9 @@ export interface MaterialLibrary {
   readonly iceBar: THREE.MeshPhysicalMaterial;
   /** 冰条周围的加法辉光片（水平铺开，假 bloom）。 */
   readonly dragGlow: THREE.MeshBasicMaterial;
+  /** 左 / 右手的同款辉光（青色 / 赤色）。 */
+  readonly glowLeft: THREE.MeshBasicMaterial;
+  readonly glowRight: THREE.MeshBasicMaterial;
   /** 冰（drag 的材质比喻）。 */
   readonly ice: THREE.MeshPhysicalMaterial;
 
@@ -371,15 +374,24 @@ export function createMaterialLibrary(): MaterialLibrary {
   iceBar.normalScale = new THREE.Vector2(0.9, 0.9);
 
   // drag 的辉光：一张水平铺开的加法渐变片。不用壳层——薄片键的壳层会在两端亮成两个点。
-  const dragGlow = new THREE.MeshBasicMaterial({
-    map: createGlowTexture(),
-    color: 0xbfefff,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    toneMapped: false,
-    opacity: 0.55,
-  });
+  const glowMap = createGlowTexture();
+
+  function createGlow(color: number, opacity: number): THREE.MeshBasicMaterial {
+    return new THREE.MeshBasicMaterial({
+      map: glowMap,
+      color,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+      opacity,
+    });
+  }
+
+  const dragGlow = createGlow(0xbfefff, 0.55);
+  // 带手别的辉光：光斑也要跟着弧的色相，否则地面上会出现一块中性的白雾。
+  const glowLeft = createGlow(HAND_LEFT.glow, 0.5);
+  const glowRight = createGlow(HAND_RIGHT.glow, 0.5);
 
   // 冰的内部冷光：假次表面散射，让冰锥不是一块白塑料。
   const iceCore = new THREE.MeshBasicMaterial({
@@ -448,6 +460,8 @@ export function createMaterialLibrary(): MaterialLibrary {
     iceCore,
     iceBar,
     dragGlow,
+    glowLeft,
+    glowRight,
     ice,
     edgeFade,
     band,
@@ -485,6 +499,8 @@ export function createMaterialLibrary(): MaterialLibrary {
         iceCore,
         iceBar,
         dragGlow,
+        glowLeft,
+        glowRight,
         ice,
         edgeFade,
         band,
