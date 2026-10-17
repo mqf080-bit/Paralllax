@@ -1,0 +1,316 @@
+import * as THREE from 'three';
+
+import { createGlowTexture } from '../materials/textures';
+
+/**
+ * 手的位置采样。
+ *
+ * 判定只看手，不看控制器按键：VR 里取控制器的世界坐标，桌面上取指针在
+ * 台面上方某个高度的投影点。两者产出同一种 `HandSample`，
+ * 判定逻辑不需要知道输入来自哪里。
+ *
+ * 速度用有限差分算：每帧 `(pos - prev) / dt`，再做一点平滑。
+ * 平滑会轻微低估瞬时速度，但对 drag 的「扫过」阈值够用，
+ * 而且能压掉追踪抖动造成的假高速。
+ */
+
+export type HandSide = 'left' | 'right' | 'none';
+
+export interface HandSample {
+  side: HandSide;
+  source: 'xr' | 'pointer';
+  /** 世界坐标（米）。 */
+  position: THREE.Vector3;
+  /** 世界速度（米 / 秒）。 */
+  velocity: THREE.Vector3;
+  /** 这一帧有可信位置：头显控制器连着 / 指针在画面里。 */
+  active: boolean;
+}
+
+export interface Hands {
+  readonly samples: HandSample[];
+  update(dt: number, camera: THREE.PerspectiveCamera): void;
+  dispose(): void;
+}
+
+export interface HandsOptions {
+  /** 桌面 fallback：指针投射到的水平面高度（米）。 */
+  pointerPlaneY: number;
+  /** 桌面 fallback：手固定在这个 z 上（判定带）。指针只控制横向位置。 */
+  pointerZ: number;
+}
+
+const TRAIL_LENGTH = 14;
+const TRAIL_SIZE = 0.02;
+
+const HAND_COLOR: Record<HandSide, number> = {
+  left: 0x8fe6f2,
+  right: 0xff9a7a,
+  none: 0xa9c4d8,
+};
+
+/** 速度平滑系数：越小越顺、越迟钝。 */
+const VELOCITY_SMOOTHING = 0.45;
+/** 超过这个速度视为追踪跳变，丢弃这一帧的差分。 */
+const SPIKE_SPEED = 14;
+
+interface Trail {
+  points: THREE.Points;
+  geometry: THREE.BufferGeometry;
+  positions: Float32Array;
+  colors: Float32Array;
+  history: THREE.Vector3[];
+  base: THREE.Color;
+  push(position: THREE.Vector3): void;
+  clear(): void;
+}
+
+/** 一段拖尾：跟手的一串加法亮点。网格只有 1px 线，VR 里读不出来，所以用点。 */
+function createTrail(color: number, glowMap: THREE.Texture, scene: THREE.Scene): Trail {
+  const positions = new Float32Array(TRAIL_LENGTH * 3);
+  const colors = new Float32Array(TRAIL_LENGTH * 3);
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage));
+  geometry.setDrawRange(0, 0);
+
+  const material = new THREE.PointsMaterial({
+    size: TRAIL_SIZE,
+    map: glowMap,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    vertexColors: true,
+    toneMapped: false,
+    sizeAttenuation: true,
+  });
+
+  const points = new THREE.Points(geometry, material);
+  points.frustumCulled = false;
+  points.renderOrder = 6;
+  scene.add(points);
+
+  const history: THREE.Vector3[] = [];
+  const base = new THREE.Color(color);
+
+  return {
+    points,
+    geometry,
+    positions,
+    colors,
+    history,
+    base,
+    push(position: THREE.Vector3): void {
+      history.unshift(position.clone());
+      if (history.length > TRAIL_LENGTH) history.length = TRAIL_LENGTH;
+
+      for (let i = 0; i < TRAIL_LENGTH; i += 1) {
+        const point = history[i];
+        const offset = i * 3;
+        if (point) {
+          positions[offset] = point.x;
+          positions[offset + 1] = point.y;
+          positions[offset + 2] = point.z;
+          const fade = Math.pow(1 - i / TRAIL_LENGTH, 1.6) * 0.9;
+          colors[offset] = base.r * fade;
+          colors[offset + 1] = base.g * fade;
+          colors[offset + 2] = base.b * fade;
+        } else {
+          positions[offset] = 0;
+          positions[offset + 1] = 0;
+          positions[offset + 2] = 0;
+          colors[offset] = 0;
+          colors[offset + 1] = 0;
+          colors[offset + 2] = 0;
+        }
+      }
+
+      geometry.setDrawRange(0, history.length);
+      (geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
+      (geometry.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
+    },
+    clear(): void {
+      history.length = 0;
+      geometry.setDrawRange(0, 0);
+    },
+  };
+}
+
+export function createHands(
+  renderer: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  options: HandsOptions,
+): Hands {
+  const glowMap = createGlowTexture(64);
+  const disposables: Array<{ dispose(): void }> = [glowMap];
+
+  const samples: HandSample[] = [];
+  const trails: Trail[] = [];
+  const cleanups: Array<() => void> = [];
+
+  // —— 指针 fallback ——
+  const pointer = new THREE.Vector2(0, 0);
+  const pointerSample: HandSample = {
+    side: 'none',
+    source: 'pointer',
+    position: new THREE.Vector3(),
+    velocity: new THREE.Vector3(),
+    active: false,
+  };
+  samples.push(pointerSample);
+  const pointerTrail = createTrail(0x9fd8ff, glowMap, scene);
+  trails.push(pointerTrail);
+
+  const pointerMarker = new THREE.Mesh(
+    new THREE.SphereGeometry(0.016, 12, 12),
+    new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.85, toneMapped: false }),
+  );
+  pointerMarker.visible = false;
+  scene.add(pointerMarker);
+  disposables.push(pointerMarker.geometry, pointerMarker.material as THREE.Material);
+
+  const raycaster = new THREE.Raycaster();
+  // 竖直平面 z = 判定带：指针只需要控制横向位置，前后由谱面自己过来。
+  const pointerPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -options.pointerZ);
+  const pointerHit = new THREE.Vector3();
+  const pointerPrev = new THREE.Vector3();
+  let pointerSeen = false;
+
+  const onPointerMove = (event: PointerEvent): void => {
+    pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    pointerSeen = true;
+  };
+  window.addEventListener('pointermove', onPointerMove);
+  cleanups.push(() => window.removeEventListener('pointermove', onPointerMove));
+
+  // —— XR 控制器 ——
+  interface XrHand {
+    sample: HandSample;
+    trail: Trail;
+    controller: THREE.Object3D;
+    prev: THREE.Vector3;
+    hasPrev: boolean;
+  }
+
+  const xrHands: XrHand[] = [];
+
+  for (let i = 0; i < 2; i += 1) {
+    const controller = renderer.xr.getController(i);
+    const sample: HandSample = {
+      side: 'none',
+      source: 'xr',
+      position: new THREE.Vector3(),
+      velocity: new THREE.Vector3(),
+      active: false,
+    };
+    samples.push(sample);
+
+    const trail = createTrail(HAND_COLOR.none, glowMap, scene);
+    trails.push(trail);
+
+    const hand: XrHand = {
+      sample,
+      trail,
+      controller,
+      prev: new THREE.Vector3(),
+      hasPrev: false,
+    };
+
+    const onConnected = (event: unknown): void => {
+      const handedness = (event as { data?: { handedness?: string } }).data?.handedness;
+      const side: HandSide = handedness === 'left' || handedness === 'right' ? handedness : 'none';
+      hand.sample.side = side;
+      hand.sample.active = true;
+      hand.trail.base.setHex(HAND_COLOR[side]);
+      hand.hasPrev = false;
+    };
+    const onDisconnected = (): void => {
+      hand.sample.active = false;
+      hand.sample.side = 'none';
+      hand.sample.velocity.set(0, 0, 0);
+      hand.trail.clear();
+      hand.trail.points.visible = false;
+      hand.hasPrev = false;
+    };
+
+    controller.addEventListener('connected', onConnected);
+    controller.addEventListener('disconnected', onDisconnected);
+    cleanups.push(() => {
+      controller.removeEventListener('connected', onConnected);
+      controller.removeEventListener('disconnected', onDisconnected);
+    });
+    xrHands.push(hand);
+  }
+
+  return {
+    samples,
+
+    update(dt: number, camera: THREE.PerspectiveCamera): void {
+      const presenting = renderer.xr.isPresenting;
+
+      // —— 指针 ——
+      if (!presenting && pointerSeen) {
+        raycaster.setFromCamera(pointer, camera);
+        const hit = raycaster.ray.intersectPlane(pointerPlane, pointerHit);
+        if (hit) {
+          if (pointerSample.active) {
+            pointerPrev.copy(pointerSample.position);
+            const raw = pointerHit.clone().sub(pointerPrev).divideScalar(Math.max(dt, 1e-4));
+            if (raw.length() > SPIKE_SPEED) raw.set(0, 0, 0);
+            pointerSample.velocity.lerp(raw, VELOCITY_SMOOTHING);
+          } else {
+            pointerSample.velocity.set(0, 0, 0);
+          }
+          // 桌面上只让指针控制横向：高度与 z 都固定，鼠标指到远处也不会打不到。
+          pointerHit.y = options.pointerPlaneY;
+          pointerSample.position.copy(pointerHit);
+          pointerSample.active = true;
+          pointerMarker.visible = true;
+          pointerMarker.position.copy(pointerHit);
+          pointerTrail.points.visible = true;
+          pointerTrail.push(pointerHit);
+        } else {
+          pointerSample.active = false;
+          pointerMarker.visible = false;
+          pointerTrail.points.visible = false;
+        }
+      } else {
+        pointerSample.active = false;
+        pointerMarker.visible = false;
+        pointerTrail.points.visible = false;
+        pointerTrail.clear();
+      }
+
+      // —— 控制器 ——
+      for (const hand of xrHands) {
+        if (!hand.sample.active) continue;
+
+        hand.controller.getWorldPosition(hand.sample.position);
+        if (hand.hasPrev) {
+          const raw = hand.sample.position.clone().sub(hand.prev).divideScalar(Math.max(dt, 1e-4));
+          if (raw.length() > SPIKE_SPEED) raw.set(0, 0, 0);
+          hand.sample.velocity.lerp(raw, VELOCITY_SMOOTHING);
+        } else {
+          hand.sample.velocity.set(0, 0, 0);
+          hand.hasPrev = true;
+        }
+        hand.prev.copy(hand.sample.position);
+        hand.trail.points.visible = true;
+        hand.trail.push(hand.sample.position);
+      }
+    },
+
+    dispose(): void {
+      cleanups.forEach((fn) => fn());
+      for (const trail of trails) {
+        scene.remove(trail.points);
+        trail.geometry.dispose();
+        (trail.points.material as THREE.Material).dispose();
+      }
+      scene.remove(pointerMarker);
+      disposables.forEach((item) => item.dispose());
+    },
+  };
+}

@@ -21,6 +21,8 @@ const ROWS: ReadonlyArray<{ key: string; label: string }> = [
   { key: 'session', label: 'session' },
   { key: 'refspace', label: 'reference space' },
   { key: 'controllers', label: 'controllers' },
+  { key: 'drag', label: 'drag 命中 / 漏' },
+  { key: 'judge', label: 'last judge' },
   { key: 'fps', label: 'fps' },
   { key: 'draws', label: 'draw calls' },
   { key: 'tris', label: 'triangles' },

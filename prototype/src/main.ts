@@ -4,6 +4,8 @@ import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 
 import { DEFAULT_PARAMS, type TableParams } from './config';
+import { createDragWave, type DragWave, type DragWaveSettings } from './game/dragWave';
+import { createHands } from './game/hands';
 import { createEnvironment } from './materials/environment';
 import { createMaterialLibrary } from './materials/library';
 import { buildBackdrop } from './scene/backdrop';
@@ -27,6 +29,10 @@ const container = document.getElementById('app');
 if (!container) throw new Error('#app container is missing');
 
 const params: TableParams = { ...DEFAULT_PARAMS };
+
+// 键型预览与打击练习的开关；也接受 ?preview=1 / ?auto=1。
+const previewState = { visible: false };
+const playSettings: DragWaveSettings = { enabled: true, flowSpeed: 3.0, interval: 0.22, auto: false };
 
 // —— 渲染器 ——
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -123,6 +129,8 @@ if (import.meta.env.DEV) {
   if (Number.isFinite(env) && env >= 0 && query.has('env')) scene.environmentIntensity = env;
 
   if (query.get('numbers') === '1') params.showLaneNumbers = true;
+  if (query.get('preview') === '1') previewState.visible = true;
+  if (query.get('auto') === '1') playSettings.auto = true;
 }
 
 // —— 内容 ——
@@ -148,22 +156,59 @@ applyLab();
 let table = buildTable(params, lib);
 scene.add(table.group);
 
-// 键型预览：四种键各一份，用来定造型与材质。
+// 键型预览：四种键各一份，用来定造型与材质。现在默认隐藏——打击练习才是主画面。
 const notes = buildNotesPreview(params, table.geometry, lib);
 scene.add(notes.group);
+
+// —— 打击练习：4 条 drag 的楼梯 ——
+let dragWave: DragWave = createDragWave(params, table.geometry, lib, playSettings);
+scene.add(dragWave.group);
+
+const hands = createHands(renderer, scene, {
+  pointerPlaneY: params.tableHeight + 0.07,
+  pointerZ: table.geometry.bandZ,
+});
+
+// dev：?warp=1.6 先把练习快进若干秒，配合 ?freeze=1 冻结在那一帧（headless 帧率低，等不到）。
+let frozen = false;
+if (import.meta.env.DEV) {
+  const query = new URLSearchParams(window.location.search);
+  frozen = query.get('freeze') === '1';
+  const warp = Number(query.get('warp'));
+  if (Number.isFinite(warp) && warp > 0) {
+    const step = 1 / 90;
+    for (let t = 0; t < warp; t += step) {
+      hands.update(step, camera);
+      dragWave.update(step, hands.samples);
+    }
+  }
+}
+
+function applyPreview(): void {
+  notes.group.visible = previewState.visible;
+}
+applyPreview();
 
 function rebuild(): void {
   scene.remove(table.group);
   table.dispose();
   scene.remove(notes.group);
   notes.dispose();
+  scene.remove(dragWave.group);
+  dragWave.dispose();
+
   table = buildTable(params, lib);
   scene.add(table.group);
+
   const rebuilt = buildNotesPreview(params, table.geometry, lib);
   notes.group = rebuilt.group;
   notes.update = rebuilt.update;
   notes.dispose = rebuilt.dispose;
   scene.add(notes.group);
+  notes.group.visible = previewState.visible;
+
+  dragWave = createDragWave(params, table.geometry, lib, playSettings);
+  scene.add(dragWave.group);
 }
 
 function moveDisplay(): void {
@@ -174,18 +219,18 @@ moveDisplay();
 
 // —— 控制器（VR）——
 const diagnostics = createDiagnostics();
-const hands: Record<string, boolean> = { left: false, right: false, none: false };
+const handFlags: Record<string, boolean> = { left: false, right: false, none: false };
 
 function updateHandsRow(): void {
-  const mark = (hand: string): string => (hands[hand] ? '●' : '○');
+  const mark = (hand: string): string => (handFlags[hand] ? '●' : '○');
   const parts = [`L ${mark('left')}`, `R ${mark('right')}`];
-  if (hands.none) parts.push('? ●');
-  diagnostics.set('controllers', parts.join('  '), hands.left || hands.right || hands.none ? 'ok' : 'idle');
+  if (handFlags.none) parts.push('? ●');
+  diagnostics.set('controllers', parts.join('  '), handFlags.left || handFlags.right || handFlags.none ? 'ok' : 'idle');
 }
 
 const controllers = createControllers(renderer, scene, {
   onHandedness(hand, connected) {
-    hands[hand] = connected;
+    handFlags[hand] = connected;
     updateHandsRow();
   },
   onSelect() {
@@ -209,6 +254,8 @@ const HINT_READY = '链路就绪 · 点下方 Enter VR 进入 immersive-vr。';
 
 renderer.xr.addEventListener('sessionstart', () => {
   controls.enabled = false;
+  // 进头显时从干净的一波开始：桌面上积累的漏键不该带进 VR。
+  dragWave.restart();
   diagnostics.set('session', 'immersive-vr', 'ok');
   diagnostics.setHint('VR 会话中 · 桌面镜像上的操作不影响头显。');
 });
@@ -258,11 +305,15 @@ if (import.meta.env.DEV) {
       params,
       display: displayPlacement,
       lab: labState,
+      play: dragWave.settings,
+      preview: previewState,
       renderer,
       scene,
       onChange: rebuild,
       onDisplayChange: moveDisplay,
       onLabChange: applyLab,
+      onPreviewChange: applyPreview,
+      onPlayRestart: () => dragWave.restart(),
     });
   });
 }
@@ -272,10 +323,37 @@ let fpsFrames = 0;
 let fpsWindowStart = performance.now();
 let debugHandle: { dispose(): void } | undefined;
 
+let lastFrameTime = performance.now();
+let lastDragRow = '';
+let lastJudgeRow = '';
+
 renderer.setAnimationLoop((frameTime: number) => {
+  const dt = Math.min(Math.max((frameTime - lastFrameTime) / 1000, 0), 0.05);
+  lastFrameTime = frameTime;
+
   if (controls.enabled) controls.update();
 
   display.aimAt(camera.position);
+
+  if (!frozen) {
+    hands.update(dt, camera);
+    dragWave.update(dt, hands.samples);
+  }
+  if (previewState.visible) notes.update(frameTime / 1000);
+
+  const dragRow = `命中 ${dragWave.stats.hits} · 漏 ${dragWave.stats.misses}`;
+  if (dragRow !== lastDragRow) {
+    lastDragRow = dragRow;
+    diagnostics.set('drag', dragRow, dragWave.stats.misses > 0 ? 'warn' : 'ok');
+  }
+
+  const { lastGrade, lastOffsetMs } = dragWave.stats;
+  const offset = lastOffsetMs === null ? '' : ` ${lastOffsetMs > 0 ? '+' : ''}${lastOffsetMs}ms`;
+  const judgeRow = lastGrade ? `${lastGrade}${offset}` : '—';
+  if (judgeRow !== lastJudgeRow) {
+    lastJudgeRow = judgeRow;
+    diagnostics.set('judge', judgeRow, lastGrade === '漏' ? 'bad' : lastGrade ? 'ok' : 'idle');
+  }
 
   if (renderer.xr.isPresenting && !referenceSpaceSeen) {
     const space = renderer.xr.getReferenceSpace();
@@ -310,6 +388,9 @@ window.addEventListener('resize', () => {
 import.meta.hot?.dispose(() => {
   debugHandle?.dispose();
   controllers.dispose();
+  hands.dispose();
+  scene.remove(dragWave.group);
+  dragWave.dispose();
   scene.remove(table.group);
   table.dispose();
   scene.remove(notes.group);

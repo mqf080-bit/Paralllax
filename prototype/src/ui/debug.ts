@@ -2,6 +2,7 @@ import GUI from 'lil-gui';
 import type * as THREE from 'three';
 
 import { DEFAULT_PARAMS, type TableParams } from '../config';
+import type { DragWaveSettings } from '../game/dragWave';
 import { DEFAULT_DISPLAY, type DisplayPlacement } from '../scene/display';
 
 /**
@@ -15,11 +16,15 @@ export interface DebugOptions {
   params: TableParams;
   display: DisplayPlacement;
   lab: { visible: boolean };
+  play: DragWaveSettings;
+  preview: { visible: boolean };
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   onChange(): void;
   onDisplayChange(): void;
   onLabChange(): void;
+  onPreviewChange(): void;
+  onPlayRestart(): void;
 }
 
 export interface DebugHandle {
@@ -27,7 +32,8 @@ export interface DebugHandle {
 }
 
 export function createDebug(options: DebugOptions): DebugHandle {
-  const { params, display, lab, renderer, scene, onChange, onDisplayChange, onLabChange } = options;
+  const { params, display, lab, play, preview, renderer, scene } = options;
+  const { onChange, onDisplayChange, onLabChange, onPreviewChange, onPlayRestart } = options;
   const gui = new GUI({ title: 'PARALLAX · STEP 1', width: 288 });
 
   const table = gui.addFolder('台面');
@@ -40,6 +46,14 @@ export function createDebug(options: DebugOptions): DebugHandle {
   const layout = gui.addFolder('布局');
   layout.add(params, 'showLaneNumbers').name('近端轨号').onChange(onChange);
   layout.add(params, 'showBand').name('判定带').onChange(onChange);
+  layout.add(preview, 'visible').name('键型预览').onChange(onPreviewChange);
+
+  const playFolder = gui.addFolder('打击单');
+  playFolder.add(play, 'enabled').name('生成键');
+  playFolder.add(play, 'flowSpeed', 1, 6, 0.1).name('流速 m/s');
+  playFolder.add(play, 'interval', 0.1, 0.5, 0.01).name('楼梯间隔 s');
+  playFolder.add(play, 'auto').name('自动扫（演示）');
+  playFolder.add({ restart: onPlayRestart }, 'restart').name('重开这一波');
 
   const floating = gui.addFolder('浮空显示');
   floating.add(display, 'x', -2, 2, 0.01).name('X 右').onChange(onDisplayChange);
