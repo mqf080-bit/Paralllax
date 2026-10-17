@@ -149,6 +149,7 @@ export function createPlayfield(
   lib: MaterialLibrary,
   settings: PlayfieldSettings,
   hooks: PlayfieldHooks = {},
+  getWindowOffset: () => number = () => 0,
 ): Playfield {
   const stats: PlayfieldStats = { perfect: 0, good: 0, miss: 0, lastGrade: null, lastOffsetMs: null };
 
@@ -156,8 +157,15 @@ export function createPlayfield(
   group.name = 'playfield';
   const barY = params.tableHeight + BAR_HEIGHT;
   const laneCount = geometry.laneX.length;
-  const leftLane = geometry.laneX[0] ?? 0;
-  const rightLane = geometry.laneX[laneCount - 1] ?? 0;
+
+  /** 窗口里的第 index 条轨（0–3）对应的物理轨中心。窗口滑动时跟着走。 */
+  function laneCenter(index: number): number {
+    const offset = Math.round(THREE.MathUtils.clamp(getWindowOffset(), -1, 1));
+    const lane = THREE.MathUtils.clamp(1 + offset + index, 0, 5);
+    return geometry.laneX6[lane] ?? 0;
+  }
+
+  const leftLane = laneCenter(0);
 
   const notes: Note[] = [];
   let clock = 0;
@@ -313,8 +321,8 @@ export function createPlayfield(
     waveEnd = waveStart + duration;
 
     const y0 = params.tableHeight + 0.06;
-    const leftX = geometry.laneX[0] ?? -0.34;
-    const rightX = geometry.laneX[laneCount - 1] ?? 0.34;
+    const leftX = laneCenter(0);
+    const rightX = laneCenter(laneCount - 1);
 
     // 一个够得着的拱：从左轨起、升高、跨到右轨落下。
     // z 由时间轴自动算出来（roll 向玩家），这里只给 x / y。
@@ -371,7 +379,7 @@ export function createPlayfield(
     for (let index = 0; index < HIT_RUN.length; index += 1) {
       const spec = HIT_RUN[index]!;
       const arriveAt = waveStart + index * HIT_INTERVAL;
-      const laneX = geometry.laneX[spec.lane]!;
+      const laneX = laneCenter(spec.lane);
 
       const noteGroup = new THREE.Group();
       noteGroup.name = `hit-lane${spec.lane + 1}-${spec.hand}`;
@@ -418,7 +426,7 @@ export function createPlayfield(
       glow.renderOrder = 4;
       noteGroup.add(glow);
 
-      const laneX = geometry.laneX[lane]!;
+      const laneX = laneCenter(lane);
       noteGroup.position.set(laneX, barY, geometry.bandZ - settings.flowSpeed * (arriveAt - clock));
       group.add(noteGroup);
 
@@ -440,7 +448,7 @@ export function createPlayfield(
     waveEnd = waveStart + HOLD_DURATION;
 
     const lane = Math.floor(waveCount / 3) % 2 === 0 ? 1 : 2;
-    const laneX = geometry.laneX[lane] ?? 0;
+    const laneX = laneCenter(lane);
     const length = Math.max(settings.flowSpeed * HOLD_DURATION, 0.6);
 
     const noteGroup = new THREE.Group();
@@ -709,7 +717,9 @@ export function createPlayfield(
       targetHand = hit.hand ?? 'none';
     } else if (clock >= waveStart && clock <= waveEnd) {
       const t = (clock - waveStart) / Math.max(waveEnd - waveStart, 1e-3);
-      ghostPosition.set(leftLane + (rightLane - leftLane) * t, barY + 0.006, geometry.bandZ);
+      const from = laneCenter(0);
+      const to = laneCenter(laneCount - 1);
+      ghostPosition.set(from + (to - from) * t, barY + 0.006, geometry.bandZ);
     }
 
     ghostVelocity.copy(ghostPosition).sub(ghostPrev).divideScalar(Math.max(dt, 1e-4));

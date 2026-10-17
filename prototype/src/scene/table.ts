@@ -5,21 +5,22 @@ import { deriveGeometry, type TableGeometry, type TableParams } from '../config'
 import type { MaterialLibrary } from '../materials/library';
 
 /**
- * 台面：一块 10m 长的实心板，4 条轨，没有凹槽、没有边框。
+ * 台面：一块 10m 长的实心板，物理场 6 轨。
  *
- * 读过第二版反馈之后的取舍：
- * - 凹槽全部取消，轨与轨之间只用一条 1.6mm 的暗线分隔。
- * - 台面宽度 ≈ 4 轨，左右只留 4mm 倒角余量。
- * - 板下仍然是剖切的：近端整面 + 右侧靠玩家的一段敞开，露出层与筋。
+ * 可见性按「4 轨窗口」做：
+ * - 正常：1–4 亮，0 / 5 被暗色挡板盖住；
+ * - 左 shift：0 亮起、4 盖住（窗口整体左移一轨）；
+ * - 右 shift：5 亮起、1 盖住。
  *
- * 判定带（5.1）依旧是贴在台面上的一段光带，位置固定。
+ * 窗口滑动不是几何体在动，而是**暗色挡板 + 分割线 + 判定带 + 轨号**按窗口权重淡入淡出。
+ * 编号 0–5 与台面固定不动。
  */
 
 export interface TableBuild {
   group: THREE.Group;
   geometry: TableGeometry;
-  /** shift 的过渡值 0–1：0 = 0/5 轨不存在，1 = 完全淡入。 */
-  setShift(value: number): void;
+  /** 4 轨窗口的位置：-1 = 左移一轨，0 = 常态，1 = 右移一轨（可传小数做过渡）。 */
+  setWindow(value: number): void;
   dispose(): void;
 }
 
@@ -30,6 +31,12 @@ const BASE_THICKNESS = 0.008;
 const SIDE_CUT_LENGTH = 2.4;
 /** 分割线宽度（米）：细到「能数清 4 轨」，粗到不是一道缝。 */
 const DIVIDER_WIDTH = 0.0016;
+/** 挡板（窗口外的轨面）颜色：几乎灭掉。 */
+const SHUTTER_COLOR = 0x121820;
+/** 0 / 5 轨进入窗口时的颜色：比常驻轨暗一档。 */
+const SHIFT_LANE_COLOR = 0x232c38;
+/** 窗口宽度（轨数）。 */
+const WINDOW_LANES = 4;
 
 function roundedRect(target: THREE.Shape | THREE.Path, cx: number, cy: number, w: number, h: number, r: number): void {
   const x0 = cx - w / 2;
@@ -63,6 +70,13 @@ function mergeAll(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry | nu
   return merged;
 }
 
+/** 窗口值 w 下，第 i 条轨被点亮的比例（0–1）。 */
+function laneLit(i: number, w: number): number {
+  const left = 0.5 + w;
+  const right = 0.5 + w + WINDOW_LANES;
+  return THREE.MathUtils.clamp(Math.min(i + 0.5, right) - Math.max(i - 0.5, left), 0, 1);
+}
+
 export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuild {
   const g = deriveGeometry(params);
   const group = new THREE.Group();
@@ -75,7 +89,6 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
   const zCenter = (g.nearZ + g.farZ) / 2;
 
   // —— 顶板：一块整板，没有孔 ——
-  // ExtrudeGeometry 的 bevel 会向 z 两端各多长出一段，所以深度要减掉两头、再整体下移。
   const shape = new THREE.Shape();
   roundedRect(shape, 0, zCenter, g.width, g.depth, 0.01);
 
@@ -96,56 +109,175 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
   plate.receiveShadow = true;
   group.add(plate);
 
-  // —— 4 轨之间的分割线 ——
-  const dividerGeometries = g.dividerX.map((x) => {
-    const plane = new THREE.PlaneGeometry(DIVIDER_WIDTH, g.fieldLength);
-    plane.rotateX(-Math.PI / 2);
-    plane.translate(x, topY + 0.0006, g.fieldCenterZ);
-    return plane;
-  });
-  const dividerGeometry = mergeAll(dividerGeometries);
-  if (dividerGeometry) {
-    const dividers = new THREE.Mesh(dividerGeometry, lib.divider);
-    dividers.name = 'lane-dividers';
-    dividers.renderOrder = 2;
-    group.add(dividers);
+  // —— 窗口挡板：窗口外的轨被暗色板盖住 ——
+  const shiftMaterials: THREE.Material[] = [];
+  const shiftRoughness = lib.brushed.roughnessMap.clone();
+  shiftRoughness.repeat.set(3, 3);
+  shiftRoughness.needsUpdate = true;
+  const shiftNormal = lib.brushed.normalMap.clone();
+  shiftNormal.repeat.set(3, 3);
+  shiftNormal.needsUpdate = true;
+
+  const shutterMaterials: THREE.MeshStandardMaterial[] = [];
+  const shutterMeshes: THREE.Mesh[] = [];
+  for (let lane = 0; lane < 6; lane += 1) {
+    const material = new THREE.MeshStandardMaterial({
+      color: SHUTTER_COLOR,
+      metalness: 0.45,
+      roughness: 0.52,
+      envMapIntensity: 0.75,
+      transparent: true,
+      opacity: 1,
+    });
+    material.roughnessMap = shiftRoughness;
+    material.normalMap = shiftNormal;
+    material.normalScale = new THREE.Vector2(0.22, 0.22);
+    shiftMaterials.push(material);
+    shutterMaterials.push(material);
+
+    const geometry = new THREE.PlaneGeometry(g.laneWidth, g.fieldLength);
+    geometry.rotateX(-Math.PI / 2);
+    geometry.translate(g.laneX6[lane]!, topY + 0.00018, g.fieldCenterZ);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = `shift-shutter-${lane}`;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    shutterMeshes.push(mesh);
   }
 
-  // —— 判定带：台面上的一段冷白光带，静态 ——
+  // —— 0 / 5 轨进入窗口时用更暗的一层表面：它们永远比常驻轨深一档 ——
+  const shiftLaneMaterials: THREE.MeshStandardMaterial[] = [];
+  const shiftLaneMeshes: THREE.Mesh[] = [];
+  for (const lane of [0, 5]) {
+    const material = new THREE.MeshStandardMaterial({
+      color: SHIFT_LANE_COLOR,
+      metalness: 0.45,
+      roughness: 0.5,
+      envMapIntensity: 0.8,
+      transparent: true,
+      opacity: 0,
+    });
+    material.roughnessMap = shiftRoughness;
+    material.normalMap = shiftNormal;
+    material.normalScale = new THREE.Vector2(0.22, 0.22);
+    shiftMaterials.push(material);
+    shiftLaneMaterials.push(material);
+
+    const geometry = new THREE.PlaneGeometry(g.laneWidth, g.fieldLength);
+    geometry.rotateX(-Math.PI / 2);
+    geometry.translate(g.laneX6[lane]!, topY + 0.00024, g.fieldCenterZ);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    shiftLaneMeshes.push(mesh);
+  }
+
+  // —— 5 条分割线：只有夹在窗口里的那几条亮 ——
+  const dividerMaterials: THREE.MeshBasicMaterial[] = [];
+  for (let i = 0; i < 5; i += 1) {
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x04060a,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    shiftMaterials.push(material);
+    dividerMaterials.push(material);
+
+    const geometry = new THREE.PlaneGeometry(DIVIDER_WIDTH, g.fieldLength);
+    geometry.rotateX(-Math.PI / 2);
+    geometry.translate(g.dividerX6[i]!, topY + 0.0006, g.fieldCenterZ);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.renderOrder = 2;
+    group.add(mesh);
+  }
+
+  // —— 判定带：三个窗口位置各一条，交叉淡入淡出 ——
+  interface BandSlot {
+    offset: number;
+    halo: THREE.MeshBasicMaterial;
+    core: THREE.MeshBasicMaterial;
+  }
+  const bandSlots: BandSlot[] = [];
   if (params.showBand) {
-    const halo = new THREE.PlaneGeometry(g.width * 0.98, g.bandLength);
-    halo.rotateX(-Math.PI / 2);
-    halo.translate(0, topY + 0.0005, g.bandZ);
-    const haloMesh = new THREE.Mesh(halo, lib.band);
-    haloMesh.name = 'judgement-band-halo';
-    haloMesh.renderOrder = 2;
-    group.add(haloMesh);
+    for (const offset of [-1, 0, 1]) {
+      const halo = lib.band.clone();
+      halo.opacity = 0;
+      const core = lib.bandCore.clone();
+      core.opacity = 0;
+      shiftMaterials.push(halo, core);
 
-    const core = new THREE.PlaneGeometry(g.width * 0.96, 0.008);
-    core.rotateX(-Math.PI / 2);
-    core.translate(0, topY + 0.0008, g.bandZ);
-    const coreMesh = new THREE.Mesh(core, lib.bandCore);
-    coreMesh.name = 'judgement-band-core';
-    coreMesh.renderOrder = 3;
-    group.add(coreMesh);
+      const x = offset * g.laneWidth;
+      const haloGeometry = new THREE.PlaneGeometry(g.laneWidth * WINDOW_LANES * 0.98, g.bandLength);
+      haloGeometry.rotateX(-Math.PI / 2);
+      haloGeometry.translate(x, topY + 0.0005, g.bandZ);
+      const haloMesh = new THREE.Mesh(haloGeometry, halo);
+      haloMesh.renderOrder = 2;
+      group.add(haloMesh);
+
+      const coreGeometry = new THREE.PlaneGeometry(g.laneWidth * WINDOW_LANES * 0.96, 0.008);
+      coreGeometry.rotateX(-Math.PI / 2);
+      coreGeometry.translate(x, topY + 0.0008, g.bandZ);
+      const coreMesh = new THREE.Mesh(coreGeometry, core);
+      coreMesh.renderOrder = 3;
+      group.add(coreMesh);
+
+      bandSlots.push({ offset, halo, core });
+    }
   }
 
-  // —— 轨号（调试）——
+  // —— 轨号（调试）：0–5 固定在各自的轨上 ——
+  const digitMaterials: THREE.MeshBasicMaterial[] = [];
   if (params.showLaneNumbers) {
-    g.laneX.forEach((x, lane) => {
-      const plane = new THREE.PlaneGeometry(0.018, 0.018);
-      plane.rotateX(-Math.PI / 2);
-      plane.translate(x, topY + 0.0011, g.nearZ - 0.02);
-      // 轨号沿用谱面层的编号：默认显示 1–4。
-      const digit = new THREE.Mesh(plane, lib.laneDigits[lane + 1]!);
-      digit.name = `lane-number-${lane}`;
+    g.laneX6.forEach((x, lane) => {
+      const material = lib.laneDigits[lane]!.clone();
+      material.opacity = 0;
+      shiftMaterials.push(material);
+      digitMaterials.push(material);
+
+      const geometry = new THREE.PlaneGeometry(0.018, 0.018);
+      geometry.rotateX(-Math.PI / 2);
+      geometry.translate(x, topY + 0.0011, g.nearZ - 0.02);
+      const digit = new THREE.Mesh(geometry, material);
       digit.renderOrder = 3;
       group.add(digit);
     });
   }
 
+  function setWindow(value: number): void {
+    const w = THREE.MathUtils.clamp(value, -1, 1);
+
+    for (let lane = 0; lane < 6; lane += 1) {
+      const lit = laneLit(lane, w);
+      shutterMaterials[lane]!.opacity = 1 - lit;
+      shutterMeshes[lane]!.visible = lit < 0.995;
+    }
+
+    for (let i = 0; i < shiftLaneMaterials.length; i += 1) {
+      const lane = i === 0 ? 0 : 5;
+      const lit = laneLit(lane, w);
+      shiftLaneMaterials[i]!.opacity = lit;
+      shiftLaneMeshes[i]!.visible = lit > 0.005;
+    }
+
+    for (let i = 0; i < 5; i += 1) {
+      dividerMaterials[i]!.opacity = Math.min(laneLit(i, w), laneLit(i + 1, w)) * 0.72;
+    }
+
+    for (const slot of bandSlots) {
+      const weight = THREE.MathUtils.clamp(1 - Math.abs(w - slot.offset), 0, 1);
+      slot.halo.opacity = weight * 0.3;
+      slot.core.opacity = weight * 0.16;
+    }
+
+    for (let lane = 0; lane < 6; lane += 1) {
+      const material = digitMaterials[lane];
+      if (material) material.opacity = laneLit(lane, w) * 0.85;
+    }
+  }
+  setWindow(0);
+
   // —— 剖切腔体 ——
-  // 外壳：左侧与远端封闭；右侧只保留远端（靠玩家的一段切开）。
   const skinParts: THREE.BufferGeometry[] = [];
   skinParts.push(box(0.012, CAVITY_DEPTH, g.depth - 0.012, -g.width / 2 + 0.006, cavityBottom + CAVITY_DEPTH / 2, zCenter));
   skinParts.push(box(g.width - 0.012, CAVITY_DEPTH, 0.012, 0, cavityBottom + CAVITY_DEPTH / 2, g.farZ + 0.006));
@@ -164,7 +296,6 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
     );
   }
 
-  // 承力底板。
   skinParts.push(box(g.width - 0.024, BASE_THICKNESS, g.depth - 0.024, 0, cavityBottom + BASE_THICKNESS / 2, zCenter));
 
   const skinGeometry = mergeAll(skinParts);
@@ -174,7 +305,6 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
     group.add(skin);
   }
 
-  // 中层甲板 + 纵筋 + 横梁：剖切里能读出来的「层」。
   const innerParts: THREE.BufferGeometry[] = [];
   const deckY = cavityBottom + 0.034;
   innerParts.push(box(g.width - 0.05, 0.006, g.depth * 0.42, 0, deckY, g.farZ + g.depth * 0.24));
@@ -196,23 +326,19 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
     group.add(inner);
   }
 
-  // 剖切面倒角框：把两个开口框出来。
   const edgeParts: THREE.BufferGeometry[] = [];
   const frame = 0.006;
   const cutEndZ = g.nearZ - SIDE_CUT_LENGTH;
 
-  // 近端整面敞开。
   edgeParts.push(box(g.width, frame, frame, 0, cavityTop - frame / 2, g.nearZ - frame / 2));
   edgeParts.push(box(g.width, frame, frame, 0, cavityBottom + frame / 2, g.nearZ - frame / 2));
   edgeParts.push(box(frame, CAVITY_DEPTH, frame, -g.width / 2 + frame / 2, cavityBottom + CAVITY_DEPTH / 2, g.nearZ - frame / 2));
   edgeParts.push(box(frame, CAVITY_DEPTH, frame, g.width / 2 - frame / 2, cavityBottom + CAVITY_DEPTH / 2, g.nearZ - frame / 2));
 
-  // 右侧靠玩家的一段。
   edgeParts.push(box(frame, frame, SIDE_CUT_LENGTH, g.width / 2 - frame / 2, cavityTop - frame / 2, g.nearZ - SIDE_CUT_LENGTH / 2));
   edgeParts.push(box(frame, frame, SIDE_CUT_LENGTH, g.width / 2 - frame / 2, cavityBottom + frame / 2, g.nearZ - SIDE_CUT_LENGTH / 2));
   edgeParts.push(box(frame, CAVITY_DEPTH, frame, g.width / 2 - frame / 2, cavityBottom + CAVITY_DEPTH / 2, cutEndZ + frame / 2));
 
-  // 切面上的断面端头：筋 / 底板。
   for (const x of [-g.width * 0.33, 0, g.width * 0.33]) {
     edgeParts.push(box(0.015, ribHeight, 0.0025, x, ribBottom + ribHeight / 2, g.nearZ - 0.0012));
   }
@@ -225,122 +351,10 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
     group.add(edges);
   }
 
-  // —— shift 轨：0 / 5 ——
-  // 平时不存在，shift 时淡入。颜色比常住的 4 轨暗一档，本身就是状态标识。
-  const shiftMaterials: THREE.Material[] = [];
-  const shiftMeshes: THREE.Mesh[] = [];
-
-  const shiftLaneMaterial = new THREE.MeshStandardMaterial({
-    color: 0x1c2430,
-    metalness: 0.45,
-    roughness: 0.52,
-    envMapIntensity: 0.7,
-    transparent: true,
-    opacity: 0,
-  });
-  shiftMaterials.push(shiftLaneMaterial);
-
-  // 拉丝贴图沿用台面的：多出来的轨也要是「同一块材料，只是更暗」。
-  const shiftRoughness = lib.brushed.roughnessMap.clone();
-  shiftRoughness.repeat.set(3, 3);
-  shiftRoughness.needsUpdate = true;
-  const shiftNormal = lib.brushed.normalMap.clone();
-  shiftNormal.repeat.set(3, 3);
-  shiftNormal.needsUpdate = true;
-  shiftLaneMaterial.roughnessMap = shiftRoughness;
-  shiftLaneMaterial.normalMap = shiftNormal;
-  shiftLaneMaterial.normalScale = new THREE.Vector2(0.22, 0.22);
-
-  const shiftDividerMaterial = new THREE.MeshBasicMaterial({
-    color: 0x04060a,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-  });
-  shiftMaterials.push(shiftDividerMaterial);
-
-  const shiftBandMaterial = lib.band.clone();
-  shiftBandMaterial.opacity = 0;
-  shiftMaterials.push(shiftBandMaterial);
-
-  const shiftBandCoreMaterial = lib.bandCore.clone();
-  shiftBandCoreMaterial.opacity = 0;
-  shiftMaterials.push(shiftBandCoreMaterial);
-
-  const shiftDigitMaterials: THREE.MeshBasicMaterial[] = [];
-  if (params.showLaneNumbers) {
-    for (const digit of [0, 5]) {
-      const material = lib.laneDigits[digit]!.clone();
-      material.opacity = 0;
-      shiftDigitMaterials.push(material);
-      shiftMaterials.push(material);
-    }
-  }
-
-  const outerLaneCenters = [-1, 1].map((side) => side * (g.width / 2 + g.laneWidth / 2));
-  const outerLaneWidth = g.laneWidth - 0.002;
-
-  outerLaneCenters.forEach((x, index) => {
-    const strip = new THREE.Mesh(new THREE.BoxGeometry(outerLaneWidth, 0.01, g.fieldLength), shiftLaneMaterial);
-    strip.name = `shift-lane-${index === 0 ? 0 : 5}`;
-    strip.position.set(x, topY - 0.005, g.fieldCenterZ);
-    strip.receiveShadow = true;
-    group.add(strip);
-    shiftMeshes.push(strip);
-
-    // 与常驻台面之间的分界线。
-    const divider = new THREE.PlaneGeometry(DIVIDER_WIDTH, g.fieldLength);
-    divider.rotateX(-Math.PI / 2);
-    divider.translate(Math.sign(x) * (g.width / 2 + 0.001), topY + 0.0006, g.fieldCenterZ);
-    const dividerMesh = new THREE.Mesh(divider, shiftDividerMaterial);
-    dividerMesh.renderOrder = 2;
-    group.add(dividerMesh);
-    shiftMeshes.push(dividerMesh);
-
-    if (params.showBand) {
-      const halo = new THREE.PlaneGeometry(outerLaneWidth * 0.98, g.bandLength);
-      halo.rotateX(-Math.PI / 2);
-      halo.translate(x, topY + 0.0005, g.bandZ);
-      const haloMesh = new THREE.Mesh(halo, shiftBandMaterial);
-      haloMesh.renderOrder = 2;
-      group.add(haloMesh);
-      shiftMeshes.push(haloMesh);
-
-      const core = new THREE.PlaneGeometry(outerLaneWidth * 0.94, 0.008);
-      core.rotateX(-Math.PI / 2);
-      core.translate(x, topY + 0.0008, g.bandZ);
-      const coreMesh = new THREE.Mesh(core, shiftBandCoreMaterial);
-      coreMesh.renderOrder = 3;
-      group.add(coreMesh);
-      shiftMeshes.push(coreMesh);
-    }
-
-    if (params.showLaneNumbers) {
-      const digit = new THREE.PlaneGeometry(0.018, 0.018);
-      digit.rotateX(-Math.PI / 2);
-      digit.translate(x, topY + 0.0011, g.nearZ - 0.02);
-      const digitMesh = new THREE.Mesh(digit, shiftDigitMaterials[index]!);
-      digitMesh.renderOrder = 3;
-      group.add(digitMesh);
-      shiftMeshes.push(digitMesh);
-    }
-  });
-
-  function setShift(value: number): void {
-    const t = THREE.MathUtils.clamp(value, 0, 1);
-    shiftLaneMaterial.opacity = t * 0.85;
-    shiftDividerMaterial.opacity = t * 0.72;
-    shiftBandMaterial.opacity = t * 0.3;
-    shiftBandCoreMaterial.opacity = t * 0.16;
-    for (const material of shiftDigitMaterials) material.opacity = t * 0.85;
-    for (const mesh of shiftMeshes) mesh.visible = t > 0.002;
-  }
-  setShift(0);
-
   return {
     group,
     geometry: g,
-    setShift,
+    setWindow,
     dispose(): void {
       group.traverse((object) => {
         if (object instanceof THREE.Mesh) object.geometry.dispose();

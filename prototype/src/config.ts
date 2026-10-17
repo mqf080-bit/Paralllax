@@ -48,10 +48,14 @@ export interface TableGeometry {
   nearZ: number;
   /** 远端 z。 */
   farZ: number;
-  /** 每轨中心 x（4 条）。 */
+  /** 窗口内 4 条轨的中心 x（= laneX6 的第 1–4 条）。 */
   laneX: number[];
-  /** 轨与轨之间的分割线 x（3 条）。 */
+  /** 物理场 6 条轨的中心 x（0–5）。 */
+  laneX6: number[];
+  /** 轨与轨之间的分割线 x（窗口内 3 条）。 */
   dividerX: number[];
+  /** 6 轨场的 5 条分割线 x。 */
+  dividerX6: number[];
   laneWidth: number;
   /** 编排区（分割线 / 判定带）在 z 方向的长度。 */
   fieldLength: number;
@@ -69,12 +73,15 @@ const NEAR_MARGIN = 0.04;
 const FAR_MARGIN = 0.06;
 
 export function deriveGeometry(p: TableParams): TableGeometry {
-  const width = p.laneWidth * LANE_COUNT + EDGE_MARGIN * 2;
+  // 物理场是 6 轨；窗口只点亮其中 4 条。
+  const width = p.laneWidth * 6 + EDGE_MARGIN * 2;
   const nearZ = p.nearOffset;
   const farZ = nearZ - p.tableDepth;
 
-  const laneX = Array.from({ length: LANE_COUNT }, (_, i) => (i - (LANE_COUNT - 1) / 2) * p.laneWidth);
+  const laneX6 = Array.from({ length: 6 }, (_, i) => (i - 2.5) * p.laneWidth);
+  const laneX = laneX6.slice(1, 5);
   const dividerX = Array.from({ length: LANE_COUNT - 1 }, (_, i) => (i + 1 - LANE_COUNT / 2) * p.laneWidth);
+  const dividerX6 = Array.from({ length: 5 }, (_, i) => (i - 2) * p.laneWidth);
 
   const fieldLength = p.tableDepth - NEAR_MARGIN - FAR_MARGIN;
   const fieldCenterZ = nearZ - NEAR_MARGIN - fieldLength / 2;
@@ -89,7 +96,9 @@ export function deriveGeometry(p: TableParams): TableGeometry {
     nearZ,
     farZ,
     laneX,
+    laneX6,
     dividerX,
+    dividerX6,
     laneWidth: p.laneWidth,
     fieldLength,
     fieldCenterZ,

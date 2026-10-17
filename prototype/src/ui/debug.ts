@@ -17,7 +17,7 @@ export interface DebugOptions {
   display: DisplayPlacement;
   lab: { visible: boolean };
   play: PlayfieldSettings;
-  shift: { active: boolean };
+  shift: { mode: 'normal' | 'left' | 'right' };
   preview: { visible: boolean };
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
@@ -48,7 +48,7 @@ export function createDebug(options: DebugOptions): DebugHandle {
   layout.add(params, 'showLaneNumbers').name('近端轨号').onChange(onChange);
   layout.add(params, 'showBand').name('判定带').onChange(onChange);
   layout.add(preview, 'visible').name('键型预览').onChange(onPreviewChange);
-  layout.add(shift, 'active').name('shift 状态（0/5 轨）');
+  layout.add(shift, 'mode', ['normal', 'left', 'right']).name('shift 窗口');
 
   const playFolder = gui.addFolder('打击单');
   playFolder.add(play, 'enabled').name('生成键');

@@ -34,8 +34,9 @@ const params: TableParams = { ...DEFAULT_PARAMS };
 const previewState = { visible: false };
 const playSettings: PlayfieldSettings = { enabled: true, flowSpeed: 3.0, interval: 0.22, holdTicks: 4, auto: false };
 
-// shift 状态：0/5 轨是否出现。过渡值单独存，做淡入淡出。
-const shiftState = { active: false };
+// shift 状态：4 轨窗口的位置。-1 = 左移一轨，0 = 常态，1 = 右移一轨。
+// 过渡值是连续的，做淡入淡出与判定带的交叉过渡。
+const shiftState: { mode: 'normal' | 'left' | 'right' } = { mode: 'normal' };
 let shiftValue = 0;
 
 // —— 渲染器 ——
@@ -137,7 +138,8 @@ if (import.meta.env.DEV) {
   if (query.get('numbers') === '1') params.showLaneNumbers = true;
   if (query.get('preview') === '1') previewState.visible = true;
   if (query.get('auto') === '1') playSettings.auto = true;
-  if (query.get('shift') === '1') shiftState.active = true;
+  const shiftParam = query.get('shift');
+  if (shiftParam === 'left' || shiftParam === 'right' || shiftParam === 'normal') shiftState.mode = shiftParam;
   const flow = Number(query.get('flow'));
   if (Number.isFinite(flow) && flow > 0) playSettings.flowSpeed = flow;
 }
@@ -164,7 +166,7 @@ applyLab();
 
 let table = buildTable(params, lib);
 scene.add(table.group);
-table.setShift(shiftValue);
+table.setWindow(shiftValue);
 
 // 键型预览：四种键各一份，用来定造型与材质。现在默认隐藏——打击练习才是主画面。
 const notes = buildNotesPreview(params, table.geometry, lib);
@@ -182,7 +184,7 @@ const playHooks = {
   },
 };
 
-let playfield: Playfield = createPlayfield(params, table.geometry, lib, playSettings, playHooks);
+let playfield: Playfield = createPlayfield(params, table.geometry, lib, playSettings, playHooks, () => shiftState.mode === 'left' ? -1 : shiftState.mode === 'right' ? 1 : 0);
 scene.add(playfield.group);
 
 // dev：?warp=1.6 先把练习快进若干秒，配合 ?freeze=1 冻结在那一帧（headless 帧率低，等不到）。
@@ -215,7 +217,7 @@ function rebuild(): void {
 
   table = buildTable(params, lib);
   scene.add(table.group);
-  table.setShift(shiftValue);
+  table.setWindow(shiftValue);
 
   const rebuilt = buildNotesPreview(params, table.geometry, lib);
   notes.group = rebuilt.group;
@@ -224,7 +226,7 @@ function rebuild(): void {
   scene.add(notes.group);
   notes.group.visible = previewState.visible;
 
-  playfield = createPlayfield(params, table.geometry, lib, playSettings, playHooks);
+  playfield = createPlayfield(params, table.geometry, lib, playSettings, playHooks, () => shiftState.mode === 'left' ? -1 : shiftState.mode === 'right' ? 1 : 0);
   scene.add(playfield.group);
 }
 
@@ -265,10 +267,12 @@ vrButton.classList.add('parallax-button');
 vrButton.style.cssText = '';
 document.body.append(vrButton);
 
-// —— shift 快捷键（S）——
+// —— shift 快捷键：A 左移 / D 右移 / S 回正 ——
 window.addEventListener('keydown', (event) => {
-  if (event.code !== 'KeyS' || event.repeat) return;
-  shiftState.active = !shiftState.active;
+  if (event.repeat) return;
+  if (event.code === 'KeyA') shiftState.mode = 'left';
+  else if (event.code === 'KeyD') shiftState.mode = 'right';
+  else if (event.code === 'KeyS') shiftState.mode = 'normal';
 });
 
 // —— 会话 ——
@@ -370,10 +374,10 @@ renderer.setAnimationLoop((frameTime: number) => {
   }
   if (previewState.visible) notes.update(frameTime / 1000);
 
-  // shift 淡入淡出：0/5 轨用 0.35s 左右的过渡出现 / 消失。
-  const shiftTarget = shiftState.active ? 1 : 0;
-  shiftValue += (shiftTarget - shiftValue) * Math.min(1, dt * 8);
-  table.setShift(shiftValue);
+  // 窗口滑动：约 0.35s 的过渡，挡板 / 分割线 / 判定带一起交叉。
+  const shiftTarget = shiftState.mode === 'left' ? -1 : shiftState.mode === 'right' ? 1 : 0;
+  shiftValue += (shiftTarget - shiftValue) * Math.min(1, dt * 7);
+  table.setWindow(shiftValue);
 
   const { perfect, good, miss, lastGrade, lastOffsetMs } = playfield.stats;
   const gradeRow = `${perfect} / ${good} / ${miss}`;
