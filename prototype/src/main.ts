@@ -9,7 +9,6 @@ import { createMaterialLibrary } from './materials/library';
 import { buildBackdrop } from './scene/backdrop';
 import { createControllers } from './scene/controllers';
 import { buildHud, createHudTextures } from './scene/hud';
-import { buildSpecimens, createSpecimenTextures } from './scene/specimens';
 import { buildTable } from './scene/table';
 import { createDiagnostics } from './ui/diagnostics';
 import { probeXr } from './xr/xr-support';
@@ -113,27 +112,21 @@ if (import.meta.env.DEV) {
 }
 
 // —— 内容 ——
+// HUD 挂在相机下面：它属于视野，不属于台面（见 hud.ts 顶部说明）。
+// 相机必须先加进场景，否则它的子物体不会被渲染。
+scene.add(camera);
 const hudTextures = createHudTextures();
-const specimenTextures = createSpecimenTextures();
+const hud = buildHud(hudTextures);
+camera.add(hud.group);
 
 let table = buildTable(params, lib);
-let hud = buildHud(params, table.geometry, lib, hudTextures);
-let specimens = buildSpecimens(params, table.geometry, lib, specimenTextures);
-scene.add(table.group, hud.group, specimens.group);
-
-function disposeContent(): void {
-  scene.remove(table.group, hud.group, specimens.group);
-  table.dispose();
-  hud.dispose();
-  specimens.dispose();
-}
+scene.add(table.group);
 
 function rebuild(): void {
-  disposeContent();
+  scene.remove(table.group);
+  table.dispose();
   table = buildTable(params, lib);
-  hud = buildHud(params, table.geometry, lib, hudTextures);
-  specimens = buildSpecimens(params, table.geometry, lib, specimenTextures);
-  scene.add(table.group, hud.group, specimens.group);
+  scene.add(table.group);
 }
 
 // —— 控制器（VR）——
@@ -263,12 +256,14 @@ window.addEventListener('resize', () => {
 import.meta.hot?.dispose(() => {
   debugHandle?.dispose();
   controllers.dispose();
-  disposeContent();
+  scene.remove(table.group);
+  table.dispose();
+  camera.remove(hud.group);
+  hud.dispose();
   scene.remove(backdrop.group);
   backdrop.dispose();
   environment.dispose();
   hudTextures.dispose();
-  specimenTextures.dispose();
   lib.dispose();
   renderer.setAnimationLoop(null);
   renderer.dispose();

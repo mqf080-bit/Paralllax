@@ -269,7 +269,7 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
   }
 
   // —— 剖切腔体：近端 + 右侧敞开，露出层叠与驱动结构 ——
-  // 三层：顶板（带槽）→ 槽底板 → 腔体（中层甲板 + 纵筋 + 轴承）→ 承力底板。
+  // 三层：顶板（带槽）→ 槽底板 → 腔体（中层甲板 + 纵筋）→ 承力底板。
   // 只有「层」读得出来，剖切才不是「一个空盒子」。
   const cutParts: THREE.BufferGeometry[] = [];
 
@@ -321,43 +321,6 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
     group.add(ribs);
   }
 
-  // 驱动：轴承座 + 轴，放在中层甲板上，靠近近端开口。
-  const steelParts: THREE.BufferGeometry[] = [];
-  for (const x of [-0.32, 0, 0.32]) {
-    steelParts.push(box(0.046, 0.036, 0.028, x, deckY + 0.021, g.farZ + 0.36));
-    const shaft = new THREE.CylinderGeometry(0.009, 0.009, 0.062, 12);
-    shaft.rotateZ(Math.PI / 2);
-    shaft.translate(x, deckY + 0.021, g.farZ + 0.36);
-    steelParts.push(shaft);
-  }
-  const steelGeometry = mergeAll(steelParts);
-  if (steelGeometry) {
-    const drives = new THREE.Mesh(steelGeometry, lib.steel);
-    drives.name = 'drives';
-    group.add(drives);
-  }
-
-  // 走线：贴着底板走，从远端到近端开口。
-  const wireParts: THREE.BufferGeometry[] = [];
-  for (const [index, x] of [-0.26, 0.06, 0.3].entries()) {
-    const points: THREE.Vector3[] = [];
-    const segments = 7;
-    for (let i = 0; i <= segments; i += 1) {
-      const t = i / segments;
-      const z = g.farZ + 0.1 + (g.nearZ - 0.08 - (g.farZ + 0.1)) * t;
-      const wobble = Math.sin(t * Math.PI * (2 + index)) * 0.012;
-      points.push(new THREE.Vector3(x + wobble, cavityBottom + 0.018 + (index === 1 ? 0.004 : 0), z));
-    }
-    const curve = new THREE.CatmullRomCurve3(points);
-    wireParts.push(new THREE.TubeGeometry(curve, 56, 0.0038, 5, false));
-  }
-  const wireGeometry = mergeAll(wireParts);
-  if (wireGeometry) {
-    const wires = new THREE.Mesh(wireGeometry, lib.wire);
-    wires.name = 'wiring';
-    group.add(wires);
-  }
-
   // 剖切面的倒角框：把两个开口「框」出来，读成切开的截面，而不是缺了一块。
   const edgeParts: THREE.BufferGeometry[] = [];
   const frame = 0.006;
@@ -389,59 +352,12 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
     group.add(edges);
   }
 
-  // 检修灯带：腔体必须有光，否则剖切读成一个黑洞。
-  const lampParts: THREE.BufferGeometry[] = [];
-  lampParts.push(box(g.width - 0.08, 0.0032, 0.0032, 0, cavityTop - 0.008, g.nearZ - 0.045));
-  lampParts.push(box(0.0032, 0.0032, g.depth / 2 - 0.05, g.width / 2 - 0.028, cavityTop - 0.008, nearHalfZ));
-  const lampGeometry = mergeAll(lampParts);
-  if (lampGeometry) {
-    const lamps = new THREE.Mesh(lampGeometry, lib.serviceLight);
-    lamps.name = 'service-lights';
-    lamps.renderOrder = 1;
-    group.add(lamps);
-  }
-
-  // 黄铜：近端台面上的螺钉。唯一暖金属强调，数量必须少。
-  const brassParts: THREE.BufferGeometry[] = [];
-  for (let i = 0; i < 6; i += 1) {
-    const x = (i - 2.5) * (g.width / 7);
-    const screw = new THREE.CylinderGeometry(0.0042, 0.0042, 0.0026, 12);
-    screw.translate(x, topY + 0.0013, g.nearZ - 0.024);
-    brassParts.push(screw);
-    // 螺钉压在一条细细的凹槽里。
-    brassParts.push(box(0.028, 0.0012, 0.0016, x, topY - 0.0002, g.nearZ - 0.024));
-  }
-  const brassGeometry = mergeAll(brassParts);
-  if (brassGeometry) {
-    const brass = new THREE.Mesh(brassGeometry, lib.brass);
-    brass.name = 'brass-details';
-    group.add(brass);
-  }
-
-  // 底座：台面不能悬空。
-  const pedestal = new THREE.Group();
-  pedestal.name = 'pedestal';
-  const columnHeight = cavityBottom;
-  const column = new THREE.Mesh(
-    box(0.17, columnHeight, 0.17, 0, columnHeight / 2, zCenter),
-    lib.machinedEdge,
-  );
-  pedestal.add(column);
-
-  const collar = new THREE.Mesh(box(0.2, 0.008, 0.2, 0, columnHeight - 0.06, zCenter), lib.brass);
-  pedestal.add(collar);
-
-  const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.29, 0.018, 24), lib.cavity);
-  foot.position.set(0, 0.009, zCenter);
-  pedestal.add(foot);
-  group.add(pedestal);
-
   // —— 轨号（调试）——
   if (params.showLaneNumbers) {
     for (const lane of g.visibleLanes) {
-      const plane = new THREE.PlaneGeometry(0.03, 0.03);
+      const plane = new THREE.PlaneGeometry(0.022, 0.022);
       plane.rotateX(-Math.PI / 2);
-      plane.translate(g.laneX[lane]!, topY + 0.0011, g.nearZ - 0.075);
+      plane.translate(g.laneX[lane]!, topY + 0.0011, g.nearZ - 0.028);
       const digit = new THREE.Mesh(plane, lib.laneDigits[lane]!);
       digit.name = `lane-number-${lane}`;
       digit.renderOrder = 3;

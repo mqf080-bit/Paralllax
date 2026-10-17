@@ -34,12 +34,14 @@ export interface TableParams {
 
 export const DEFAULT_PARAMS: TableParams = {
   tableHeight: 0.95,
-  lanePitch: 0.19,
-  slotWidth: 0.16,
-  slotDepth: 0.026,
+  lanePitch: 0.21,
+  slotWidth: 0.18,
+  // 槽深取最小：深度靠侧壁与视差读，不靠挖得深。
+  slotDepth: 0.006,
   railHeight: 0.004,
-  tableDepth: 1.9,
-  nearOffset: 0.32,
+  // 进深拉长：note 有足够的行程，台面不再是一块平板。
+  tableDepth: 2.5,
+  nearOffset: 0.34,
   windowOffset: 0,
   revealHidden: false,
   showLaneNumbers: false,
@@ -68,11 +70,11 @@ export interface TableGeometry {
   visibleLanes: number[];
 }
 
-/** 台面四周的金属余量：外侧留多少没有槽的实心台面。 */
-const EDGE_MARGIN = 0.08;
+/** 台面四周的余量：只留够倒角和板缝，不做「画框」。 */
+const EDGE_MARGIN = 0.02;
 /** 槽在近端 / 远端各留出的实心长度。 */
-const NEAR_SLOT_MARGIN = 0.14;
-const FAR_SLOT_MARGIN = 0.24;
+const NEAR_SLOT_MARGIN = 0.05;
+const FAR_SLOT_MARGIN = 0.06;
 
 export function deriveGeometry(p: TableParams): TableGeometry {
   const width = p.lanePitch * 6 + EDGE_MARGIN * 2;
@@ -85,7 +87,7 @@ export function deriveGeometry(p: TableParams): TableGeometry {
   const slotCenterZ = nearZ - NEAR_SLOT_MARGIN - slotLength / 2;
 
   // 判定带放在玩家手最容易够到的位置：近端槽口前方一点。
-  const bandZ = nearZ - NEAR_SLOT_MARGIN - 0.4;
+  const bandZ = nearZ - NEAR_SLOT_MARGIN - 0.5;
   const bandLength = 0.1;
 
   const first = 1 + p.windowOffset;
