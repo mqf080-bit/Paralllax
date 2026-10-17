@@ -66,15 +66,15 @@ export interface ArcNote {
 }
 
 /** 手要贴在光点这么大范围内，弧才算「被跟着」（只影响发光）。 */
-const FOLLOW_RADIUS = 0.16;
-/** 普通物量：判定半径与窗口。 */
-const NORMAL_RADIUS = 0.14;
+const FOLLOW_RADIUS = 0.2;
+/** 普通物量：判定半径与窗口。放宽过一档。 */
+const NORMAL_RADIUS = 0.19;
 const NORMAL_WINDOW = 0.2;
-/** 关键物量：更小的体积、更短的窗口——必须当场接住。 */
+/** 关键物量：**半径保持 0.09 不变**——它就是要难在体积上；只靠更短的窗口区分。 */
 const KEY_RADIUS = 0.09;
 const KEY_WINDOW = 0.12;
 /** 手在 z 方向上离判定带多远还算「在判定带上」。 */
-const BAND_ZONE = 0.35;
+const BAND_ZONE = 0.42;
 
 export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   const colors = spec.hand === 'left' ? HAND_LEFT : HAND_RIGHT;
