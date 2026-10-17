@@ -23,7 +23,8 @@ export interface MaterialLab {
 export function buildMaterialLab(lib: MaterialLibrary): MaterialLab {
   const group = new THREE.Group();
   group.name = 'material-lab';
-  group.position.set(0, 1.12, -0.66);
+  // 让玻璃管的中心正对 0 号分割线，折射能看出「线被折弯」。
+  group.position.set(-0.11, 1.12, -0.66);
 
   const items: THREE.Object3D[] = [];
 
@@ -44,11 +45,6 @@ export function buildMaterialLab(lib: MaterialLibrary): MaterialLab {
   group.add(ice);
   items.push(ice);
 
-  // 冰锥内部的冷光：不参与外轮廓，只让「里面有东西」。
-  const iceCore = new THREE.Mesh(new THREE.ConeGeometry(0.026, 0.13, 7), lib.iceCore);
-  iceCore.position.set(-0.09, 0.01, 0);
-  group.add(iceCore);
-  items.push(iceCore);
 
   // 玻璃管：外壁 + 内光带，端面开口，能看见壁厚。
   const tube = new THREE.Group();
