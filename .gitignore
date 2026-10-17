@@ -1,0 +1,16 @@
+# 依赖与构建产物
+node_modules/
+dist/
+.vite/
+
+# 本地环境
+*.local
+.env
+.env.*
+
+# 运行期临时文件（截图、浏览器 profile 等）
+.scratch/
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db

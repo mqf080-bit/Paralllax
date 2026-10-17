@@ -1,0 +1,159 @@
+/*
+ * Step 0 的界面皮肤。
+ *
+ * 只做「诊断面板」这一件东西的样式：等宽、细线、压暗、黄铜一条。
+ * 这不是游戏 UI —— Step 1 之前不定义任何 HUD 语言。
+ */
+
+:root {
+  color-scheme: dark;
+  --bg: #06070a;
+  --panel-bg: rgba(10, 12, 16, 0.82);
+  --hairline: rgba(160, 180, 205, 0.18);
+  --ink: #c8d3e0;
+  --ink-dim: #6d7b8d;
+  --brass: #b08d57;
+  --ok: #7fd4a0;
+  --warn: #d8b46a;
+  --bad: #e0704f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, monospace;
+}
+
+#app,
+#app canvas {
+  display: block;
+}
+
+/* —— 自检面板 —— */
+
+.panel {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  width: 300px;
+  padding: 12px 14px 10px;
+  border: 1px solid var(--hairline);
+  border-top-color: rgba(176, 141, 87, 0.55);
+  background: var(--panel-bg);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  font-size: 11px;
+  line-height: 1.45;
+  letter-spacing: 0.02em;
+}
+
+.panel__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.panel__title {
+  color: var(--brass);
+  letter-spacing: 0.14em;
+}
+
+.panel__badge {
+  color: var(--ink-dim);
+  letter-spacing: 0.12em;
+}
+
+.panel__list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.row__key {
+  margin: 0;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+.row__value {
+  margin: 0;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row__value[data-tone="ok"] {
+  color: var(--ok);
+}
+
+.row__value[data-tone="warn"] {
+  color: var(--warn);
+}
+
+.row__value[data-tone="bad"] {
+  color: var(--bad);
+}
+
+.row__value[data-tone="idle"] {
+  color: var(--ink-dim);
+}
+
+.panel__hint {
+  margin: 9px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--hairline);
+  color: var(--ink-dim);
+}
+
+/* —— Enter VR 按钮（VRButton 生成，清掉它的内联样式后套这里）—— */
+
+#enter-vr {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  min-width: 200px;
+  height: 40px;
+  padding: 0 22px;
+  border: 1px solid rgba(176, 141, 87, 0.6);
+  border-radius: 0;
+  background: rgba(12, 14, 19, 0.9);
+  color: var(--brass);
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  line-height: 38px;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 1;
+}
+
+#enter-vr:hover {
+  background: rgba(24, 27, 34, 0.95);
+}
+
+#enter-vr:disabled {
+  border-color: var(--hairline);
+  color: var(--ink-dim);
+  cursor: default;
+}

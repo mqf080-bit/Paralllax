@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Parallax — Step 0 · WebXR 链路验证</title>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <!-- 链路自检面板：只在桌面镜像里可见；它回答 Step 0 的唯一问题「VR 能不能进」。 -->
+    <aside id="diagnostics" class="panel" aria-live="polite">
+      <header class="panel__head">
+        <span class="panel__title">LINK DIAGNOSTICS</span>
+        <span class="panel__badge">STEP 0</span>
+      </header>
+      <dl id="diagnostics-list" class="panel__list"></dl>
+      <p id="hint" class="panel__hint"></p>
+    </aside>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
