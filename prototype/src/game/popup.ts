@@ -10,9 +10,16 @@ import { GRADE_COLOR, GRADE_LABEL, POPUP_HEIGHT, type Grade } from './judgement'
  * 不是地面。字体用拉丁字母，避开头显浏览器里中文字体的不确定性。
  */
 
+export interface PopupOptions {
+  /** 相对默认宽度的缩放（物量的提示要比整键的小）。 */
+  scale?: number;
+  /** 存活时间（秒）。 */
+  life?: number;
+}
+
 export interface JudgementPopup {
   group: THREE.Group;
-  spawn(grade: Grade, position: THREE.Vector3): void;
+  spawn(grade: Grade, position: THREE.Vector3, options?: PopupOptions): void;
   update(dt: number): void;
   dispose(): void;
 }
@@ -22,7 +29,7 @@ interface Slot {
   material: THREE.SpriteMaterial;
   age: number;
   life: number;
-  baseScale: number;
+  width: number;
   velocityY: number;
   active: boolean;
 }
@@ -93,7 +100,7 @@ export function createJudgementPopup(): JudgementPopup {
       material,
       age: 0,
       life: LIFE,
-      baseScale: 1,
+      width: BASE_WIDTH,
       velocityY: 0.16,
       active: false,
     });
@@ -104,7 +111,7 @@ export function createJudgementPopup(): JudgementPopup {
   return {
     group,
 
-    spawn(grade: Grade, position: THREE.Vector3): void {
+    spawn(grade: Grade, position: THREE.Vector3, options: PopupOptions = {}): void {
       const slot = slots[cursor]!;
       cursor = (cursor + 1) % POOL_SIZE;
 
@@ -112,14 +119,15 @@ export function createJudgementPopup(): JudgementPopup {
       slot.material.opacity = 1;
       slot.material.needsUpdate = true;
 
+      slot.width = BASE_WIDTH * (options.scale ?? 1);
+
       slot.sprite.position.copy(position);
       slot.sprite.position.y += POPUP_HEIGHT;
       slot.sprite.visible = true;
-      slot.sprite.scale.set(BASE_WIDTH, BASE_WIDTH * (160 / 512), 1);
+      slot.sprite.scale.set(slot.width, slot.width * (160 / 512), 1);
 
       slot.age = 0;
-      slot.life = LIFE;
-      slot.baseScale = 1;
+      slot.life = options.life ?? LIFE;
       slot.velocityY = grade === 'miss' ? 0.06 : 0.18;
       slot.active = true;
     },
@@ -138,7 +146,7 @@ export function createJudgementPopup(): JudgementPopup {
         const t = slot.age / slot.life;
         const grow = 1 + 0.22 * t;
         slot.sprite.position.y += slot.velocityY * dt;
-        slot.sprite.scale.set(BASE_WIDTH * grow, BASE_WIDTH * grow * (160 / 512), 1);
+        slot.sprite.scale.set(slot.width * grow, slot.width * grow * (160 / 512), 1);
         slot.material.opacity = 1 - t * t;
       }
     },

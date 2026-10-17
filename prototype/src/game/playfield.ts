@@ -286,13 +286,14 @@ export function createPlayfield(
     hooks.onJudge?.('none', 'miss', 0);
   }
 
-  /** hold 的物量被按住：当场蹦出来一小撮碎屑。 */
+  /** hold 的物量被按住：当场蹦出碎屑 + 一个小小的 PERFECT。 */
   function tickHeld(position: THREE.Vector3, side: HandSide): void {
     stats.perfect += 1;
     stats.lastGrade = 'perfect';
     stats.lastOffsetMs = null;
     shatterDirection.set(0, 1, -0.15);
     shatter.spawn(position, shatterDirection, 0xbfe9ff, 4);
+    popup.spawn('perfect', position, { scale: 0.62, life: 0.32 });
     hooks.onJudge?.(side, 'perfect', 0);
   }
 
