@@ -43,6 +43,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.xr.enabled = true;
+// arc 用近端裁剪面切掉滚过台面边缘的部分。
+renderer.localClippingEnabled = true;
 renderer.xr.setReferenceSpaceType('local-floor');
 container.append(renderer.domElement);
 

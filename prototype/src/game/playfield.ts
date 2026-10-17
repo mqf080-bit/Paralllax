@@ -313,24 +313,27 @@ export function createPlayfield(
     waveEnd = waveStart + duration;
 
     const y0 = params.tableHeight + 0.06;
-    const z0 = geometry.bandZ - 0.2;
     const leftX = geometry.laneX[0] ?? -0.34;
     const rightX = geometry.laneX[laneCount - 1] ?? 0.34;
 
-    // 一个够得着的拱：从左轨近处起、升高、跨到右轨远处落下。
+    // 一个够得着的拱：从左轨起、升高、跨到右轨落下。
+    // z 由时间轴自动算出来（roll 向玩家），这里只给 x / y。
     const points = [
-      new THREE.Vector3(leftX, y0, z0),
-      new THREE.Vector3(leftX * 0.55, y0 + 0.26, z0 - 0.12),
-      new THREE.Vector3(0, y0 + 0.36, z0 - 0.24),
-      new THREE.Vector3(rightX * 0.55, y0 + 0.26, z0 - 0.36),
-      new THREE.Vector3(rightX, y0 + 0.02, z0 - 0.48),
+      new THREE.Vector3(leftX, y0, 0),
+      new THREE.Vector3(leftX * 0.55, y0 + 0.26, 0),
+      new THREE.Vector3(0, y0 + 0.36, 0),
+      new THREE.Vector3(rightX * 0.55, y0 + 0.26, 0),
+      new THREE.Vector3(rightX, y0 + 0.02, 0),
     ];
 
     const arc = createArcNote(
       {
-        points,
+        path: points,
         startAt: waveStart,
         duration,
+        bandZ: geometry.bandZ,
+        speed: settings.flowSpeed,
+        clipZ: geometry.bandZ + 0.1,
         hand,
         normalTicks: 6,
         keyUs: [0.34, 0.72],
@@ -773,6 +776,7 @@ export function createPlayfield(
       // 收拾已经滑出近端的键（漏掉的也要滑出去）。
       for (let i = notes.length - 1; i >= 0; i -= 1) {
         const note = notes[i]!;
+        if (note.kind === 'arc') continue;
         if (note.group.position.z > geometry.nearZ + 0.6) {
           removeNote(note);
           notes.splice(i, 1);
