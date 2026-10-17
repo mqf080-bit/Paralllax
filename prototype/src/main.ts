@@ -139,7 +139,11 @@ if (import.meta.env.DEV) {
   if (query.get('preview') === '1') previewState.visible = true;
   if (query.get('auto') === '1') playSettings.auto = true;
   const shiftParam = query.get('shift');
-  if (shiftParam === 'left' || shiftParam === 'right' || shiftParam === 'normal') shiftState.mode = shiftParam;
+  if (shiftParam === 'left' || shiftParam === 'right' || shiftParam === 'normal') {
+    shiftState.mode = shiftParam;
+    // 用 URL 指定时直接落到目标位置，方便截图/验收（不带过渡）。
+    shiftValue = shiftParam === 'left' ? -1 : shiftParam === 'right' ? 1 : 0;
+  }
   const flow = Number(query.get('flow'));
   if (Number.isFinite(flow) && flow > 0) playSettings.flowSpeed = flow;
 }
