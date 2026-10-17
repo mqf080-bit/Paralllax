@@ -131,6 +131,8 @@ if (import.meta.env.DEV) {
   if (query.get('numbers') === '1') params.showLaneNumbers = true;
   if (query.get('preview') === '1') previewState.visible = true;
   if (query.get('auto') === '1') playSettings.auto = true;
+  const flow = Number(query.get('flow'));
+  if (Number.isFinite(flow) && flow > 0) playSettings.flowSpeed = flow;
 }
 
 // —— 内容 ——

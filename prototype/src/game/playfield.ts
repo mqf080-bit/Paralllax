@@ -100,7 +100,6 @@ interface HoldTick {
 
 /** hit 的挥击门槛：速度 / 挥击距离。drag 是「扫过」，hit 是「明确挥一下」。 */
 const HIT_GOOD_SPEED = 1.4;
-const HIT_PERFECT_SPEED = 2.6;
 /** 最近 120ms 内手至少要走过这么远，才算一次挥击（不是抖一下）。 */
 const HIT_MIN_SWING = 0.15;
 /** hit 楼梯里两颗之间的时间差（秒）。挥击比扫过慢，间隔给大一点。 */
@@ -111,13 +110,20 @@ const BAR_HEIGHT = 0.07;
 /** drag 判定盒（半尺寸，米）。第一版偏严，整体放宽了一档。 */
 const HIT_HALF_X = 0.13;
 const HIT_HALF_Y = 0.26;
-const HIT_HALF_Z = 0.16;
 /** 手要有多快才算「扫过」（米 / 秒）。 */
 const MIN_SWEEP_SPEED = 0.4;
-/** drag 只有离判定带这么近才可打（防止提前伸手抓远处的键）。 */
-const CATCH_WINDOW = 0.5;
-/** drag 越过判定带这么远还没碎 = 漏。 */
-const MISS_DISTANCE = 0.55;
+/**
+ * 判定按**时间窗口（毫秒）**，不按距离。
+ * 玩家流速设置与谱面变速只改视觉滚动速度，改不了这里的任何一个数。
+ */
+const HIT_PERFECT_MS = 80;
+const HIT_GOOD_MS = 160;
+const DRAG_WINDOW_MS = 120;
+/**
+ * 手必须落在判定带两侧这么远以内（米）：判的是「手在判定线上」，
+ * 不是「手碰到那颗键」——后者会让判定被流速带跑。
+ */
+const HAND_ZONE = 0.4;
 /** hold 的接触盒（x / y）；z 用片子本身的 z 范围。 */
 const HOLD_HALF_X = 0.13;
 const HOLD_HALF_Y = 0.26;
@@ -442,23 +448,21 @@ export function createPlayfield(
   }
 
   function judgeDrag(note: Note, samples: HandSample[]): void {
-    const z = note.group.position.z;
-    const distance = z - geometry.bandZ;
+    const offsetMs = (clock - note.arriveAt) * 1000;
 
-    if (distance > MISS_DISTANCE) {
+    if (offsetMs > DRAG_WINDOW_MS) {
       noteMiss(note);
       return;
     }
-    if (Math.abs(distance) > CATCH_WINDOW) return;
+    if (offsetMs < -DRAG_WINDOW_MS) return;
 
     for (const hand of samples) {
       if (!hand.active || hand.velocity.length() < MIN_SWEEP_SPEED) continue;
       if (Math.abs(hand.position.x - note.laneX) > HIT_HALF_X) continue;
       if (Math.abs(hand.position.y - barY) > HIT_HALF_Y) continue;
-      if (Math.abs(hand.position.z - z) > HIT_HALF_Z) continue;
+      if (Math.abs(hand.position.z - geometry.bandZ) > HAND_ZONE) continue;
 
-      const offsetMs = Math.round((distance / settings.flowSpeed) * 1000);
-      notePerfect(note, hand.side, offsetMs);
+      notePerfect(note, hand.side, Math.round(offsetMs));
 
       shatterDirection.copy(hand.velocity);
       if (shatterDirection.lengthSq() < 1e-6) shatterDirection.set(0, 0.6, -1);
@@ -470,34 +474,33 @@ export function createPlayfield(
   }
 
   function judgeHit(note: Note, samples: HandSample[]): void {
-    const z = note.group.position.z;
-    const distance = z - geometry.bandZ;
+    const offsetMs = (clock - note.arriveAt) * 1000;
 
-    if (distance > MISS_DISTANCE) {
+    if (offsetMs > HIT_GOOD_MS) {
       noteMiss(note);
       return;
     }
-    if (Math.abs(distance) > CATCH_WINDOW) return;
+    if (offsetMs < -HIT_GOOD_MS) return;
 
     for (const hand of samples) {
       if (!hand.active) continue;
       if (note.hand !== 'none' && hand.side !== note.hand) continue;
       if (Math.abs(hand.position.x - note.laneX) > HIT_HALF_X) continue;
       if (Math.abs(hand.position.y - barY) > HIT_HALF_Y) continue;
-      if (Math.abs(hand.position.z - z) > HIT_HALF_Z) continue;
+      if (Math.abs(hand.position.z - geometry.bandZ) > HAND_ZONE) continue;
 
+      // 挥击（速度 + 距离）是**门槛**；完美 / 好的分级只看时间。
       const speed = hand.velocity.length();
       if (speed < HIT_GOOD_SPEED) continue;
       if (hand.swing < HIT_MIN_SWING) continue;
 
-      const grade: Grade = speed >= HIT_PERFECT_SPEED ? 'perfect' : 'good';
-      const offsetMs = Math.round((distance / settings.flowSpeed) * 1000);
+      const grade: Grade = Math.abs(offsetMs) <= HIT_PERFECT_MS ? 'perfect' : 'good';
 
       note.resolved = true;
       if (grade === 'perfect') stats.perfect += 1;
       else stats.good += 1;
       stats.lastGrade = grade;
-      stats.lastOffsetMs = offsetMs;
+      stats.lastOffsetMs = Math.round(offsetMs);
 
       popupPosition.copy(note.group.position);
       popup.spawn(grade, popupPosition);
@@ -505,12 +508,14 @@ export function createPlayfield(
       shatterDirection.copy(hand.velocity);
       shatter.spawn(note.group.position, shatterDirection, 0xdfefff, 14);
       removeNote(note);
-      hooks.onJudge?.(hand.side, grade, offsetMs);
+      hooks.onJudge?.(hand.side, grade, Math.round(offsetMs));
       return;
     }
   }
 
   function updateHold(note: Note, dt: number, samples: HandSample[]): void {
+    // 片子的世界长度跟着流速走，但它覆盖的时间长度永远是 duration——判定不受流速影响。
+    note.length = Math.max(settings.flowSpeed * note.duration, 0.6);
     const headZ = geometry.bandZ + settings.flowSpeed * (clock - note.arriveAt);
     const tailZ = headZ - note.length;
     note.group.position.z = tailZ;
@@ -631,7 +636,7 @@ export function createPlayfield(
 
     // dev 演示：命中窗口里直接把速度/挥击距离补足（自动演示不是判定测试）。
     autoSample.side = targetHand;
-    if (hit && Math.abs(hit.group.position.z - geometry.bandZ) < 0.3) {
+    if (hit && Math.abs(clock - hit.arriveAt) * 1000 <= 30) {
       ghostVelocity.set(0, -2.9, 0);
       autoSample.swing = 0.32;
     } else {
