@@ -27,6 +27,8 @@ export interface HandSample {
   active: boolean;
   /** 按键按着：VR 是扳机或侧握（食指 / 中指），桌面是鼠标左键或空格。 */
   pressed: boolean;
+  /** 最近 120ms 内走过的距离（米）——hit 的「挥击距离」用这个。 */
+  swing: number;
 }
 
 export interface Hands {
@@ -52,6 +54,9 @@ export interface HandsOptions {
   /** 桌面 fallback：手固定在这个 z 上（判定带）。指针只控制横向位置。 */
   pointerZ: number;
 }
+
+/** 「挥击距离」的取样窗口（秒）。 */
+const SWING_WINDOW = 0.12;
 
 const TRAIL_LENGTH = 14;
 const TRAIL_SIZE = 0.02;
@@ -171,6 +176,7 @@ export function createHands(
     velocity: new THREE.Vector3(),
     active: false,
     pressed: false,
+    swing: 0,
   };
   samples.push(pointerSample);
   const pointerTrail = createTrail(0x9fd8ff, glowMap, scene);
@@ -183,6 +189,22 @@ export function createHands(
   pointerMarker.visible = false;
   scene.add(pointerMarker);
   disposables.push(pointerMarker.geometry, pointerMarker.material as THREE.Material);
+
+  // 挥击距离：保留一小段位置历史，窗口内首尾距离就是「这一段手走了多远」。
+  let elapsed = 0;
+  const swingHistory = new Map<HandSample, Array<{ t: number; p: THREE.Vector3 }>>();
+
+  function trackSwing(sample: HandSample): void {
+    let history = swingHistory.get(sample);
+    if (!history) {
+      history = [];
+      swingHistory.set(sample, history);
+    }
+    history.push({ t: elapsed, p: sample.position.clone() });
+    while (history.length > 2 && elapsed - history[0]!.t > SWING_WINDOW) history.shift();
+    const first = history[0];
+    sample.swing = first ? first.p.distanceTo(sample.position) : 0;
+  }
 
   const raycaster = new THREE.Raycaster();
   // 竖直平面 z = 判定带：指针只需要控制横向位置，前后由谱面自己过来。
@@ -255,6 +277,7 @@ export function createHands(
       velocity: new THREE.Vector3(),
       active: false,
       pressed: false,
+      swing: 0,
     };
     samples.push(sample);
 
@@ -333,6 +356,7 @@ export function createHands(
     samples,
 
     update(dt: number, camera: THREE.PerspectiveCamera): void {
+      elapsed += dt;
       const presenting = renderer.xr.isPresenting;
 
       // —— 指针 ——
@@ -357,6 +381,7 @@ export function createHands(
           pointerMarker.position.copy(pointerHit);
           pointerTrail.points.visible = true;
           pointerTrail.push(pointerHit);
+          trackSwing(pointerSample);
         } else {
           pointerSample.active = false;
           pointerSample.pressed = false;
@@ -387,6 +412,7 @@ export function createHands(
         hand.prev.copy(hand.sample.position);
         hand.trail.points.visible = true;
         hand.trail.push(hand.sample.position);
+        trackSwing(hand.sample);
       }
     },
 

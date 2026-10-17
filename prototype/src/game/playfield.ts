@@ -57,7 +57,7 @@ export interface Playfield {
   dispose(): void;
 }
 
-type NoteKind = 'drag' | 'hold';
+type NoteKind = 'drag' | 'hold' | 'hit';
 
 interface Note {
   kind: NoteKind;
@@ -86,6 +86,8 @@ interface Note {
   lastContact?: THREE.Vector3;
   /** 这一帧是否按住了（只给 hold 用）。 */
   contact?: boolean;
+  /** hit 要求的手别；'none' = 中性（任意手）。 */
+  hand?: HandSide;
   resolved: boolean;
 }
 
@@ -95,6 +97,14 @@ interface HoldTick {
   held: boolean;
   resolved: boolean;
 }
+
+/** hit 的挥击门槛：速度 / 挥击距离。drag 是「扫过」，hit 是「明确挥一下」。 */
+const HIT_GOOD_SPEED = 1.4;
+const HIT_PERFECT_SPEED = 2.6;
+/** 最近 120ms 内手至少要走过这么远，才算一次挥击（不是抖一下）。 */
+const HIT_MIN_SWING = 0.15;
+/** hit 楼梯里两颗之间的时间差（秒）。挥击比扫过慢，间隔给大一点。 */
+const HIT_INTERVAL = 0.38;
 
 /** 冰条离台面的高度（和键型预览一致）。 */
 const BAR_HEIGHT = 0.07;
@@ -124,37 +134,6 @@ const WAVE_PAUSE = 1.3;
 /** hold 的按住时长（秒）。 */
 const HOLD_DURATION = 0.8;
 
-/** hold 的按键提示：贴在世界里，不随键滚动，位置就在判定带上方。 */
-function createPromptTexture(kind: 'press' | 'held'): THREE.CanvasTexture {
-  const width = 640;
-  const height = 240;
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('2D canvas context unavailable');
-
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.shadowColor = '#8fe6ff';
-  ctx.shadowBlur = 26;
-  ctx.fillStyle = '#eaf9ff';
-
-  if (kind === 'press') {
-    ctx.font = '700 96px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif';
-    ctx.fillText('HOLD', width / 2, 88);
-    ctx.font = '700 44px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif';
-    ctx.fillText('TRIGGER / GRIP', width / 2, 180);
-  } else {
-    ctx.font = '700 96px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif';
-    ctx.fillText('HOLDING', width / 2, 120);
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
 export function createPlayfield(
   params: TableParams,
   geometry: TableGeometry,
@@ -182,6 +161,7 @@ export function createPlayfield(
   // 共享几何：同类键只有位置不同。
   const barGeometry = new RoundedBoxGeometry(0.195, 0.011, 0.022, 2, 0.0035);
   const glowGeometry = new THREE.PlaneGeometry(0.3, 0.12);
+  const hitBarGeometry = new RoundedBoxGeometry(0.21, 0.055, 0.075, 3, 0.008);
   const holdSheetGeometry = new RoundedBoxGeometry(0.21, 0.006, 1, 2, 0.0025);
   const holdStripGeometry = new THREE.BoxGeometry(0.09, 0.0025, 1);
   const holdAuraGeometry = new THREE.PlaneGeometry(1, 1);
@@ -200,21 +180,6 @@ export function createPlayfield(
   ghost.name = 'play-ghost-hand';
   ghost.visible = false;
   group.add(ghost);
-
-  const promptTexturePress = createPromptTexture('press');
-  const promptTextureHeld = createPromptTexture('held');
-  const promptMaterial = new THREE.SpriteMaterial({
-    map: promptTexturePress,
-    transparent: true,
-    depthWrite: false,
-    toneMapped: false,
-  });
-  const promptSprite = new THREE.Sprite(promptMaterial);
-  promptSprite.name = 'hold-prompt';
-  promptSprite.scale.set(0.24, (0.24 * 240) / 640, 1);
-  promptSprite.visible = false;
-  promptSprite.renderOrder = 7;
-  group.add(promptSprite);
 
   // 按住时手下的光斑：告诉玩家「这一下按对了」，也给片子一点照明感。
   const touchTexture = createGlowTexture(128);
@@ -243,6 +208,7 @@ export function createPlayfield(
     velocity: ghostVelocity,
     active: true,
     pressed: true,
+    swing: 0,
   };
   const shatterDirection = new THREE.Vector3();
 
@@ -307,6 +273,49 @@ export function createPlayfield(
     hooks.onJudge?.('none', 'miss', 0);
   }
 
+  /** hit 的测试串：左右手交替、左右两侧各两下。 */
+  const HIT_RUN: ReadonlyArray<{ lane: number; hand: HandSide }> = [
+    { lane: 0, hand: 'left' },
+    { lane: 3, hand: 'right' },
+    { lane: 1, hand: 'left' },
+    { lane: 2, hand: 'right' },
+  ];
+
+  function spawnHitRun(): void {
+    waveStart = clock + LEAD_IN;
+    waveEnd = waveStart + (HIT_RUN.length - 1) * HIT_INTERVAL;
+
+    for (let index = 0; index < HIT_RUN.length; index += 1) {
+      const spec = HIT_RUN[index]!;
+      const arriveAt = waveStart + index * HIT_INTERVAL;
+      const laneX = geometry.laneX[spec.lane]!;
+
+      const noteGroup = new THREE.Group();
+      noteGroup.name = `hit-lane${spec.lane + 1}-${spec.hand}`;
+
+      const material =
+        spec.hand === 'left' ? lib.ceramicLeft : spec.hand === 'right' ? lib.ceramicRight : lib.ceramic;
+      const bar = new THREE.Mesh(hitBarGeometry, material);
+      bar.castShadow = true;
+      noteGroup.add(bar);
+
+      noteGroup.position.set(laneX, barY, geometry.bandZ - settings.flowSpeed * (arriveAt - clock));
+      group.add(noteGroup);
+
+      notes.push({
+        kind: 'hit',
+        lane: spec.lane,
+        laneX,
+        group: noteGroup,
+        arriveAt,
+        duration: 0,
+        length: 0,
+        hand: spec.hand,
+        resolved: false,
+      });
+    }
+  }
+
   function spawnDragStaircase(): void {
     waveStart = clock + LEAD_IN;
     waveEnd = waveStart + (laneCount - 1) * settings.interval;
@@ -347,7 +356,7 @@ export function createPlayfield(
     waveStart = clock + LEAD_IN;
     waveEnd = waveStart + HOLD_DURATION;
 
-    const lane = (waveCount / 2) % 2 === 1 ? 2 : 1;
+    const lane = Math.floor(waveCount / 3) % 2 === 0 ? 1 : 2;
     const laneX = geometry.laneX[lane] ?? 0;
     const length = Math.max(settings.flowSpeed * HOLD_DURATION, 0.6);
 
@@ -418,7 +427,9 @@ export function createPlayfield(
   function spawnWave(): void {
     waveActive = true;
     waveCount += 1;
-    if (waveCount % 2 === 1) spawnDragStaircase();
+    const kind = waveCount % 3;
+    if (kind === 1) spawnHitRun();
+    else if (kind === 2) spawnDragStaircase();
     else spawnHold();
   }
 
@@ -454,6 +465,47 @@ export function createPlayfield(
       shatter.spawn(note.group.position, shatterDirection, 0xcfefff, 12);
 
       removeNote(note);
+      return;
+    }
+  }
+
+  function judgeHit(note: Note, samples: HandSample[]): void {
+    const z = note.group.position.z;
+    const distance = z - geometry.bandZ;
+
+    if (distance > MISS_DISTANCE) {
+      noteMiss(note);
+      return;
+    }
+    if (Math.abs(distance) > CATCH_WINDOW) return;
+
+    for (const hand of samples) {
+      if (!hand.active) continue;
+      if (note.hand !== 'none' && hand.side !== note.hand) continue;
+      if (Math.abs(hand.position.x - note.laneX) > HIT_HALF_X) continue;
+      if (Math.abs(hand.position.y - barY) > HIT_HALF_Y) continue;
+      if (Math.abs(hand.position.z - z) > HIT_HALF_Z) continue;
+
+      const speed = hand.velocity.length();
+      if (speed < HIT_GOOD_SPEED) continue;
+      if (hand.swing < HIT_MIN_SWING) continue;
+
+      const grade: Grade = speed >= HIT_PERFECT_SPEED ? 'perfect' : 'good';
+      const offsetMs = Math.round((distance / settings.flowSpeed) * 1000);
+
+      note.resolved = true;
+      if (grade === 'perfect') stats.perfect += 1;
+      else stats.good += 1;
+      stats.lastGrade = grade;
+      stats.lastOffsetMs = offsetMs;
+
+      popupPosition.copy(note.group.position);
+      popup.spawn(grade, popupPosition);
+
+      shatterDirection.copy(hand.velocity);
+      shatter.spawn(note.group.position, shatterDirection, 0xdfefff, 14);
+      removeNote(note);
+      hooks.onJudge?.(hand.side, grade, offsetMs);
       return;
     }
   }
@@ -523,14 +575,6 @@ export function createPlayfield(
     const halo = 0.22 + Math.sin(clock * 12) * 0.03;
     touchGlow.scale.set(halo, halo, 1);
 
-    // 按键提示：放在判定带上方、玩家手边；按住后换成 HOLDING。
-    promptSprite.visible = clock >= note.arriveAt - 1.0;
-    promptSprite.position.set(note.laneX, barY + 0.36, geometry.bandZ);
-    const promptTexture = contact ? promptTextureHeld : promptTexturePress;
-    if (promptMaterial.map !== promptTexture) {
-      promptMaterial.map = promptTexture;
-      promptMaterial.needsUpdate = true;
-    }
 
     // 物量像溪流一样逐个结算：按住就当场蹦出来，漏了也当场弹 MISS。
     const tickWindow = note.tickWindow ?? HOLD_MIN_WINDOW;
@@ -553,7 +597,6 @@ export function createPlayfield(
     // 尾端完全过去就收掉片子；物量已经逐个结算过了，这里不再弹总结提示。
     if (tailZ > geometry.bandZ + HOLD_MISS_MARGIN) {
       note.resolved = true;
-      promptSprite.visible = false;
       touchGlow.visible = false;
       removeNote(note);
     }
@@ -567,9 +610,16 @@ export function createPlayfield(
     }
 
     let targetX = ghostPosition.x;
+    let targetHand: HandSide = 'none';
+
     const hold = notes.find((note) => note.kind === 'hold' && !note.resolved);
+    const hit = notes.find((note) => note.kind === 'hit' && !note.resolved);
+
     if (hold) {
       targetX = hold.laneX;
+    } else if (hit) {
+      targetX = hit.laneX;
+      targetHand = hit.hand ?? 'none';
     } else if (clock >= waveStart && clock <= waveEnd) {
       const t = (clock - waveStart) / Math.max(waveEnd - waveStart, 1e-3);
       targetX = leftLane + (rightLane - leftLane) * t;
@@ -578,6 +628,15 @@ export function createPlayfield(
     ghostPosition.set(targetX, barY + 0.006, geometry.bandZ);
     ghostVelocity.copy(ghostPosition).sub(ghostPrev).divideScalar(Math.max(dt, 1e-4));
     ghostPrev.copy(ghostPosition);
+
+    // dev 演示：命中窗口里直接把速度/挥击距离补足（自动演示不是判定测试）。
+    autoSample.side = targetHand;
+    if (hit && Math.abs(hit.group.position.z - geometry.bandZ) < 0.3) {
+      ghostVelocity.set(0, -2.9, 0);
+      autoSample.swing = 0.32;
+    } else {
+      autoSample.swing = 0;
+    }
 
     ghost.visible = true;
     ghost.position.copy(ghostPosition);
@@ -597,8 +656,7 @@ export function createPlayfield(
         for (const note of notes) removeNote(note);
         notes.length = 0;
         ghost.visible = false;
-        promptSprite.visible = false;
-        touchGlow.visible = false;
+          touchGlow.visible = false;
         shatter.update(dt);
         popup.update(dt);
         return;
@@ -606,9 +664,9 @@ export function createPlayfield(
 
       if (clock >= nextWaveAt && !waveActive) spawnWave();
 
-      // 已经判过的 drag 也要继续滑出去——漏掉的键不是停在原地。
+      // 已经判过的 drag / hit 也要继续滑出去——漏掉的键不是停在原地。
       for (const note of notes) {
-        if (note.kind === 'drag') {
+        if (note.kind === 'drag' || note.kind === 'hit') {
           note.group.position.z = geometry.bandZ - settings.flowSpeed * (note.arriveAt - clock);
         }
       }
@@ -619,6 +677,7 @@ export function createPlayfield(
       for (const note of notes) {
         if (note.resolved) continue;
         if (note.kind === 'drag') judgeDrag(note, samples);
+        else if (note.kind === 'hit') judgeHit(note, samples);
         else updateHold(note, dt, samples);
       }
 
@@ -648,7 +707,6 @@ export function createPlayfield(
       stats.miss = 0;
       stats.lastGrade = null;
       stats.lastOffsetMs = null;
-      promptSprite.visible = false;
       touchGlow.visible = false;
       waveActive = false;
       waveCount = 0;
@@ -663,6 +721,7 @@ export function createPlayfield(
       notes.length = 0;
       barGeometry.dispose();
       glowGeometry.dispose();
+      hitBarGeometry.dispose();
       holdSheetGeometry.dispose();
       holdStripGeometry.dispose();
       holdAuraGeometry.dispose();
@@ -670,9 +729,6 @@ export function createPlayfield(
       popup.dispose();
       ghost.geometry.dispose();
       (ghost.material as THREE.Material).dispose();
-      promptTexturePress.dispose();
-      promptTextureHeld.dispose();
-      promptMaterial.dispose();
       touchTexture.dispose();
       touchMaterial.dispose();
       group.clear();
