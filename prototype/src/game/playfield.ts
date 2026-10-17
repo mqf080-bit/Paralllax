@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 
 import type { TableGeometry, TableParams } from '../config';
 import type { MaterialLibrary } from '../materials/library';
+import { createGlowTexture } from '../materials/textures';
 import type { HandSample, HandSide } from './hands';
 import type { Grade } from './judgement';
 import { createJudgementPopup, type JudgementPopup } from './popup';
@@ -70,7 +71,13 @@ interface Note {
   /** hold 的世界长度（= 流速 × 时长）。 */
   length: number;
   sheet?: THREE.Mesh;
+  sheetMaterial?: THREE.MeshPhysicalMaterial;
   strip?: THREE.Mesh;
+  stripMaterial?: THREE.MeshBasicMaterial;
+  /** 被按住的强度 0–1：用来驱动发光与触点亮斑。 */
+  glow?: number;
+  aura?: THREE.Mesh;
+  auraMaterial?: THREE.MeshBasicMaterial;
   /** hold 里的物量：每个 tick 是一次判定，时间点由物量密度决定。 */
   ticks?: HoldTick[];
   /** 单个 tick 的容错窗口（秒），密度越高越窄，但不窄于 200ms。 */
@@ -177,6 +184,7 @@ export function createPlayfield(
   const glowGeometry = new THREE.PlaneGeometry(0.3, 0.12);
   const holdSheetGeometry = new RoundedBoxGeometry(0.21, 0.006, 1, 2, 0.0025);
   const holdStripGeometry = new THREE.BoxGeometry(0.09, 0.0025, 1);
+  const holdAuraGeometry = new THREE.PlaneGeometry(1, 1);
 
   const shatter: Shatter = createShatter();
   group.add(shatter.group);
@@ -208,6 +216,23 @@ export function createPlayfield(
   promptSprite.renderOrder = 7;
   group.add(promptSprite);
 
+  // 按住时手下的光斑：告诉玩家「这一下按对了」，也给片子一点照明感。
+  const touchTexture = createGlowTexture(128);
+  const touchMaterial = new THREE.SpriteMaterial({
+    map: touchTexture,
+    color: 0x9fe8ff,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+    opacity: 0,
+  });
+  const touchGlow = new THREE.Sprite(touchMaterial);
+  touchGlow.name = 'hold-touch-glow';
+  touchGlow.visible = false;
+  touchGlow.renderOrder = 6;
+  group.add(touchGlow);
+
   const ghostPosition = new THREE.Vector3(leftLane, barY, geometry.bandZ);
   const ghostVelocity = new THREE.Vector3();
   const ghostPrev = new THREE.Vector3().copy(ghostPosition);
@@ -226,6 +251,9 @@ export function createPlayfield(
   function removeNote(note: Note): void {
     group.remove(note.group);
     note.group.clear();
+    note.sheetMaterial?.dispose();
+    note.stripMaterial?.dispose();
+    note.auraMaterial?.dispose();
   }
 
   function notePerfect(note: Note, side: HandSide, offsetMs: number, at?: THREE.Vector3): void {
@@ -306,15 +334,30 @@ export function createPlayfield(
     noteGroup.name = `hold-lane${lane + 1}`;
     noteGroup.position.set(laneX, params.tableHeight + 0.004, geometry.bandZ - settings.flowSpeed * (waveStart - clock));
 
-    const sheet = new THREE.Mesh(holdSheetGeometry, lib.clearGlass);
+    // 每条 hold 用自己的材质副本：被按住时整片要发光，不能改到共享材质。
+    const sheetMaterial = lib.clearGlass.clone();
+    sheetMaterial.emissive.setHex(0x1c6f86);
+    sheetMaterial.emissiveIntensity = 0;
+
+    const sheet = new THREE.Mesh(holdSheetGeometry, sheetMaterial);
     sheet.scale.z = length;
     sheet.position.z = length / 2;
     noteGroup.add(sheet);
 
-    const strip = new THREE.Mesh(holdStripGeometry, lib.holdFill);
+    const stripMaterial = lib.holdFill.clone();
+    const strip = new THREE.Mesh(holdStripGeometry, stripMaterial);
     strip.position.set(0, 0.0045, 0);
     strip.visible = false;
     noteGroup.add(strip);
+
+    // 按住时片子底下透出来的光。
+    const auraMaterial = lib.glowLeft.clone();
+    auraMaterial.opacity = 0;
+    const aura = new THREE.Mesh(holdAuraGeometry, auraMaterial);
+    aura.rotation.x = -Math.PI / 2;
+    aura.position.y = 0.002;
+    aura.visible = false;
+    noteGroup.add(aura);
 
     group.add(noteGroup);
 
@@ -338,7 +381,12 @@ export function createPlayfield(
       duration: HOLD_DURATION,
       length,
       sheet,
+      sheetMaterial,
       strip,
+      stripMaterial,
+      aura,
+      auraMaterial,
+      glow: 0,
       ticks,
       tickWindow,
       lastContact: new THREE.Vector3(laneX, barY, geometry.bandZ),
@@ -390,7 +438,6 @@ export function createPlayfield(
   }
 
   function updateHold(note: Note, dt: number, samples: HandSample[]): void {
-    void dt;
     const headZ = geometry.bandZ + settings.flowSpeed * (clock - note.arriveAt);
     const tailZ = headZ - note.length;
     note.group.position.z = tailZ;
@@ -427,6 +474,34 @@ export function createPlayfield(
     if (contact) note.lastContact?.copy(contact.position);
     note.contact = Boolean(contact);
 
+    // 被按住：整片玻璃发光 + 亮带变实 + 手下出现光斑，三者一起。
+    const targetGlow = contact ? 1 : 0;
+    const glow = (note.glow ?? 0) + (targetGlow - (note.glow ?? 0)) * Math.min(1, dt * 12);
+    note.glow = glow;
+
+    if (note.sheetMaterial) {
+      note.sheetMaterial.emissiveIntensity = glow * (2.0 + Math.sin(clock * 14) * 0.35);
+      note.sheetMaterial.opacity = 0.45 + 0.25 * glow;
+    }
+    if (note.stripMaterial) {
+      note.stripMaterial.opacity = 0.5 + 0.4 * glow + Math.sin(clock * 12) * 0.06 * glow;
+    }
+    if (note.aura && note.auraMaterial) {
+      note.auraMaterial.opacity = 0.55 * glow;
+      note.aura.visible = glow > 0.02 && visibleLength > 0.02;
+      note.aura.scale.set(0.36, Math.max(visibleLength, 0.001), 1);
+      note.aura.position.z = visibleLength / 2;
+    }
+
+    if (contact) {
+      touchGlow.position.copy(contact.position);
+      touchGlow.position.y += 0.012;
+    }
+    touchGlow.visible = glow > 0.02;
+    touchMaterial.opacity = 0.75 * glow;
+    const halo = 0.22 + Math.sin(clock * 12) * 0.03;
+    touchGlow.scale.set(halo, halo, 1);
+
     // 按键提示：放在判定带上方、玩家手边；按住后换成 HOLDING。
     promptSprite.visible = clock >= note.arriveAt - 1.0;
     promptSprite.position.set(note.laneX, barY + 0.24, geometry.bandZ);
@@ -453,6 +528,7 @@ export function createPlayfield(
       if (allHeld) notePerfect(note, contact?.side ?? 'none', 0, note.lastContact);
       else noteMiss(note);
       promptSprite.visible = false;
+      touchGlow.visible = false;
       removeNote(note);
     }
   }
@@ -496,6 +572,7 @@ export function createPlayfield(
         notes.length = 0;
         ghost.visible = false;
         promptSprite.visible = false;
+        touchGlow.visible = false;
         shatter.update(dt);
         popup.update(dt);
         return;
@@ -546,6 +623,7 @@ export function createPlayfield(
       stats.lastGrade = null;
       stats.lastOffsetMs = null;
       promptSprite.visible = false;
+      touchGlow.visible = false;
       waveActive = false;
       waveCount = 0;
       waveStart = 0;
@@ -561,6 +639,7 @@ export function createPlayfield(
       glowGeometry.dispose();
       holdSheetGeometry.dispose();
       holdStripGeometry.dispose();
+      holdAuraGeometry.dispose();
       shatter.dispose();
       popup.dispose();
       ghost.geometry.dispose();
@@ -568,6 +647,8 @@ export function createPlayfield(
       promptTexturePress.dispose();
       promptTextureHeld.dispose();
       promptMaterial.dispose();
+      touchTexture.dispose();
+      touchMaterial.dispose();
       group.clear();
     },
   };

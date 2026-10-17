@@ -337,8 +337,11 @@ renderer.setAnimationLoop((frameTime: number) => {
   const dt = Math.min(Math.max((frameTime - lastFrameTime) / 1000, 0), 0.05);
   lastFrameTime = frameTime;
 
-  // 打击练习开着时，指针是「手」：关掉轨道相机，左键才不会被拿去转视角。
-  controls.enabled = !renderer.xr.isPresenting && !playSettings.enabled;
+  // 打击练习开着时，指针是「手」：禁止鼠标拖动转视角（但保留 update，
+  // 否则 ?cam / ?look 设置的朝向不会生效）。
+  controls.enabled = !renderer.xr.isPresenting;
+  controls.enableRotate = !playSettings.enabled || renderer.xr.isPresenting;
+  controls.enablePan = controls.enableRotate;
   if (controls.enabled) controls.update();
 
   display.aimAt(camera.position);
