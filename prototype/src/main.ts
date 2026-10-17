@@ -3,81 +3,162 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 
-import { createStage } from './scene/stage';
+import { DEFAULT_PARAMS, type TableParams } from './config';
+import { createEnvironment } from './materials/environment';
+import { createMaterialLibrary } from './materials/library';
+import { buildBackdrop } from './scene/backdrop';
 import { createControllers } from './scene/controllers';
+import { buildHud, createHudTextures } from './scene/hud';
+import { buildSpecimens, createSpecimenTextures } from './scene/specimens';
+import { buildTable } from './scene/table';
 import { createDiagnostics } from './ui/diagnostics';
 import { probeXr } from './xr/xr-support';
 import './ui/style.css';
 
 /**
- * Parallax — Step 0
+ * Parallax — Step 1
  *
- * 只验证一条链路：Quest 3 能打开这个页面并进入 immersive-vr，桌面也能打开做 fallback。
- * 这里没有台面、没有槽、没有键型、没有谱面 —— 那些从 Step 1 开始。
+ * 腰高台面、6 条铣出的导轨槽、默认可见 4 轨、深色材质与剖切边。
+ * 没有键型 / 判定 / shift 动画 / 谱面 —— 那些是 Step 2 之后。
  */
 
 const container = document.getElementById('app');
-if (!container) {
-  throw new Error('#app container is missing');
-}
+if (!container) throw new Error('#app container is missing');
+
+const params: TableParams = { ...DEFAULT_PARAMS };
 
 // —— 渲染器 ——
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
 renderer.xr.enabled = true;
-// 站立式：原点在玩家双脚下，台面高度才有意义。
 renderer.xr.setReferenceSpaceType('local-floor');
 container.append(renderer.domElement);
 
+// —— 场景 ——
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05060a);
+scene.fog = new THREE.Fog(0x05060a, 5, 16);
+
+const environment = createEnvironment(renderer);
+scene.environment = environment.texture;
+scene.environmentIntensity = 1.0;
+
+const lib = createMaterialLibrary();
+const backdrop = buildBackdrop(lib);
+scene.add(backdrop.group);
+
+// 单主光 + 轮廓光。金属的体量感主要交给环境反射，直射光只负责给出方向。
+const keyLight = new THREE.DirectionalLight(0xdbe7f8, 2.8);
+keyLight.position.set(2.2, 4.2, 2.4);
+scene.add(keyLight);
+
+const rimLight = new THREE.DirectionalLight(0x6c8cb6, 1.0);
+rimLight.position.set(-2.2, 2.6, -3.4);
+scene.add(rimLight);
+
+// 低位补光：避免剖切腔体变成纯黑。
+const fillLight = new THREE.PointLight(0x8ea6c4, 0.8, 5, 2);
+fillLight.position.set(0.4, 0.5, 0.7);
+scene.add(fillLight);
+
+// 剖切腔体里的补光：范围压得很短，只照腔体内部，不漏到地面。
+const cavityLight = new THREE.PointLight(0x9db6d4, 4.0, 0.8, 2);
+cavityLight.position.set(0.1, 0.87, -0.3);
+scene.add(cavityLight);
+
+// 顶灯：像仪器上方的台灯，给出台面的一池光，同时照亮槽的近侧壁。
+const lamp = new THREE.SpotLight(0xe6f0ff, 26, 9, 0.85, 0.65, 1.6);
+lamp.position.set(0.15, 2.35, 1.05);
+lamp.target.position.set(0, 0.95, -0.75);
+scene.add(lamp, lamp.target);
+
 // —— 相机 ——
-// 桌面 fallback 用 1.6m 人眼高度；进 VR 后由 WebXR 接管，这个位置不再生效。
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.05, 60);
-camera.position.set(0, 1.6, 2.6);
+const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.03, 80);
+camera.position.set(0, 1.62, 0.52);
 
-const stage = createStage();
-
-// —— 桌面 fallback ——
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 1.05, -0.6);
+controls.target.set(0, 0.95, -0.62);
 controls.enableDamping = true;
-controls.dampingFactor = 0.08;
-controls.minDistance = 0.6;
-controls.maxDistance = 6;
+controls.dampingFactor = 0.075;
+controls.minDistance = 0.5;
+controls.maxDistance = 7;
 controls.maxPolarAngle = Math.PI * 0.495;
 
-// —— 控制器 ——
+// —— dev 相机覆盖：?cam=x,y,z&look=x,y,z&exposure=1.4 ——
+if (import.meta.env.DEV) {
+  const query = new URLSearchParams(window.location.search);
+  const parse = (key: string): THREE.Vector3 | null => {
+    const raw = query.get(key);
+    if (!raw) return null;
+    const parts = raw.split(',').map(Number);
+    if (parts.length !== 3 || parts.some((value) => !Number.isFinite(value))) return null;
+    return new THREE.Vector3(parts[0]!, parts[1]!, parts[2]!);
+  };
+  const cam = parse('cam');
+  const look = parse('look');
+  if (cam) camera.position.copy(cam);
+  if (look) controls.target.copy(look);
+  const exposure = Number(query.get('exposure'));
+  if (Number.isFinite(exposure) && exposure > 0) renderer.toneMappingExposure = exposure;
+  const env = Number(query.get('env'));
+  if (Number.isFinite(env) && env >= 0 && query.has('env')) scene.environmentIntensity = env;
+
+  const win = Number(query.get('window'));
+  if (win === -1 || win === 0 || win === 1) params.windowOffset = win;
+  if (query.get('reveal') === '1') params.revealHidden = true;
+  if (query.get('numbers') === '1') params.showLaneNumbers = true;
+}
+
+// —— 内容 ——
+const hudTextures = createHudTextures();
+const specimenTextures = createSpecimenTextures();
+
+let table = buildTable(params, lib);
+let hud = buildHud(params, table.geometry, lib, hudTextures);
+let specimens = buildSpecimens(params, table.geometry, lib, specimenTextures);
+scene.add(table.group, hud.group, specimens.group);
+
+function disposeContent(): void {
+  scene.remove(table.group, hud.group, specimens.group);
+  table.dispose();
+  hud.dispose();
+  specimens.dispose();
+}
+
+function rebuild(): void {
+  disposeContent();
+  table = buildTable(params, lib);
+  hud = buildHud(params, table.geometry, lib, hudTextures);
+  specimens = buildSpecimens(params, table.geometry, lib, specimenTextures);
+  scene.add(table.group, hud.group, specimens.group);
+}
+
+// —— 控制器（VR）——
 const diagnostics = createDiagnostics();
 const hands: Record<string, boolean> = { left: false, right: false, none: false };
-
-const cubicMaterial = stage.cube.material as THREE.MeshStandardMaterial;
-let flashTimer = 0;
 
 function updateHandsRow(): void {
   const mark = (hand: string): string => (hands[hand] ? '●' : '○');
   const parts = [`L ${mark('left')}`, `R ${mark('right')}`];
   if (hands.none) parts.push('? ●');
-  const connected = parts.join('  ');
-  diagnostics.set('controllers', connected, hands.left || hands.right || hands.none ? 'ok' : 'idle');
+  diagnostics.set('controllers', parts.join('  '), hands.left || hands.right || hands.none ? 'ok' : 'idle');
 }
 
-const controllers = createControllers(renderer, stage.scene, {
+const controllers = createControllers(renderer, scene, {
   onHandedness(hand, connected) {
     hands[hand] = connected;
     updateHandsRow();
   },
   onSelect() {
-    // 为「事件真的到了」给一个可见凭据；这不是命中反馈，命中反馈是 Step 2 的事。
-    cubicMaterial.emissive.setHex(0x3f7f96);
-    window.clearTimeout(flashTimer);
-    flashTimer = window.setTimeout(() => cubicMaterial.emissive.setHex(0x000000), 130);
+    // Step 1 没有交互；留空是为了让 Step 2 有一个明确的落点。
   },
 });
 updateHandsRow();
 
 // —— Enter VR ——
-// VRButton 负责能力探测、会话请求与失败提示；它不自带 append，需要显式挂到 body。
-// 它自带的内联样式在这里清掉，换成面板的仪表风格。
 const vrButton = VRButton.createButton(renderer, {
   optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking'],
 });
@@ -86,15 +167,14 @@ vrButton.classList.add('parallax-button');
 vrButton.style.cssText = '';
 document.body.append(vrButton);
 
-// —— 会话状态 ——
+// —— 会话 ——
 let referenceSpaceSeen = false;
-
 const HINT_READY = '链路就绪 · 点下方 Enter VR 进入 immersive-vr。';
 
 renderer.xr.addEventListener('sessionstart', () => {
   controls.enabled = false;
   diagnostics.set('session', 'immersive-vr', 'ok');
-  diagnostics.setHint('VR 会话中 · 桌面镜像上的操作不影响头显；断开 USB 后 adb reverse 需重跑。');
+  diagnostics.setHint('VR 会话中 · 桌面镜像上的操作不影响头显。');
 });
 renderer.xr.addEventListener('sessionend', () => {
   controls.enabled = true;
@@ -104,6 +184,7 @@ renderer.xr.addEventListener('sessionend', () => {
   diagnostics.setHint(HINT_READY);
 });
 
+// —— 链路自检 ——
 void probeXr().then((probe) => {
   diagnostics.set('origin', probe.origin, 'idle');
   diagnostics.set('secure', probe.secure ? 'true' : 'false', probe.secure ? 'ok' : 'bad');
@@ -116,9 +197,7 @@ void probeXr().then((probe) => {
   diagnostics.set('session', 'off', 'idle');
 
   if (!probe.secure) {
-    diagnostics.setHint(
-      '非安全上下文 · WebXR 不可用。用 http://127.0.0.1:5173 或 http://localhost:5173；局域网 IP 不是 secure context。',
-    );
+    diagnostics.setHint('非安全上下文 · WebXR 不可用。用 http://127.0.0.1:5173 或 http://localhost:5173。');
   } else if (!probe.hasXr) {
     diagnostics.setHint('本浏览器没有 navigator.xr · 桌面 fallback 可用，VR 不可用。');
   } else if (probe.supportsImmersiveVr === false) {
@@ -131,46 +210,45 @@ void probeXr().then((probe) => {
 // —— 帧率 ——
 const stats = new Stats();
 stats.dom.style.position = 'fixed';
-stats.dom.style.top = '16px';
-stats.dom.style.right = '16px';
-stats.dom.style.left = 'auto';
+stats.dom.style.left = '16px';
+stats.dom.style.bottom = '16px';
+stats.dom.style.top = 'auto';
 document.body.append(stats.dom);
 
-let fpsFrames = 0;
-let fpsWindowStart = performance.now();
+// —— 调试面板（仅 dev）——
+if (import.meta.env.DEV) {
+  void import('./ui/debug').then(({ createDebug }) => {
+    debugHandle = createDebug({ params, renderer, scene, onChange: rebuild });
+  });
+}
 
 // —— 主循环 ——
-// 时间基准直接用 setAnimationLoop 给的 timestamp：桌面是 rAF 时间，VR 里是 XR 帧时间。
-// 不用 THREE.Clock —— r186 起它已废弃，而且这里也不需要它。
-let lastFrameTime = 0;
+let fpsFrames = 0;
+let fpsWindowStart = performance.now();
+let debugHandle: { dispose(): void } | undefined;
 
 renderer.setAnimationLoop((frameTime: number) => {
-  const dt = lastFrameTime === 0 ? 0 : Math.min((frameTime - lastFrameTime) / 1000, 0.1);
-  const elapsed = frameTime / 1000;
-  lastFrameTime = frameTime;
-
-  stage.update(dt, elapsed);
   if (controls.enabled) controls.update();
 
   if (renderer.xr.isPresenting && !referenceSpaceSeen) {
     const space = renderer.xr.getReferenceSpace();
     if (space) {
       referenceSpaceSeen = true;
-      // 我们请求的就是 local-floor；这里只确认「参考空间非空」，不去猜运行时给的类型。
       diagnostics.set('refspace', 'local-floor', 'ok');
     }
   }
 
   stats.update();
-  renderer.render(stage.scene, camera);
+  renderer.render(scene, camera);
 
   fpsFrames += 1;
-  const now = frameTime;
-  const span = now - fpsWindowStart;
+  const span = frameTime - fpsWindowStart;
   if (span >= 500) {
     diagnostics.set('fps', String(Math.round((fpsFrames * 1000) / span)), 'idle');
+    diagnostics.set('draws', String(renderer.info.render.calls), 'idle');
+    diagnostics.set('tris', renderer.info.render.triangles.toLocaleString('en-US'), 'idle');
     fpsFrames = 0;
-    fpsWindowStart = now;
+    fpsWindowStart = frameTime;
   }
 });
 
@@ -181,9 +259,17 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// 热更新时不让旧会话残留：Vite 替换模块会丢弃旧闭包，这里只做显式清理。
+// —— 清理 ——
 import.meta.hot?.dispose(() => {
+  debugHandle?.dispose();
   controllers.dispose();
+  disposeContent();
+  scene.remove(backdrop.group);
+  backdrop.dispose();
+  environment.dispose();
+  hudTextures.dispose();
+  specimenTextures.dispose();
+  lib.dispose();
   renderer.setAnimationLoop(null);
   renderer.dispose();
 });

@@ -1,6 +1,6 @@
 # Parallax — prototype
 
-Phase 1 的 WebXR 原型。**当前只完成 Step 0：链路验证。**
+Phase 1 的 WebXR 原型。**当前完成 Step 0（链路）与 Step 1（台面与布局）。**
 
 设计真相在仓库根的 `parallax-idea.md`；施工协议在 `agent.md`。这里只放能跑的东西。
 
@@ -31,7 +31,7 @@ WebXR 要求 **secure context**。`http://localhost` 和 `http://127.0.0.1` 算�
    ```bash
    adb reverse tcp:5173 tcp:5173
    ```
-4. PC 上起服务（本项目默认就只听 loopback）：
+4. PC 上起服务：
    ```bash
    cd prototype && npm run dev
    ```
@@ -62,21 +62,43 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 
 `mkcert` + Vite HTTPS，需要 Quest 信任本地 CA；Quest 系统设置不保证提供证书安装入口。
 
-## 页面里能看到什么
+## 场景里有什么（Step 1）
 
-左下是 **LINK DIAGNOSTICS** 面板，逐项回答「为什么进不去 VR」：
+站在腰高台面前（`local-floor`，台面默认 0.95m）：
 
-| 行 | 含义 |
+- **6 条铣出的导轨槽**，编号 0–5 固定；默认只显示中间 4 条（1–4），0 / 5 用盲板盖住（有板缝，能看出「这块能拆」）。
+- **槽**：宽 160mm、深 26mm，内壁衬板比台面暗，槽口有 AO 带 —— 目标是「看得出深度与侧壁」。
+- **导轨**：槽之间 4mm 高的凸起铝条，顶面一条镜面倒角。
+- **判定带**：槽底一段冷白亮带（柔光 + 芯线），**静态**，相对槽底不动（`parallax-idea.md` 5.1）。
+- **剖切**：近端整面 + 右侧近半段敞开，露出承力底板、中层甲板、四根纵筋、三组轴承与走线；切面有倒角框、断面端头与两条检修灯带。
+- **HUD 托架**：右侧一个占位铭牌（`PARALLAX / LANE 06 / 0000000`），**世界固定**。
+- **样品盘**：左侧一块侧托板上四块样品（暗瓷 / 烟熏玻璃 / 黄铜 / 冰），只为验收材质「像」——Step 2 有真实键型后应当撤掉。
+- **背景**：暗房 + 1m 网格地面 + 远处渐变，无 shader 演出。
+
+> 桌面截图看不出槽的深度 —— 深度主要靠 VR 的视差与立体感。判断请戴头显。
+
+## 调试面板（仅 dev）
+
+右上 `PARALLAX · STEP 1`，改任何尺寸都会立即重建台面：
+
+| 分组 | 参数 |
 | --- | --- |
-| `secure context` | `window.isSecureContext`。false 就一定是访问方式的问题 |
-| `navigator.xr` | 浏览器硬件 / 浏览器是否支持 WebXR |
-| `immersive-vr` | `isSessionSupported('immersive-vr')` 的结果 |
-| `session` | 当前会话状态 |
-| `reference space` | 进会话后确认 `local-floor` 已生效 |
-| `controllers` | 左右手控制器的连接状态（`●` 已连 / `○` 未连） |
-| `fps` | 实际帧率（500ms 窗口） |
+| 台面 | 高度 / 进深 / 近端距离 / 轨距 / 槽宽 / 槽深 / 导轨高度 |
+| 布局 | 4 轨窗口（0–3 / 1–4 / 2–5）、揭开隐藏轨、近端轨号、判定带 |
+| 表现 | 曝光、环境强度 |
+| 底部 | 恢复默认 |
 
-场景内容：1 米一格的网格地面 + 一个悬浮方块 + 两条控制器射线。方块在扳机按下时会闪一下 —— 那是「事件到了」的凭据，**不是命中反馈**。
+左下 `LINK DIAGNOSTICS` 同时显示 `fps / draw calls / triangles`，用来估 72fps 的余量。
+
+### 开发用 URL 参数
+
+只改桌面视角与开关，不进正式构建：
+
+```
+?cam=0,1.62,0.52&look=0,0.95,-0.62      # 相机 / 注视点
+&exposure=1.2&env=1.0                    # 曝光 / 环境强度
+&window=-1&reveal=1&numbers=1            # 4 轨窗口 / 揭开 0·5 / 轨号
+```
 
 ## 脚本
 
@@ -96,14 +118,23 @@ prototype/
 ├── vite.config.ts
 ├── tsconfig.json
 └── src/
-    ├── main.ts            # 渲染器 / 相机 / 会话 / 主循环
+    ├── main.ts              # 渲染器 / 相机 / 会话 / 主循环 / 生命周期
+    ├── config.ts            # 唯一参数来源 + 派生几何
     ├── xr/
-    │   └── xr-support.ts  # secure context / navigator.xr / immersive-vr 探测
+    │   └── xr-support.ts    # secure context / navigator.xr / immersive-vr 探测
+    ├── materials/
+    │   ├── textures.ts      # 程序化贴图：拉丝 / AO / 判定带 / 铭牌 / 轨号
+    │   ├── environment.ts   # 程序化 PMREM 环境（暗房 + 冷白灯带）
+    │   └── library.ts       # 材质库（金属 / 陶瓷 / 玻璃 / 冰 / 黄铜 …）
     ├── scene/
-    │   ├── stage.ts       # 地面 + 网格 + 悬浮方块 + 光照
-    │   └── controllers.ts # 控制器射线 / 端点 / 扳机闪烁
+    │   ├── table.ts         # 台面 / 槽 / 导轨 / 盲板 / 判定带 / 剖切腔体
+    │   ├── hud.ts           # HUD 托架占位
+    │   ├── specimens.ts     # 材质样品盘（Step 1 测试道具）
+    │   ├── backdrop.ts      # 暗房与地面
+    │   └── controllers.ts   # 控制器射线 / 端点 / 扳机闪烁
     └── ui/
-        ├── diagnostics.ts # 自检面板
+        ├── diagnostics.ts   # 链路自检 + 渲染开销
+        ├── debug.ts         # lil-gui 调试面板（仅 dev）
         └── style.css
 ```
 
@@ -114,6 +145,6 @@ prototype/
 
 ## 已知不做的
 
-Step 0 **不含**：台面、槽、材质语言、键型、判定、shift、谱面、编辑器。这些从 Step 1 起逐步进入，见 `agent.md` §3。
+Step 1 **不含**：键型、判定、shift 动画、谱面、编辑器、浅色主题、接触阴影 / SSAO、背景 shader 演出。
 
 当前状态与已知问题见 [`STATUS.md`](./STATUS.md)。
