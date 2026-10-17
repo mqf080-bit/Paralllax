@@ -4,6 +4,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import type { TableGeometry, TableParams } from '../config';
 import type { MaterialLibrary } from '../materials/library';
 import { createGlowTexture } from '../materials/textures';
+import { createArcNote, type ArcEvent, type ArcNote } from './arc';
 import type { HandSample, HandSide } from './hands';
 import type { Grade } from './judgement';
 import { createJudgementPopup, type JudgementPopup } from './popup';
@@ -57,7 +58,7 @@ export interface Playfield {
   dispose(): void;
 }
 
-type NoteKind = 'drag' | 'hold' | 'hit';
+type NoteKind = 'drag' | 'hold' | 'hit' | 'arc';
 
 interface Note {
   kind: NoteKind;
@@ -88,6 +89,8 @@ interface Note {
   contact?: boolean;
   /** hit 要求的手别；'none' = 中性（任意手）。 */
   hand?: HandSide;
+  /** arc 的视觉与物量（固定在世界里的弧 + 光点）。 */
+  arc?: ArcNote;
   resolved: boolean;
 }
 
@@ -161,6 +164,7 @@ export function createPlayfield(
   let nextWaveAt = 0.35;
   let waveActive = false;
   let waveCount = 0;
+  let arcCount = 0;
   let waveStart = 0;
   let waveEnd = 0;
 
@@ -223,6 +227,7 @@ export function createPlayfield(
   function removeNote(note: Note): void {
     group.remove(note.group);
     note.group.clear();
+    note.arc?.dispose();
     note.sheetMaterial?.dispose();
     note.stripMaterial?.dispose();
     note.auraMaterial?.dispose();
@@ -277,6 +282,75 @@ export function createPlayfield(
     popupPosition.set(note.laneX, barY - 0.02, geometry.bandZ);
     popup.spawn('miss', popupPosition);
     hooks.onJudge?.('none', 'miss', 0);
+  }
+
+  function handleArcEvent(event: ArcEvent): void {
+    if (event.type === 'held') {
+      stats.perfect += 1;
+      stats.lastGrade = 'perfect';
+      stats.lastOffsetMs = null;
+      popupPosition.copy(event.position);
+      popup.spawn('perfect', popupPosition, { scale: event.key ? 0.78 : 0.62, life: 0.32 });
+      shatterDirection.set(0, 1, 0);
+      shatter.spawn(event.position, shatterDirection, 0xbfe9ff, event.key ? 7 : 3);
+      hooks.onJudge?.(event.side, 'perfect', 0);
+    } else {
+      stats.miss += 1;
+      stats.lastGrade = 'miss';
+      stats.lastOffsetMs = null;
+      popupPosition.copy(event.position);
+      popup.spawn('miss', popupPosition);
+      hooks.onJudge?.('none', 'miss', 0);
+    }
+  }
+
+  function spawnArc(): void {
+    const hand: HandSide = arcCount % 2 === 0 ? 'right' : 'left';
+    arcCount += 1;
+
+    waveStart = clock + LEAD_IN;
+    const duration = 1.4;
+    waveEnd = waveStart + duration;
+
+    const y0 = params.tableHeight + 0.06;
+    const z0 = geometry.bandZ - 0.2;
+    const leftX = geometry.laneX[0] ?? -0.34;
+    const rightX = geometry.laneX[laneCount - 1] ?? 0.34;
+
+    // 一个够得着的拱：从左轨近处起、升高、跨到右轨远处落下。
+    const points = [
+      new THREE.Vector3(leftX, y0, z0),
+      new THREE.Vector3(leftX * 0.55, y0 + 0.26, z0 - 0.12),
+      new THREE.Vector3(0, y0 + 0.36, z0 - 0.24),
+      new THREE.Vector3(rightX * 0.55, y0 + 0.26, z0 - 0.36),
+      new THREE.Vector3(rightX, y0 + 0.02, z0 - 0.48),
+    ];
+
+    const arc = createArcNote(
+      {
+        points,
+        startAt: waveStart,
+        duration,
+        hand,
+        normalTicks: 6,
+        keyUs: [0.34, 0.72],
+      },
+      lib,
+    );
+
+    group.add(arc.group);
+    notes.push({
+      kind: 'arc',
+      lane: 0,
+      laneX: 0,
+      group: arc.group,
+      arriveAt: waveStart,
+      duration,
+      length: 0,
+      hand,
+      arc,
+      resolved: false,
+    });
   }
 
   /** hit 的测试串：左右手交替、左右两侧各两下。 */
@@ -433,9 +507,10 @@ export function createPlayfield(
   function spawnWave(): void {
     waveActive = true;
     waveCount += 1;
-    const kind = waveCount % 3;
+    const kind = waveCount % 4;
     if (kind === 1) spawnHitRun();
-    else if (kind === 2) spawnDragStaircase();
+    else if (kind === 2) spawnArc();
+    else if (kind === 3) spawnDragStaircase();
     else spawnHold();
   }
 
@@ -614,23 +689,26 @@ export function createPlayfield(
       return null;
     }
 
-    let targetX = ghostPosition.x;
     let targetHand: HandSide = 'none';
 
+    const arcNote = notes.find((note) => note.kind === 'arc' && !note.resolved);
     const hold = notes.find((note) => note.kind === 'hold' && !note.resolved);
     const hit = notes.find((note) => note.kind === 'hit' && !note.resolved);
 
-    if (hold) {
-      targetX = hold.laneX;
+    if (arcNote?.arc && clock >= arcNote.arc.startAt - 0.1) {
+      // arc：虚拟手直接贴着光点走。
+      ghostPosition.copy(arcNote.arc.positionAt(clock));
+      targetHand = arcNote.arc.hand;
+    } else if (hold) {
+      ghostPosition.set(hold.laneX, barY + 0.006, geometry.bandZ);
     } else if (hit) {
-      targetX = hit.laneX;
+      ghostPosition.set(hit.laneX, barY + 0.006, geometry.bandZ);
       targetHand = hit.hand ?? 'none';
     } else if (clock >= waveStart && clock <= waveEnd) {
       const t = (clock - waveStart) / Math.max(waveEnd - waveStart, 1e-3);
-      targetX = leftLane + (rightLane - leftLane) * t;
+      ghostPosition.set(leftLane + (rightLane - leftLane) * t, barY + 0.006, geometry.bandZ);
     }
 
-    ghostPosition.set(targetX, barY + 0.006, geometry.bandZ);
     ghostVelocity.copy(ghostPosition).sub(ghostPrev).divideScalar(Math.max(dt, 1e-4));
     ghostPrev.copy(ghostPosition);
 
@@ -683,7 +761,13 @@ export function createPlayfield(
         if (note.resolved) continue;
         if (note.kind === 'drag') judgeDrag(note, samples);
         else if (note.kind === 'hit') judgeHit(note, samples);
-        else updateHold(note, dt, samples);
+        else if (note.kind === 'arc' && note.arc) {
+          for (const event of note.arc.update(clock, dt, samples)) handleArcEvent(event);
+          if (clock > note.arc.startAt + note.arc.duration + 0.5) {
+            note.resolved = true;
+            removeNote(note);
+          }
+        } else updateHold(note, dt, samples);
       }
 
       // 收拾已经滑出近端的键（漏掉的也要滑出去）。

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 
+import { createFresnelGlowMaterial } from '../materials/glow';
 import type { TableGeometry, TableParams } from '../config';
 import type { MaterialLibrary } from '../materials/library';
 import { HAND_LEFT, HAND_RIGHT } from '../materials/palette';
@@ -21,42 +22,6 @@ export interface NotesPreview {
   group: THREE.Group;
   update(elapsed: number): void;
   dispose(): void;
-}
-
-/** 泛光：围绕管身的菲涅耳加法壳。不是后处理 bloom，是几何上的假 halo。 */
-function createGlowMaterial(color: number, intensity: number, power: number): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      uColor: { value: new THREE.Color(color) },
-      uIntensity: { value: intensity },
-      uPower: { value: power },
-    },
-    vertexShader: /* glsl */ `
-      varying vec3 vNormalV;
-      varying vec3 vViewDir;
-      void main() {
-        vec4 mv = modelViewMatrix * vec4(position, 1.0);
-        vNormalV = normalize(normalMatrix * normal);
-        vViewDir = normalize(-mv.xyz);
-        gl_Position = projectionMatrix * mv;
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      uniform vec3 uColor;
-      uniform float uIntensity;
-      uniform float uPower;
-      varying vec3 vNormalV;
-      varying vec3 vViewDir;
-      void main() {
-        float fresnel = pow(1.0 - abs(dot(normalize(vNormalV), normalize(vViewDir))), uPower);
-        gl_FragColor = vec4(uColor * fresnel * uIntensity, fresnel);
-      }
-    `,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    side: THREE.FrontSide,
-  });
 }
 
 function tubeAlong(
@@ -181,12 +146,12 @@ export function buildNotesPreview(params: TableParams, g: TableGeometry, lib: Ma
 
     // 两层泛光：内层紧、外层散。
     // 内层：贴着管壁，负责「光来自管内」；外层：更松的菲涅耳，负责在边缘晕一圈。
-    const glowMaterial = createGlowMaterial(glowColor, 0.9, 2.0);
+    const glowMaterial = createFresnelGlowMaterial(glowColor, 0.9, 2.0);
     const glow = tubeAlong(points, 0.032, glowMaterial, 96, 12);
     glow.renderOrder = 4;
     group.add(glow);
 
-    const haloMaterial = createGlowMaterial(haloColor, 0.3, 2.6);
+    const haloMaterial = createFresnelGlowMaterial(haloColor, 0.3, 2.6);
     const halo = tubeAlong(points, 0.062, haloMaterial, 96, 12);
     halo.renderOrder = 3;
     group.add(halo);
