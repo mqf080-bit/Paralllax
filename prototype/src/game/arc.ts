@@ -72,7 +72,7 @@ const NORMAL_RADIUS = 0.19;
 const NORMAL_WINDOW = 0.2;
 /** 关键物量：**判定半径与普通物量相同**——难度只来自更短的窗口，不靠缩小体积。 */
 const KEY_RADIUS = NORMAL_RADIUS;
-const KEY_WINDOW = 0.12;
+const KEY_WINDOW = 0.08;
 /** 手在 z 方向上离判定带多远还算「在判定带上」。 */
 const BAND_ZONE = 0.42;
 
