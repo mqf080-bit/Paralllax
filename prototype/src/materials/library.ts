@@ -203,31 +203,34 @@ export function createMaterialLibrary(): MaterialLibrary {
     metalness: 0.0,
     roughness: 0.22,
     transparent: true,
-    opacity: 0.4,
+    depthWrite: false,
+    opacity: 0.45,
     ior: 1.5,
-    clearcoat: 0.55,
+    specularIntensity: 1.8,
+    clearcoat: 0.7,
     clearcoatRoughness: 0.08,
-    envMapIntensity: 1.5,
+    envMapIntensity: 2.2,
     normalMap: createGlassNormalMap(128, 4),
     roughnessMap: createSmudgeRoughnessMap(),
   });
   smokedGlass.normalScale = new THREE.Vector2(0.35, 0.35);
 
   // —— 清玻璃：hold / arc 的管壁 ——
+  // 用 transmission 试真实折射：高光与波纹会直接体现在「透过它看到的东西」上。
   const clearGlass = new THREE.MeshPhysicalMaterial({
-    color: 0xc3dcec,
+    color: 0xffffff,
     metalness: 0.0,
-    roughness: 0.2,
-    transparent: true,
-    opacity: 0.17,
+    roughness: 0.07,
     ior: 1.5,
-    clearcoat: 0.5,
-    clearcoatRoughness: 0.1,
-    envMapIntensity: 1.35,
-    normalMap: createGlassNormalMap(128, 3),
+    transmission: 1.0,
+    thickness: 0.014,
+    attenuationColor: 0xcfe6f4,
+    attenuationDistance: 0.35,
+    envMapIntensity: 1.5,
+    normalMap: createGlassNormalMap(128, 5),
     roughnessMap: createSmudgeRoughnessMap(),
   });
-  clearGlass.normalScale = new THREE.Vector2(0.4, 0.4);
+  clearGlass.normalScale = new THREE.Vector2(1.4, 1.4);
 
   // —— 冰：Worley 晶面法线，棱面靠它对光 ——
   const ice = new THREE.MeshPhysicalMaterial({
@@ -235,8 +238,10 @@ export function createMaterialLibrary(): MaterialLibrary {
     metalness: 0.0,
     roughness: 0.34,
     transparent: true,
-    opacity: 0.5,
+    depthWrite: false,
+    opacity: 0.3,
     ior: 1.31,
+    specularIntensity: 1.6,
     clearcoat: 0.7,
     clearcoatRoughness: 0.12,
     emissive: 0x0a1c26,
@@ -311,7 +316,7 @@ export function createMaterialLibrary(): MaterialLibrary {
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     toneMapped: false,
-    opacity: 0.22,
+    opacity: 0.14,
   });
 
   // 玻璃管里的光带：不是灯，是「被推着走的那团光」的占位。

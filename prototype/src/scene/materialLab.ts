@@ -23,7 +23,7 @@ export interface MaterialLab {
 export function buildMaterialLab(lib: MaterialLibrary): MaterialLab {
   const group = new THREE.Group();
   group.name = 'material-lab';
-  group.position.set(0, 1.24, -0.72);
+  group.position.set(0, 1.12, -0.66);
 
   const items: THREE.Object3D[] = [];
 
@@ -54,7 +54,7 @@ export function buildMaterialLab(lib: MaterialLibrary): MaterialLab {
   const tube = new THREE.Group();
   tube.position.x = 0.09;
   const shell = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.19, 32, 1, true), lib.clearGlass);
-  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.176, 16), lib.glassCore);
+  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.17, 16), lib.glassCore);
   tube.add(shell, core);
   group.add(tube);
   items.push(tube);
@@ -65,6 +65,14 @@ export function buildMaterialLab(lib: MaterialLibrary): MaterialLab {
   brass.rotation.x = Math.PI / 2.6;
   group.add(brass);
   items.push(brass);
+
+  // 投影：样品往台面上落影，这是「浮着」最直接的证据。
+  group.traverse((object) => {
+    if (object instanceof THREE.Mesh) {
+      object.castShadow = true;
+      object.receiveShadow = true;
+    }
+  });
 
   return {
     group,

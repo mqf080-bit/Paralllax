@@ -91,6 +91,7 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
 
   const plate = new THREE.Mesh(plateGeometry, lib.topPlate);
   plate.name = 'plate';
+  plate.receiveShadow = true;
   group.add(plate);
 
   // —— 4 轨之间的分割线 ——

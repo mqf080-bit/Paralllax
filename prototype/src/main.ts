@@ -31,6 +31,8 @@ const params: TableParams = { ...DEFAULT_PARAMS };
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.xr.enabled = true;
@@ -79,6 +81,13 @@ scene.add(cavityLight);
 const lamp = new THREE.SpotLight(0xe6f0ff, 30, 9, 0.9, 0.65, 1.6);
 lamp.position.set(0.15, 2.35, 1.05);
 lamp.target.position.set(0, 0.95, -0.75);
+// 最简单的阴影：只让这一盏台灯投影，一张 1024 的 shadow map，不做级联。
+lamp.castShadow = true;
+lamp.shadow.mapSize.set(1024, 1024);
+lamp.shadow.camera.near = 0.4;
+lamp.shadow.camera.far = 6;
+lamp.shadow.bias = -0.0008;
+lamp.shadow.normalBias = 0.02;
 scene.add(lamp, lamp.target);
 
 // —— 相机 ——
