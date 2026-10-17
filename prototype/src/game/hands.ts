@@ -25,6 +25,8 @@ export interface HandSample {
   velocity: THREE.Vector3;
   /** 这一帧有可信位置：头显控制器连着 / 指针在画面里。 */
   active: boolean;
+  /** 按键按着：VR 是扳机或侧握（食指 / 中指），桌面是鼠标左键或空格。 */
+  pressed: boolean;
 }
 
 export interface Hands {
@@ -168,6 +170,7 @@ export function createHands(
     position: new THREE.Vector3(),
     velocity: new THREE.Vector3(),
     active: false,
+    pressed: false,
   };
   samples.push(pointerSample);
   const pointerTrail = createTrail(0x9fd8ff, glowMap, scene);
@@ -193,8 +196,41 @@ export function createHands(
     pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
     pointerSeen = true;
   };
+
+  // 桌面上的「按键」：鼠标左键或空格。play 打开时 OrbitControls 会被关掉，左键不会转相机。
+  let pointerDown = false;
+  let spaceDown = false;
+  const onPointerDown = (event: PointerEvent): void => {
+    if (event.button === 0) pointerDown = true;
+  };
+  const onPointerUp = (): void => {
+    pointerDown = false;
+  };
+  const onKeyDown = (event: KeyboardEvent): void => {
+    if (event.code === 'Space') spaceDown = true;
+  };
+  const onKeyUp = (event: KeyboardEvent): void => {
+    if (event.code === 'Space') spaceDown = false;
+  };
+  const onBlur = (): void => {
+    pointerDown = false;
+    spaceDown = false;
+  };
+
   window.addEventListener('pointermove', onPointerMove);
-  cleanups.push(() => window.removeEventListener('pointermove', onPointerMove));
+  window.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('blur', onBlur);
+  cleanups.push(() => {
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointerdown', onPointerDown);
+    window.removeEventListener('pointerup', onPointerUp);
+    window.removeEventListener('keydown', onKeyDown);
+    window.removeEventListener('keyup', onKeyUp);
+    window.removeEventListener('blur', onBlur);
+  });
 
   // —— XR 控制器 ——
   interface XrHand {
@@ -204,6 +240,8 @@ export function createHands(
     prev: THREE.Vector3;
     hasPrev: boolean;
     gamepad: GamepadLike | null;
+    triggerDown: boolean;
+    squeezeDown: boolean;
   }
 
   const xrHands: XrHand[] = [];
@@ -216,6 +254,7 @@ export function createHands(
       position: new THREE.Vector3(),
       velocity: new THREE.Vector3(),
       active: false,
+      pressed: false,
     };
     samples.push(sample);
 
@@ -229,6 +268,8 @@ export function createHands(
       prev: new THREE.Vector3(),
       hasPrev: false,
       gamepad: null,
+      triggerDown: false,
+      squeezeDown: false,
     };
 
     const onConnected = (event: unknown): void => {
@@ -245,16 +286,45 @@ export function createHands(
       hand.sample.active = false;
       hand.sample.side = 'none';
       hand.sample.velocity.set(0, 0, 0);
+      hand.sample.pressed = false;
+      hand.triggerDown = false;
+      hand.squeezeDown = false;
       hand.trail.clear();
       hand.trail.points.visible = false;
       hand.hasPrev = false;
     };
 
+    // 板机（select）= 食指；侧握（squeeze）= 中指。任意一个都算「按下」。
+    const onSelectStart = (): void => {
+      hand.triggerDown = true;
+      hand.sample.pressed = true;
+    };
+    const onSelectEnd = (): void => {
+      hand.triggerDown = false;
+      hand.sample.pressed = hand.triggerDown || hand.squeezeDown;
+    };
+    const onSqueezeStart = (): void => {
+      hand.squeezeDown = true;
+      hand.sample.pressed = true;
+    };
+    const onSqueezeEnd = (): void => {
+      hand.squeezeDown = false;
+      hand.sample.pressed = hand.triggerDown || hand.squeezeDown;
+    };
+
     controller.addEventListener('connected', onConnected);
     controller.addEventListener('disconnected', onDisconnected);
+    controller.addEventListener('selectstart', onSelectStart);
+    controller.addEventListener('selectend', onSelectEnd);
+    controller.addEventListener('squeezestart', onSqueezeStart);
+    controller.addEventListener('squeezeend', onSqueezeEnd);
     cleanups.push(() => {
       controller.removeEventListener('connected', onConnected);
       controller.removeEventListener('disconnected', onDisconnected);
+      controller.removeEventListener('selectstart', onSelectStart);
+      controller.removeEventListener('selectend', onSelectEnd);
+      controller.removeEventListener('squeezestart', onSqueezeStart);
+      controller.removeEventListener('squeezeend', onSqueezeEnd);
     });
     xrHands.push(hand);
   }
@@ -282,17 +352,20 @@ export function createHands(
           pointerHit.y = options.pointerPlaneY;
           pointerSample.position.copy(pointerHit);
           pointerSample.active = true;
+          pointerSample.pressed = pointerDown || spaceDown;
           pointerMarker.visible = true;
           pointerMarker.position.copy(pointerHit);
           pointerTrail.points.visible = true;
           pointerTrail.push(pointerHit);
         } else {
           pointerSample.active = false;
+          pointerSample.pressed = false;
           pointerMarker.visible = false;
           pointerTrail.points.visible = false;
         }
       } else {
         pointerSample.active = false;
+        pointerSample.pressed = false;
         pointerMarker.visible = false;
         pointerTrail.points.visible = false;
         pointerTrail.clear();

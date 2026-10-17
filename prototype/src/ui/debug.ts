@@ -52,6 +52,7 @@ export function createDebug(options: DebugOptions): DebugHandle {
   playFolder.add(play, 'enabled').name('生成键');
   playFolder.add(play, 'flowSpeed', 1, 6, 0.1).name('流速 m/s');
   playFolder.add(play, 'interval', 0.1, 0.5, 0.01).name('楼梯间隔 s');
+  playFolder.add(play, 'holdTicks', 1, 12, 1).name('hold 物量个数');
   playFolder.add(play, 'auto').name('自动扫（演示）');
   playFolder.add({ restart: onPlayRestart }, 'restart').name('重开这一波');
 

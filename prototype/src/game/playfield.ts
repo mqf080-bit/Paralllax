@@ -26,6 +26,8 @@ export interface PlayfieldSettings {
   flowSpeed: number;
   /** drag 楼梯里两条冰条的时间差（秒）。 */
   interval: number;
+  /** hold 里的物量个数；越多密度越高，判定窗口越窄（下限 200ms）。 */
+  holdTicks: number;
   /** dev：自动打（一个虚拟手按拍子扫 / 按住），用来验证判定与反馈。 */
   auto: boolean;
 }
@@ -69,8 +71,21 @@ interface Note {
   length: number;
   sheet?: THREE.Mesh;
   strip?: THREE.Mesh;
-  /** hold 已经按住的时间。 */
-  heldTime: number;
+  /** hold 里的物量：每个 tick 是一次判定，时间点由物量密度决定。 */
+  ticks?: HoldTick[];
+  /** 单个 tick 的容错窗口（秒），密度越高越窄，但不窄于 200ms。 */
+  tickWindow?: number;
+  /** 最后一次「按住」时手的位置，判定提示弹在这里。 */
+  lastContact?: THREE.Vector3;
+  /** 这一帧是否按住了（只给 hold 用）。 */
+  contact?: boolean;
+  resolved: boolean;
+}
+
+interface HoldTick {
+  /** 世界时钟上的时刻（秒）。 */
+  time: number;
+  held: boolean;
   resolved: boolean;
 }
 
@@ -89,8 +104,10 @@ const MISS_DISTANCE = 0.55;
 /** hold 的接触盒（x / y）；z 用片子本身的 z 范围。 */
 const HOLD_HALF_X = 0.13;
 const HOLD_HALF_Y = 0.26;
-/** hold 的按住占比达到这个值就算接上。 */
-const HOLD_REQUIRED = 0.5;
+/** 单个物量的最小容错窗口（秒）：密度再高也不会窄过这个值。 */
+const HOLD_MIN_WINDOW = 0.2;
+/** 单个物量的最大容错窗口（秒）：密度很低时也不会松到无脑。 */
+const HOLD_MAX_WINDOW = 0.6;
 /** hold 的尾端完全越过判定带这么远才结算。 */
 const HOLD_MISS_MARGIN = 0.6;
 /** 第一颗键从出生到判定带的飞行时间（秒）。 */
@@ -99,6 +116,37 @@ const LEAD_IN = 1.35;
 const WAVE_PAUSE = 1.3;
 /** hold 的按住时长（秒）。 */
 const HOLD_DURATION = 0.8;
+
+/** hold 的按键提示：贴在世界里，不随键滚动，位置就在判定带上方。 */
+function createPromptTexture(kind: 'press' | 'held'): THREE.CanvasTexture {
+  const width = 640;
+  const height = 240;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('2D canvas context unavailable');
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = '#8fe6ff';
+  ctx.shadowBlur = 26;
+  ctx.fillStyle = '#eaf9ff';
+
+  if (kind === 'press') {
+    ctx.font = '700 96px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif';
+    ctx.fillText('HOLD', width / 2, 88);
+    ctx.font = '700 44px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif';
+    ctx.fillText('TRIGGER / GRIP', width / 2, 180);
+  } else {
+    ctx.font = '700 96px ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif';
+    ctx.fillText('HOLDING', width / 2, 120);
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
 
 export function createPlayfield(
   params: TableParams,
@@ -145,6 +193,21 @@ export function createPlayfield(
   ghost.visible = false;
   group.add(ghost);
 
+  const promptTexturePress = createPromptTexture('press');
+  const promptTextureHeld = createPromptTexture('held');
+  const promptMaterial = new THREE.SpriteMaterial({
+    map: promptTexturePress,
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const promptSprite = new THREE.Sprite(promptMaterial);
+  promptSprite.name = 'hold-prompt';
+  promptSprite.scale.set(0.24, (0.24 * 240) / 640, 1);
+  promptSprite.visible = false;
+  promptSprite.renderOrder = 7;
+  group.add(promptSprite);
+
   const ghostPosition = new THREE.Vector3(leftLane, barY, geometry.bandZ);
   const ghostVelocity = new THREE.Vector3();
   const ghostPrev = new THREE.Vector3().copy(ghostPosition);
@@ -154,6 +217,7 @@ export function createPlayfield(
     position: ghostPosition,
     velocity: ghostVelocity,
     active: true,
+    pressed: true,
   };
   const shatterDirection = new THREE.Vector3();
 
@@ -164,13 +228,21 @@ export function createPlayfield(
     note.group.clear();
   }
 
-  function notePerfect(note: Note, side: HandSide, offsetMs: number): void {
+  function notePerfect(note: Note, side: HandSide, offsetMs: number, at?: THREE.Vector3): void {
     note.resolved = true;
     stats.perfect += 1;
     stats.lastGrade = 'perfect';
     stats.lastOffsetMs = offsetMs;
 
-    popupPosition.set(note.laneX, barY + 0.1, THREE.MathUtils.clamp(note.group.position.z, geometry.bandZ - 0.25, geometry.bandZ + 0.25));
+    if (at) {
+      popupPosition.copy(at);
+    } else {
+      popupPosition.set(
+        note.laneX,
+        barY + 0.1,
+        THREE.MathUtils.clamp(note.group.position.z, geometry.bandZ - 0.25, geometry.bandZ + 0.25),
+      );
+    }
     popup.spawn('perfect', popupPosition);
     hooks.onJudge?.(side, 'perfect', offsetMs);
   }
@@ -217,7 +289,6 @@ export function createPlayfield(
         arriveAt,
         duration: 0,
         length: 0,
-        heldTime: 0,
         resolved: false,
       });
     }
@@ -247,6 +318,17 @@ export function createPlayfield(
 
     group.add(noteGroup);
 
+    // 物量：hold 里均匀分布若干个 tick。密度 = 个数 / 时长 → 窗口随密度收紧，
+    // 但最窄就是 200ms（`parallax-idea.md` 的容忍度规则）。
+    const tickCount = Math.max(1, Math.round(settings.holdTicks));
+    const spacing = HOLD_DURATION / tickCount;
+    const tickWindow = THREE.MathUtils.clamp(spacing, HOLD_MIN_WINDOW, HOLD_MAX_WINDOW);
+    const ticks: HoldTick[] = Array.from({ length: tickCount }, (_, index) => ({
+      time: waveStart + (index + 0.5) * spacing,
+      held: false,
+      resolved: false,
+    }));
+
     notes.push({
       kind: 'hold',
       lane,
@@ -257,7 +339,9 @@ export function createPlayfield(
       length,
       sheet,
       strip,
-      heldTime: 0,
+      ticks,
+      tickWindow,
+      lastContact: new THREE.Vector3(laneX, barY, geometry.bandZ),
       resolved: false,
     });
   }
@@ -306,6 +390,7 @@ export function createPlayfield(
   }
 
   function updateHold(note: Note, dt: number, samples: HandSample[]): void {
+    void dt;
     const headZ = geometry.bandZ + settings.flowSpeed * (clock - note.arriveAt);
     const tailZ = headZ - note.length;
     note.group.position.z = tailZ;
@@ -331,20 +416,43 @@ export function createPlayfield(
       strip.position.z = litStart - tailZ + litLength / 2;
     }
 
-    // 接触：手在轨道内，且手的 z 落在片子覆盖的范围里。
-    const inContact = samples.some(
+    // 按住 = 按键按着 + 手在轨道里 + 手的 z 落在片子范围内。
+    const contact = samples.find(
       (hand) =>
+        hand.pressed &&
         handInLane(hand, note.laneX, HOLD_HALF_Y) &&
         hand.position.z >= tailZ - 0.05 &&
         hand.position.z <= headZ + 0.05,
     );
-    if (inContact && clock >= note.arriveAt - 0.1) note.heldTime += dt;
+    if (contact) note.lastContact?.copy(contact.position);
+    note.contact = Boolean(contact);
 
-    // 尾端完全过去才结算。
+    // 按键提示：放在判定带上方、玩家手边；按住后换成 HOLDING。
+    promptSprite.visible = clock >= note.arriveAt - 1.0;
+    promptSprite.position.set(note.laneX, barY + 0.24, geometry.bandZ);
+    const promptTexture = contact ? promptTextureHeld : promptTexturePress;
+    if (promptMaterial.map !== promptTexture) {
+      promptMaterial.map = promptTexture;
+      promptMaterial.needsUpdate = true;
+    }
+
+    const tickWindow = note.tickWindow ?? HOLD_MIN_WINDOW;
+    for (const tick of note.ticks ?? []) {
+      if (tick.resolved) continue;
+      if (Math.abs(clock - tick.time) <= tickWindow / 2) {
+        if (contact) tick.held = true;
+      } else if (clock > tick.time + tickWindow / 2) {
+        tick.resolved = true;
+      }
+    }
+
+    // 尾端完全过去才结算：所有物量都被按住才算完美。
     if (tailZ > geometry.bandZ + HOLD_MISS_MARGIN) {
-      const ratio = Math.min(note.heldTime / note.duration, 1);
-      if (ratio >= HOLD_REQUIRED) notePerfect(note, 'none', 0);
+      const ticks = note.ticks ?? [];
+      const allHeld = ticks.length > 0 && ticks.every((tick) => tick.held);
+      if (allHeld) notePerfect(note, contact?.side ?? 'none', 0, note.lastContact);
       else noteMiss(note);
+      promptSprite.visible = false;
       removeNote(note);
     }
   }
@@ -387,6 +495,7 @@ export function createPlayfield(
         for (const note of notes) removeNote(note);
         notes.length = 0;
         ghost.visible = false;
+        promptSprite.visible = false;
         shatter.update(dt);
         popup.update(dt);
         return;
@@ -394,8 +503,8 @@ export function createPlayfield(
 
       if (clock >= nextWaveAt && !waveActive) spawnWave();
 
+      // 已经判过的 drag 也要继续滑出去——漏掉的键不是停在原地。
       for (const note of notes) {
-        if (note.resolved) continue;
         if (note.kind === 'drag') {
           note.group.position.z = geometry.bandZ - settings.flowSpeed * (note.arriveAt - clock);
         }
@@ -436,6 +545,7 @@ export function createPlayfield(
       stats.miss = 0;
       stats.lastGrade = null;
       stats.lastOffsetMs = null;
+      promptSprite.visible = false;
       waveActive = false;
       waveCount = 0;
       waveStart = 0;
@@ -455,6 +565,9 @@ export function createPlayfield(
       popup.dispose();
       ghost.geometry.dispose();
       (ghost.material as THREE.Material).dispose();
+      promptTexturePress.dispose();
+      promptTextureHeld.dispose();
+      promptMaterial.dispose();
       group.clear();
     },
   };

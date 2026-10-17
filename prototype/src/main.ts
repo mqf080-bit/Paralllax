@@ -32,7 +32,7 @@ const params: TableParams = { ...DEFAULT_PARAMS };
 
 // 键型预览与打击练习的开关；也接受 ?preview=1 / ?auto=1。
 const previewState = { visible: false };
-const playSettings: PlayfieldSettings = { enabled: true, flowSpeed: 3.0, interval: 0.22, auto: false };
+const playSettings: PlayfieldSettings = { enabled: true, flowSpeed: 3.0, interval: 0.22, holdTicks: 4, auto: false };
 
 // —— 渲染器 ——
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -337,6 +337,8 @@ renderer.setAnimationLoop((frameTime: number) => {
   const dt = Math.min(Math.max((frameTime - lastFrameTime) / 1000, 0), 0.05);
   lastFrameTime = frameTime;
 
+  // 打击练习开着时，指针是「手」：关掉轨道相机，左键才不会被拿去转视角。
+  controls.enabled = !renderer.xr.isPresenting && !playSettings.enabled;
   if (controls.enabled) controls.update();
 
   display.aimAt(camera.position);
