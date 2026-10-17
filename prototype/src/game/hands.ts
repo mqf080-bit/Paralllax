@@ -30,7 +30,18 @@ export interface HandSample {
 export interface Hands {
   readonly samples: HandSample[];
   update(dt: number, camera: THREE.PerspectiveCamera): void;
+  /** 震一下。`side` 为 none 时两只手一起震。 */
+  pulse(side: HandSide, intensity?: number, durationMs?: number): void;
   dispose(): void;
+}
+
+/** WebXR 手柄的触觉执行器（DOM 类型里没有稳定定义，收窄成用得到的部分）。 */
+interface HapticActuator {
+  pulse?(intensity: number, duration: number): Promise<boolean> | boolean;
+}
+
+interface GamepadLike {
+  hapticActuators?: HapticActuator[];
 }
 
 export interface HandsOptions {
@@ -192,6 +203,7 @@ export function createHands(
     controller: THREE.Object3D;
     prev: THREE.Vector3;
     hasPrev: boolean;
+    gamepad: GamepadLike | null;
   }
 
   const xrHands: XrHand[] = [];
@@ -216,10 +228,13 @@ export function createHands(
       controller,
       prev: new THREE.Vector3(),
       hasPrev: false,
+      gamepad: null,
     };
 
     const onConnected = (event: unknown): void => {
-      const handedness = (event as { data?: { handedness?: string } }).data?.handedness;
+      const source = (event as { data?: { handedness?: string; gamepad?: GamepadLike } }).data;
+      const handedness = source?.handedness;
+      hand.gamepad = source?.gamepad ?? null;
       const side: HandSide = handedness === 'left' || handedness === 'right' ? handedness : 'none';
       hand.sample.side = side;
       hand.sample.active = true;
@@ -299,6 +314,20 @@ export function createHands(
         hand.prev.copy(hand.sample.position);
         hand.trail.points.visible = true;
         hand.trail.push(hand.sample.position);
+      }
+    },
+
+    pulse(side: HandSide, intensity = 0.55, durationMs = 45): void {
+      for (const hand of xrHands) {
+        if (!hand.sample.active) continue;
+        if (side !== 'none' && hand.sample.side !== side) continue;
+        const actuator = hand.gamepad?.hapticActuators?.[0];
+        if (!actuator?.pulse) continue;
+        try {
+          void actuator.pulse(intensity, durationMs);
+        } catch {
+          // 有些手柄不支持，忽略即可。
+        }
       }
     },
 

@@ -161,13 +161,17 @@ const notes = buildNotesPreview(params, table.geometry, lib);
 scene.add(notes.group);
 
 // —— 打击练习：4 条 drag 的楼梯 ——
-let dragWave: DragWave = createDragWave(params, table.geometry, lib, playSettings);
-scene.add(dragWave.group);
-
 const hands = createHands(renderer, scene, {
   pointerPlaneY: params.tableHeight + 0.07,
   pointerZ: table.geometry.bandZ,
 });
+
+const playHooks = {
+  onHit: (side: 'left' | 'right' | 'none', _offsetMs: number) => hands.pulse(side),
+};
+
+let dragWave: DragWave = createDragWave(params, table.geometry, lib, playSettings, playHooks);
+scene.add(dragWave.group);
 
 // dev：?warp=1.6 先把练习快进若干秒，配合 ?freeze=1 冻结在那一帧（headless 帧率低，等不到）。
 let frozen = false;
@@ -207,7 +211,7 @@ function rebuild(): void {
   scene.add(notes.group);
   notes.group.visible = previewState.visible;
 
-  dragWave = createDragWave(params, table.geometry, lib, playSettings);
+  dragWave = createDragWave(params, table.geometry, lib, playSettings, playHooks);
   scene.add(dragWave.group);
 }
 

@@ -3,7 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 
 import type { TableGeometry, TableParams } from '../config';
 import type { MaterialLibrary } from '../materials/library';
-import type { HandSample } from './hands';
+import type { HandSample, HandSide } from './hands';
 import { createShatter, type Shatter } from './shatter';
 
 /**
@@ -74,11 +74,17 @@ const LEAD_IN = 1.35;
 /** 一波结束后到下一波的间隔（秒）。 */
 const WAVE_PAUSE = 1.3;
 
+export interface DragWaveHooks {
+  /** 每扫碎一条时回调：手别 + 判定偏移（毫秒）。 */
+  onHit?(side: HandSide, offsetMs: number): void;
+}
+
 export function createDragWave(
   params: TableParams,
   geometry: TableGeometry,
   lib: MaterialLibrary,
   settings: DragWaveSettings,
+  hooks: DragWaveHooks = {},
 ): DragWave {
   const stats: DragWaveStats = { hits: 0, misses: 0, lastOffsetMs: null, lastGrade: null };
 
@@ -175,6 +181,7 @@ export function createDragWave(
     shatter.spawn(note.group.position, shatterDirection, 0xcfefff, 12);
 
     removeNote(note);
+    hooks.onHit?.(hand.side, offsetMs);
   }
 
   function resolveMiss(note: Note): void {
