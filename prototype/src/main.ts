@@ -34,6 +34,10 @@ const params: TableParams = { ...DEFAULT_PARAMS };
 const previewState = { visible: false };
 const playSettings: PlayfieldSettings = { enabled: true, flowSpeed: 3.0, interval: 0.22, holdTicks: 4, auto: false };
 
+// shift 状态：0/5 轨是否出现。过渡值单独存，做淡入淡出。
+const shiftState = { active: false };
+let shiftValue = 0;
+
 // —— 渲染器 ——
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -133,6 +137,7 @@ if (import.meta.env.DEV) {
   if (query.get('numbers') === '1') params.showLaneNumbers = true;
   if (query.get('preview') === '1') previewState.visible = true;
   if (query.get('auto') === '1') playSettings.auto = true;
+  if (query.get('shift') === '1') shiftState.active = true;
   const flow = Number(query.get('flow'));
   if (Number.isFinite(flow) && flow > 0) playSettings.flowSpeed = flow;
 }
@@ -159,6 +164,7 @@ applyLab();
 
 let table = buildTable(params, lib);
 scene.add(table.group);
+table.setShift(shiftValue);
 
 // 键型预览：四种键各一份，用来定造型与材质。现在默认隐藏——打击练习才是主画面。
 const notes = buildNotesPreview(params, table.geometry, lib);
@@ -209,6 +215,7 @@ function rebuild(): void {
 
   table = buildTable(params, lib);
   scene.add(table.group);
+  table.setShift(shiftValue);
 
   const rebuilt = buildNotesPreview(params, table.geometry, lib);
   notes.group = rebuilt.group;
@@ -257,6 +264,12 @@ vrButton.id = 'enter-vr';
 vrButton.classList.add('parallax-button');
 vrButton.style.cssText = '';
 document.body.append(vrButton);
+
+// —— shift 快捷键（S）——
+window.addEventListener('keydown', (event) => {
+  if (event.code !== 'KeyS' || event.repeat) return;
+  shiftState.active = !shiftState.active;
+});
 
 // —— 会话 ——
 let referenceSpaceSeen = false;
@@ -316,6 +329,7 @@ if (import.meta.env.DEV) {
       display: displayPlacement,
       lab: labState,
       play: playfield.settings,
+      shift: shiftState,
       preview: previewState,
       renderer,
       scene,
@@ -355,6 +369,11 @@ renderer.setAnimationLoop((frameTime: number) => {
     playfield.update(dt, hands.samples);
   }
   if (previewState.visible) notes.update(frameTime / 1000);
+
+  // shift 淡入淡出：0/5 轨用 0.35s 左右的过渡出现 / 消失。
+  const shiftTarget = shiftState.active ? 1 : 0;
+  shiftValue += (shiftTarget - shiftValue) * Math.min(1, dt * 8);
+  table.setShift(shiftValue);
 
   const { perfect, good, miss, lastGrade, lastOffsetMs } = playfield.stats;
   const gradeRow = `${perfect} / ${good} / ${miss}`;

@@ -18,6 +18,8 @@ import type { MaterialLibrary } from '../materials/library';
 export interface TableBuild {
   group: THREE.Group;
   geometry: TableGeometry;
+  /** shift 的过渡值 0–1：0 = 0/5 轨不存在，1 = 完全淡入。 */
+  setShift(value: number): void;
   dispose(): void;
 }
 
@@ -223,13 +225,129 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
     group.add(edges);
   }
 
+  // —— shift 轨：0 / 5 ——
+  // 平时不存在，shift 时淡入。颜色比常住的 4 轨暗一档，本身就是状态标识。
+  const shiftMaterials: THREE.Material[] = [];
+  const shiftMeshes: THREE.Mesh[] = [];
+
+  const shiftLaneMaterial = new THREE.MeshStandardMaterial({
+    color: 0x1c2430,
+    metalness: 0.45,
+    roughness: 0.52,
+    envMapIntensity: 0.7,
+    transparent: true,
+    opacity: 0,
+  });
+  shiftMaterials.push(shiftLaneMaterial);
+
+  // 拉丝贴图沿用台面的：多出来的轨也要是「同一块材料，只是更暗」。
+  const shiftRoughness = lib.brushed.roughnessMap.clone();
+  shiftRoughness.repeat.set(3, 3);
+  shiftRoughness.needsUpdate = true;
+  const shiftNormal = lib.brushed.normalMap.clone();
+  shiftNormal.repeat.set(3, 3);
+  shiftNormal.needsUpdate = true;
+  shiftLaneMaterial.roughnessMap = shiftRoughness;
+  shiftLaneMaterial.normalMap = shiftNormal;
+  shiftLaneMaterial.normalScale = new THREE.Vector2(0.22, 0.22);
+
+  const shiftDividerMaterial = new THREE.MeshBasicMaterial({
+    color: 0x04060a,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  shiftMaterials.push(shiftDividerMaterial);
+
+  const shiftBandMaterial = lib.band.clone();
+  shiftBandMaterial.opacity = 0;
+  shiftMaterials.push(shiftBandMaterial);
+
+  const shiftBandCoreMaterial = lib.bandCore.clone();
+  shiftBandCoreMaterial.opacity = 0;
+  shiftMaterials.push(shiftBandCoreMaterial);
+
+  const shiftDigitMaterials: THREE.MeshBasicMaterial[] = [];
+  if (params.showLaneNumbers) {
+    for (const digit of [0, 5]) {
+      const material = lib.laneDigits[digit]!.clone();
+      material.opacity = 0;
+      shiftDigitMaterials.push(material);
+      shiftMaterials.push(material);
+    }
+  }
+
+  const outerLaneCenters = [-1, 1].map((side) => side * (g.width / 2 + g.laneWidth / 2));
+  const outerLaneWidth = g.laneWidth - 0.002;
+
+  outerLaneCenters.forEach((x, index) => {
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(outerLaneWidth, 0.01, g.fieldLength), shiftLaneMaterial);
+    strip.name = `shift-lane-${index === 0 ? 0 : 5}`;
+    strip.position.set(x, topY - 0.005, g.fieldCenterZ);
+    strip.receiveShadow = true;
+    group.add(strip);
+    shiftMeshes.push(strip);
+
+    // 与常驻台面之间的分界线。
+    const divider = new THREE.PlaneGeometry(DIVIDER_WIDTH, g.fieldLength);
+    divider.rotateX(-Math.PI / 2);
+    divider.translate(Math.sign(x) * (g.width / 2 + 0.001), topY + 0.0006, g.fieldCenterZ);
+    const dividerMesh = new THREE.Mesh(divider, shiftDividerMaterial);
+    dividerMesh.renderOrder = 2;
+    group.add(dividerMesh);
+    shiftMeshes.push(dividerMesh);
+
+    if (params.showBand) {
+      const halo = new THREE.PlaneGeometry(outerLaneWidth * 0.98, g.bandLength);
+      halo.rotateX(-Math.PI / 2);
+      halo.translate(x, topY + 0.0005, g.bandZ);
+      const haloMesh = new THREE.Mesh(halo, shiftBandMaterial);
+      haloMesh.renderOrder = 2;
+      group.add(haloMesh);
+      shiftMeshes.push(haloMesh);
+
+      const core = new THREE.PlaneGeometry(outerLaneWidth * 0.94, 0.008);
+      core.rotateX(-Math.PI / 2);
+      core.translate(x, topY + 0.0008, g.bandZ);
+      const coreMesh = new THREE.Mesh(core, shiftBandCoreMaterial);
+      coreMesh.renderOrder = 3;
+      group.add(coreMesh);
+      shiftMeshes.push(coreMesh);
+    }
+
+    if (params.showLaneNumbers) {
+      const digit = new THREE.PlaneGeometry(0.018, 0.018);
+      digit.rotateX(-Math.PI / 2);
+      digit.translate(x, topY + 0.0011, g.nearZ - 0.02);
+      const digitMesh = new THREE.Mesh(digit, shiftDigitMaterials[index]!);
+      digitMesh.renderOrder = 3;
+      group.add(digitMesh);
+      shiftMeshes.push(digitMesh);
+    }
+  });
+
+  function setShift(value: number): void {
+    const t = THREE.MathUtils.clamp(value, 0, 1);
+    shiftLaneMaterial.opacity = t * 0.85;
+    shiftDividerMaterial.opacity = t * 0.72;
+    shiftBandMaterial.opacity = t * 0.3;
+    shiftBandCoreMaterial.opacity = t * 0.16;
+    for (const material of shiftDigitMaterials) material.opacity = t * 0.85;
+    for (const mesh of shiftMeshes) mesh.visible = t > 0.002;
+  }
+  setShift(0);
+
   return {
     group,
     geometry: g,
+    setShift,
     dispose(): void {
       group.traverse((object) => {
         if (object instanceof THREE.Mesh) object.geometry.dispose();
       });
+      for (const material of shiftMaterials) material.dispose();
+      shiftRoughness.dispose();
+      shiftNormal.dispose();
       group.clear();
     },
   };
