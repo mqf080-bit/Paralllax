@@ -286,6 +286,26 @@ export function createPlayfield(
     hooks.onJudge?.('none', 'miss', 0);
   }
 
+  /** hold 的物量被按住：当场蹦出来一小撮碎屑。 */
+  function tickHeld(position: THREE.Vector3, side: HandSide): void {
+    stats.perfect += 1;
+    stats.lastGrade = 'perfect';
+    stats.lastOffsetMs = null;
+    shatterDirection.set(0, 1, -0.15);
+    shatter.spawn(position, shatterDirection, 0xbfe9ff, 4);
+    hooks.onJudge?.(side, 'perfect', 0);
+  }
+
+  /** hold 的物量漏了：立刻在原地弹一个 MISS，不等 hold 结束。 */
+  function tickMissed(note: Note): void {
+    stats.miss += 1;
+    stats.lastGrade = 'miss';
+    stats.lastOffsetMs = null;
+    popupPosition.set(note.laneX, barY - 0.02, geometry.bandZ);
+    popup.spawn('miss', popupPosition);
+    hooks.onJudge?.('none', 'miss', 0);
+  }
+
   function spawnDragStaircase(): void {
     waveStart = clock + LEAD_IN;
     waveEnd = waveStart + (laneCount - 1) * settings.interval;
@@ -504,29 +524,34 @@ export function createPlayfield(
 
     // 按键提示：放在判定带上方、玩家手边；按住后换成 HOLDING。
     promptSprite.visible = clock >= note.arriveAt - 1.0;
-    promptSprite.position.set(note.laneX, barY + 0.24, geometry.bandZ);
+    promptSprite.position.set(note.laneX, barY + 0.36, geometry.bandZ);
     const promptTexture = contact ? promptTextureHeld : promptTexturePress;
     if (promptMaterial.map !== promptTexture) {
       promptMaterial.map = promptTexture;
       promptMaterial.needsUpdate = true;
     }
 
+    // 物量像溪流一样逐个结算：按住就当场蹦出来，漏了也当场弹 MISS。
     const tickWindow = note.tickWindow ?? HOLD_MIN_WINDOW;
     for (const tick of note.ticks ?? []) {
       if (tick.resolved) continue;
+
       if (Math.abs(clock - tick.time) <= tickWindow / 2) {
-        if (contact) tick.held = true;
+        if (contact && !tick.held) {
+          tick.held = true;
+          // 物量从片子表面蹦出来，而不是从手心。
+          popupPosition.set(contact.position.x, params.tableHeight + 0.03, contact.position.z);
+          tickHeld(popupPosition, contact.side);
+        }
       } else if (clock > tick.time + tickWindow / 2) {
         tick.resolved = true;
+        if (!tick.held) tickMissed(note);
       }
     }
 
-    // 尾端完全过去才结算：所有物量都被按住才算完美。
+    // 尾端完全过去就收掉片子；物量已经逐个结算过了，这里不再弹总结提示。
     if (tailZ > geometry.bandZ + HOLD_MISS_MARGIN) {
-      const ticks = note.ticks ?? [];
-      const allHeld = ticks.length > 0 && ticks.every((tick) => tick.held);
-      if (allHeld) notePerfect(note, contact?.side ?? 'none', 0, note.lastContact);
-      else noteMiss(note);
+      note.resolved = true;
       promptSprite.visible = false;
       touchGlow.visible = false;
       removeNote(note);

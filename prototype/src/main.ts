@@ -168,7 +168,7 @@ const hands = createHands(renderer, scene, {
 
 const playHooks = {
   onJudge: (side: 'left' | 'right' | 'none', grade: 'perfect' | 'good' | 'miss') => {
-    if (grade !== 'miss') hands.pulse(side);
+    if (grade !== 'miss') hands.pulse(side, 0.45, 35);
   },
 };
 
