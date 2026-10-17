@@ -73,6 +73,8 @@ export interface MaterialLibrary {
   readonly iceBar: THREE.MeshPhysicalMaterial;
   /** 冰条周围的加法辉光片（水平铺开，假 bloom）。 */
   readonly dragGlow: THREE.MeshBasicMaterial;
+  /** hold 片内已经「被吃掉」的那一段亮带。 */
+  readonly holdFill: THREE.MeshBasicMaterial;
   /** 左 / 右手的同款辉光（青色 / 赤色）。 */
   readonly glowLeft: THREE.MeshBasicMaterial;
   readonly glowRight: THREE.MeshBasicMaterial;
@@ -389,6 +391,15 @@ export function createMaterialLibrary(): MaterialLibrary {
   }
 
   const dragGlow = createGlow(0xbfefff, 0.55);
+  // hold 的亮带：加法，压在玻璃片里，读作「片子正在被点亮」。
+  const holdFill = new THREE.MeshBasicMaterial({
+    color: 0x9fd8f0,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+    opacity: 0.5,
+  });
   // 带手别的辉光：光斑也要跟着弧的色相，否则地面上会出现一块中性的白雾。
   const glowLeft = createGlow(HAND_LEFT.glow, 0.5);
   const glowRight = createGlow(HAND_RIGHT.glow, 0.5);
@@ -460,6 +471,7 @@ export function createMaterialLibrary(): MaterialLibrary {
     iceCore,
     iceBar,
     dragGlow,
+    holdFill,
     glowLeft,
     glowRight,
     ice,
@@ -499,6 +511,7 @@ export function createMaterialLibrary(): MaterialLibrary {
         iceCore,
         iceBar,
         dragGlow,
+        holdFill,
         glowLeft,
         glowRight,
         ice,

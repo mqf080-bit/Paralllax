@@ -4,8 +4,8 @@ import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 
 import { DEFAULT_PARAMS, type TableParams } from './config';
-import { createDragWave, type DragWave, type DragWaveSettings } from './game/dragWave';
 import { createHands } from './game/hands';
+import { createPlayfield, type Playfield, type PlayfieldSettings } from './game/playfield';
 import { createEnvironment } from './materials/environment';
 import { createMaterialLibrary } from './materials/library';
 import { buildBackdrop } from './scene/backdrop';
@@ -32,7 +32,7 @@ const params: TableParams = { ...DEFAULT_PARAMS };
 
 // 键型预览与打击练习的开关；也接受 ?preview=1 / ?auto=1。
 const previewState = { visible: false };
-const playSettings: DragWaveSettings = { enabled: true, flowSpeed: 3.0, interval: 0.22, auto: false };
+const playSettings: PlayfieldSettings = { enabled: true, flowSpeed: 3.0, interval: 0.22, auto: false };
 
 // —— 渲染器 ——
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -167,11 +167,13 @@ const hands = createHands(renderer, scene, {
 });
 
 const playHooks = {
-  onHit: (side: 'left' | 'right' | 'none', _offsetMs: number) => hands.pulse(side),
+  onJudge: (side: 'left' | 'right' | 'none', grade: 'perfect' | 'good' | 'miss') => {
+    if (grade !== 'miss') hands.pulse(side);
+  },
 };
 
-let dragWave: DragWave = createDragWave(params, table.geometry, lib, playSettings, playHooks);
-scene.add(dragWave.group);
+let playfield: Playfield = createPlayfield(params, table.geometry, lib, playSettings, playHooks);
+scene.add(playfield.group);
 
 // dev：?warp=1.6 先把练习快进若干秒，配合 ?freeze=1 冻结在那一帧（headless 帧率低，等不到）。
 let frozen = false;
@@ -183,7 +185,7 @@ if (import.meta.env.DEV) {
     const step = 1 / 90;
     for (let t = 0; t < warp; t += step) {
       hands.update(step, camera);
-      dragWave.update(step, hands.samples);
+      playfield.update(step, hands.samples);
     }
   }
 }
@@ -198,8 +200,8 @@ function rebuild(): void {
   table.dispose();
   scene.remove(notes.group);
   notes.dispose();
-  scene.remove(dragWave.group);
-  dragWave.dispose();
+  scene.remove(playfield.group);
+  playfield.dispose();
 
   table = buildTable(params, lib);
   scene.add(table.group);
@@ -211,8 +213,8 @@ function rebuild(): void {
   scene.add(notes.group);
   notes.group.visible = previewState.visible;
 
-  dragWave = createDragWave(params, table.geometry, lib, playSettings, playHooks);
-  scene.add(dragWave.group);
+  playfield = createPlayfield(params, table.geometry, lib, playSettings, playHooks);
+  scene.add(playfield.group);
 }
 
 function moveDisplay(): void {
@@ -259,7 +261,7 @@ const HINT_READY = '链路就绪 · 点下方 Enter VR 进入 immersive-vr。';
 renderer.xr.addEventListener('sessionstart', () => {
   controls.enabled = false;
   // 进头显时从干净的一波开始：桌面上积累的漏键不该带进 VR。
-  dragWave.restart();
+  playfield.restart();
   diagnostics.set('session', 'immersive-vr', 'ok');
   diagnostics.setHint('VR 会话中 · 桌面镜像上的操作不影响头显。');
 });
@@ -309,7 +311,7 @@ if (import.meta.env.DEV) {
       params,
       display: displayPlacement,
       lab: labState,
-      play: dragWave.settings,
+      play: playfield.settings,
       preview: previewState,
       renderer,
       scene,
@@ -317,7 +319,7 @@ if (import.meta.env.DEV) {
       onDisplayChange: moveDisplay,
       onLabChange: applyLab,
       onPreviewChange: applyPreview,
-      onPlayRestart: () => dragWave.restart(),
+      onPlayRestart: () => playfield.restart(),
     });
   });
 }
@@ -341,22 +343,22 @@ renderer.setAnimationLoop((frameTime: number) => {
 
   if (!frozen) {
     hands.update(dt, camera);
-    dragWave.update(dt, hands.samples);
+    playfield.update(dt, hands.samples);
   }
   if (previewState.visible) notes.update(frameTime / 1000);
 
-  const dragRow = `命中 ${dragWave.stats.hits} · 漏 ${dragWave.stats.misses}`;
-  if (dragRow !== lastDragRow) {
-    lastDragRow = dragRow;
-    diagnostics.set('drag', dragRow, dragWave.stats.misses > 0 ? 'warn' : 'ok');
+  const { perfect, good, miss, lastGrade, lastOffsetMs } = playfield.stats;
+  const gradeRow = `${perfect} / ${good} / ${miss}`;
+  if (gradeRow !== lastDragRow) {
+    lastDragRow = gradeRow;
+    diagnostics.set('grades', gradeRow, miss > 0 ? 'warn' : 'ok');
   }
 
-  const { lastGrade, lastOffsetMs } = dragWave.stats;
   const offset = lastOffsetMs === null ? '' : ` ${lastOffsetMs > 0 ? '+' : ''}${lastOffsetMs}ms`;
-  const judgeRow = lastGrade ? `${lastGrade}${offset}` : '—';
+  const judgeRow = lastGrade ? `${lastGrade.toUpperCase()}${offset}` : '—';
   if (judgeRow !== lastJudgeRow) {
     lastJudgeRow = judgeRow;
-    diagnostics.set('judge', judgeRow, lastGrade === '漏' ? 'bad' : lastGrade ? 'ok' : 'idle');
+    diagnostics.set('judge', judgeRow, lastGrade === 'miss' ? 'bad' : lastGrade ? 'ok' : 'idle');
   }
 
   if (renderer.xr.isPresenting && !referenceSpaceSeen) {
@@ -393,8 +395,8 @@ import.meta.hot?.dispose(() => {
   debugHandle?.dispose();
   controllers.dispose();
   hands.dispose();
-  scene.remove(dragWave.group);
-  dragWave.dispose();
+  scene.remove(playfield.group);
+  playfield.dispose();
   scene.remove(table.group);
   table.dispose();
   scene.remove(notes.group);

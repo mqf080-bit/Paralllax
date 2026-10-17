@@ -2,7 +2,7 @@ import GUI from 'lil-gui';
 import type * as THREE from 'three';
 
 import { DEFAULT_PARAMS, type TableParams } from '../config';
-import type { DragWaveSettings } from '../game/dragWave';
+import type { PlayfieldSettings } from '../game/playfield';
 import { DEFAULT_DISPLAY, type DisplayPlacement } from '../scene/display';
 
 /**
@@ -16,7 +16,7 @@ export interface DebugOptions {
   params: TableParams;
   display: DisplayPlacement;
   lab: { visible: boolean };
-  play: DragWaveSettings;
+  play: PlayfieldSettings;
   preview: { visible: boolean };
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
