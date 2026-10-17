@@ -53,7 +53,7 @@ export function createDebug(options: DebugOptions): DebugHandle {
   playFolder.add(play, 'enabled').name('播放谱面');
   playFolder.add(play, 'flowSpeed', 1, 6, 0.1).name('基准流速 m/s');
   playFolder.add(play, 'auto').name('自动打（演示）');
-  playFolder.add({ restart: onPlayRestart }, 'restart').name('重开这一波');
+  playFolder.add({ restart: onPlayRestart }, 'restart').name('重开谱面');
 
   const floating = gui.addFolder('浮空显示');
   floating.add(display, 'x', -1, 1, 0.01).name('X 偏移').onChange(onDisplayChange);

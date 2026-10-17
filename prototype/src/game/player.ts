@@ -16,6 +16,7 @@ import { createArcNote, type ArcEvent, type ArcNote } from './arc';
 import type { HandSample, HandSide } from './hands';
 import type { Grade } from './judgement';
 import { createJudgementPopup, type JudgementPopup } from './popup';
+import { createScore, type ScoreState, type ScoreView } from './scoring';
 import { createShatter, type Shatter } from './shatter';
 
 /**
@@ -50,6 +51,9 @@ export interface Player {
   group: THREE.Group;
   settings: PlayerSettings;
   readonly stats: PlayerStats;
+  readonly score: ScoreView;
+  /** 所有物量都判完了（或血量归零）。 */
+  readonly finished: boolean;
   /** 当前窗口值（-1 / 0 / 1 之间），来自谱面的 shift 事件。 */
   readonly windowValue: number;
   update(dt: number, hands: HandSample[]): void;
@@ -114,6 +118,8 @@ export function createPlayer(
   const baseSpeed = () => settings.flowSpeed;
 
   const stats: PlayerStats = { perfect: 0, good: 0, miss: 0, lastGrade: null, lastOffsetMs: null };
+  let score: ScoreState = createScore(1);
+  let finished = false;
 
   const shatter: Shatter = createShatter();
   group.add(shatter.group);
@@ -256,10 +262,16 @@ export function createPlayer(
     }
   }
 
-  const touchTexture = undefined;
-  void touchTexture;
+  // 物量总数：hit / drag 各 1，hold 与 arc 按 tick 数。
+  const totalObjects = runtime.reduce((sum, note) => {
+    if (note.kind === 'arc') return sum + note.arc.ticks.length;
+    if (note.kind === 'hold') return sum + note.ticks.length;
+    return sum + 1;
+  }, 0);
+  score = createScore(totalObjects);
 
   function notePerfect(side: HandSide, offsetMs: number, at: THREE.Vector3, scale = 1): void {
+    score.judge('perfect');
     stats.perfect += 1;
     stats.lastGrade = 'perfect';
     stats.lastOffsetMs = Math.round(offsetMs);
@@ -269,6 +281,7 @@ export function createPlayer(
   }
 
   function noteMiss(at: THREE.Vector3): void {
+    score.judge('miss');
     stats.miss += 1;
     stats.lastGrade = 'miss';
     stats.lastOffsetMs = null;
@@ -311,6 +324,7 @@ export function createPlayer(
       const grade: Grade = Math.abs(offsetMs) <= HIT_PERFECT_MS ? 'perfect' : 'good';
       stats.lastGrade = grade;
       stats.lastOffsetMs = Math.round(offsetMs);
+      score.judge(grade);
       if (grade === 'perfect') stats.perfect += 1;
       else stats.good += 1;
       popup.spawn(grade, popupPosition.set(note.laneX, barY + 0.1, geometry.bandZ));
@@ -501,12 +515,21 @@ export function createPlayer(
     settings,
     stats,
 
+    get score(): ScoreView {
+      return score;
+    },
+
+    get finished(): boolean {
+      return finished;
+    },
+
     get windowValue(): number {
       return windowValue;
     },
 
     update(dt: number, hands: HandSample[]): void {
       if (!settings.enabled) {
+        finished = false;
         for (const note of runtime) {
           if (note.kind === 'arc') note.arc.group.visible = false;
           else note.group.visible = false;
@@ -526,6 +549,11 @@ export function createPlayer(
 
         if (note.kind === 'arc') {
           for (const event of note.arc.update(clockMs, samples)) handleArcEvent(event);
+          const lastTick = note.arc.ticks[note.arc.ticks.length - 1];
+          if (lastTick && clockMs > lastTick.time + 300) {
+            note.resolved = true;
+            note.arc.group.visible = false;
+          }
           continue;
         }
 
@@ -535,12 +563,16 @@ export function createPlayer(
         else updateHold(note, dt, samples);
       }
 
+      finished = score.failed || runtime.every((note) => note.resolved);
+
       shatter.update(dt);
       popup.update(dt);
     },
 
     restart(): void {
       clockMs = 0;
+      finished = false;
+      score.reset();
       windowValue = timeline.windowAt(0);
       stats.perfect = 0;
       stats.good = 0;

@@ -22,6 +22,8 @@ const ROWS: ReadonlyArray<{ key: string; label: string }> = [
   { key: 'refspace', label: 'reference space' },
   { key: 'controllers', label: 'controllers' },
   { key: 'grades', label: 'P / G / M' },
+  { key: 'score', label: 'score' },
+  { key: 'health', label: 'health' },
   { key: 'judge', label: 'last judge' },
   { key: 'fps', label: 'fps' },
   { key: 'draws', label: 'draw calls' },

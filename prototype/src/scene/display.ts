@@ -14,7 +14,15 @@ import { drawToTexture } from '../materials/textures';
 
 export interface DisplayTextures {
   panel: THREE.CanvasTexture;
+  /** 分数 / 连击 / 血条是动态的，变化时重画。 */
+  update(state: DisplayState): void;
   dispose(): void;
+}
+
+export interface DisplayState {
+  score: number;
+  combo: number;
+  health: number;
 }
 
 export interface DisplayBuild {
@@ -43,7 +51,19 @@ const PLANE_WIDTH = DISPLAY_WIDTH;
 const PLANE_HEIGHT = (PLANE_WIDTH * TEXTURE_HEIGHT) / TEXTURE_WIDTH;
 
 export function createDisplayTextures(): DisplayTextures {
-  const panel = drawToTexture(TEXTURE_WIDTH, TEXTURE_HEIGHT, (ctx) => {
+  const panel = drawToTexture(TEXTURE_WIDTH, TEXTURE_HEIGHT, () => {});
+  const canvas = panel.image as HTMLCanvasElement;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('2D canvas context unavailable');
+  const ctx: CanvasRenderingContext2D = context;
+
+  let lastScore = -1;
+  let lastCombo = -1;
+  let lastHealth = -1;
+
+  function draw(state: DisplayState): void {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     // 画布放大 1.5 倍，排版坐标沿用原来的值。
     ctx.scale(1.5, 1.5);
     ctx.textAlign = 'left';
@@ -61,16 +81,50 @@ export function createDisplayTextures(): DisplayTextures {
     // 分数
     ctx.font = '700 118px ui-monospace, Menlo, monospace';
     ctx.fillStyle = 'rgba(232,242,252,0.96)';
-    ctx.fillText('00630913', 4, 214);
+    ctx.fillText(String(Math.round(state.score)).padStart(8, '0'), 4, 214);
+
+    // 连击（只作反馈，不参与计分）
+    ctx.font = '500 30px ui-monospace, Menlo, monospace';
+    ctx.fillStyle = 'rgba(150,170,190,0.9)';
+    ctx.fillText(`COMBO ${state.combo}`, 470, 214);
+
+    // 血条
+    const barX = 8;
+    const barY = 230;
+    const barW = 480;
+    const barH = 16;
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    ctx.fillRect(barX, barY, barW, barH);
+    const ratio = Math.max(0, Math.min(1, state.health / 100));
+    ctx.fillStyle =
+      ratio > 0.5 ? 'rgba(150,220,240,0.95)' : ratio > 0.2 ? 'rgba(232,192,122,0.95)' : 'rgba(224,72,95,0.95)';
+    ctx.fillRect(barX, barY, barW * ratio, barH);
 
     // 副信息
     ctx.font = '500 24px ui-monospace, Menlo, monospace';
     ctx.fillStyle = 'rgba(122,136,152,0.9)';
-    ctx.fillText('IN 7   ·   1,024 NOTES', 8, 262);
-  });
+    ctx.fillText('IN 7   ·   1,024 NOTES', 8, 296);
+  }
+
+  const initial: DisplayState = { score: 0, combo: 0, health: 100 };
+  draw(initial);
+  lastScore = initial.score;
+  lastCombo = initial.combo;
+  lastHealth = initial.health;
 
   return {
     panel,
+    update(state: DisplayState): void {
+      const score = Math.round(state.score);
+      const combo = Math.round(state.combo);
+      const health = Math.round(state.health);
+      if (score === lastScore && combo === lastCombo && health === lastHealth) return;
+      lastScore = score;
+      lastCombo = combo;
+      lastHealth = health;
+      draw({ score, combo, health });
+      panel.needsUpdate = true;
+    },
     dispose(): void {
       panel.dispose();
     },

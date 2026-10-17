@@ -16,6 +16,7 @@ import { buildMaterialLab } from './scene/materialLab';
 import { buildNotesPreview } from './scene/notes';
 import { buildTable } from './scene/table';
 import { createDiagnostics } from './ui/diagnostics';
+import { createGameUi } from './ui/gameUi';
 import { probeXr } from './xr/xr-support';
 import './ui/style.css';
 
@@ -191,6 +192,9 @@ const playHooks = {
 
 let playfield: Player = createPlayer(params, table.geometry, lib, DEMO_CHART, playSettings, playHooks);
 scene.add(playfield.group);
+
+const gameUi = createGameUi(playSettings);
+scene.add(gameUi.group);
 
 // dev：?warp=1.6 先把练习快进若干秒，配合 ?freeze=1 冻结在那一帧（headless 帧率低，等不到）。
 let frozen = false;
@@ -375,6 +379,7 @@ let debugHandle: { dispose(): void } | undefined;
 let lastFrameTime = performance.now();
 let lastDragRow = '';
 let lastJudgeRow = '';
+let lastScoreRow = -1;
 
 renderer.setAnimationLoop((frameTime: number) => {
   const dt = Math.min(Math.max((frameTime - lastFrameTime) / 1000, 0), 0.05);
@@ -391,6 +396,12 @@ renderer.setAnimationLoop((frameTime: number) => {
     hands.update(dt, camera);
     playfield.update(dt, hands.samples);
   }
+
+  const action = gameUi.update(camera, hands.samples, playfield.score, playfield.finished);
+  if (action === 'retry') {
+    playfield.restart();
+    gameUi.reset();
+  }
   if (previewState.visible) notes.update(frameTime / 1000);
 
   // 窗口滑动：约 0.35s 的过渡，挡板 / 分割线 / 判定带一起交叉。
@@ -402,11 +413,20 @@ renderer.setAnimationLoop((frameTime: number) => {
   table.setWindow(currentWindow);
   moveDisplay();
 
+  const scoreView = playfield.score;
+  displayTextures.update({ score: scoreView.score, combo: scoreView.combo, health: scoreView.health });
+
   const { perfect, good, miss, lastGrade, lastOffsetMs } = playfield.stats;
   const gradeRow = `${perfect} / ${good} / ${miss}`;
   if (gradeRow !== lastDragRow) {
     lastDragRow = gradeRow;
     diagnostics.set('grades', gradeRow, miss > 0 ? 'warn' : 'ok');
+  }
+
+  if (scoreView.score !== lastScoreRow) {
+    lastScoreRow = scoreView.score;
+    diagnostics.set('score', String(scoreView.score).padStart(8, '0'), 'idle');
+    diagnostics.set('health', Math.round(scoreView.health).toString(), scoreView.health < 30 ? 'bad' : 'ok');
   }
 
   const offset = lastOffsetMs === null ? '' : ` ${lastOffsetMs > 0 ? '+' : ''}${lastOffsetMs}ms`;
@@ -452,6 +472,8 @@ import.meta.hot?.dispose(() => {
   hands.dispose();
   scene.remove(playfield.group);
   playfield.dispose();
+  scene.remove(gameUi.group);
+  gameUi.dispose();
   scene.remove(table.group);
   table.dispose();
   scene.remove(notes.group);
