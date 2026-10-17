@@ -63,6 +63,8 @@ export interface MaterialLibrary {
   readonly serviceLight: THREE.MeshBasicMaterial;
   /** 板缝。 */
   readonly seam: THREE.MeshBasicMaterial;
+  /** 轨分割线。 */
+  readonly divider: THREE.MeshBasicMaterial;
 
   dispose(): void;
 }
@@ -216,21 +218,21 @@ export function createMaterialLibrary(): MaterialLibrary {
   const bandMap = createBandTexture();
   const band = new THREE.MeshBasicMaterial({
     map: bandMap,
-    color: 0x9dc6e8,
+    color: 0x7fa6c4,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     toneMapped: false,
-    opacity: 0.9,
+    opacity: 0.3,
   });
 
   const bandCore = new THREE.MeshBasicMaterial({
-    color: 0xd6ecff,
+    color: 0x9fc6e4,
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     toneMapped: false,
-    opacity: 0.35,
+    opacity: 0.16,
   });
 
   const backdropMap = createBackdropTexture();
@@ -249,6 +251,14 @@ export function createMaterialLibrary(): MaterialLibrary {
     color: 0x000000,
     transparent: true,
     opacity: 0.88,
+    depthWrite: false,
+  });
+
+  // 轨分割线：比板缝更轻，只是一条能数清轨数的暗线。
+  const divider = new THREE.MeshBasicMaterial({
+    color: 0x04060a,
+    transparent: true,
+    opacity: 0.72,
     depthWrite: false,
   });
 
@@ -287,6 +297,7 @@ export function createMaterialLibrary(): MaterialLibrary {
     laneDigits,
     serviceLight,
     seam,
+    divider,
 
     dispose(): void {
       const materials: THREE.Material[] = [
@@ -311,6 +322,7 @@ export function createMaterialLibrary(): MaterialLibrary {
         backdrop,
         serviceLight,
         seam,
+        divider,
         ...laneDigits,
       ];
       for (const material of materials) {

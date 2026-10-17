@@ -5,13 +5,14 @@ import { deriveGeometry, type TableGeometry, type TableParams } from '../config'
 import type { MaterialLibrary } from '../materials/library';
 
 /**
- * 台面：6 条铣出的导轨槽 + 轨间凸起导轨 + 近端/右侧剖切。
+ * 台面：一块 10m 长的实心板，4 条轨，没有凹槽、没有边框。
  *
- * 五条硬性限制里，这一层直接相关的是：
- * - 判定带相对槽底不动（5.1）：判定带是贴槽底的一段发光面，不随任何东西动。
- * - 可打区无障碍物（5.2）：台面上除了槽、导轨、盖板，没有任何「看起来可打」的东西。
+ * 读过第二版反馈之后的取舍：
+ * - 凹槽全部取消，轨与轨之间只用一条 1.6mm 的暗线分隔。
+ * - 台面宽度 ≈ 4 轨，左右只留 4mm 倒角余量。
+ * - 板下仍然是剖切的：近端整面 + 右侧靠玩家的一段敞开，露出层与筋。
  *
- * 尺寸全部从 TableParams 派生，重建时整组换掉，材质与贴图复用。
+ * 判定带（5.1）依旧是贴在台面上的一段光带，位置固定。
  */
 
 export interface TableBuild {
@@ -21,13 +22,12 @@ export interface TableBuild {
 }
 
 const PLATE_BEVEL = 0.002;
-const FLOOR_THICKNESS = 0.006;
-const CAVITY_DEPTH = 0.09;
+const CAVITY_DEPTH = 0.075;
 const BASE_THICKNESS = 0.008;
-/** 判定带在 z 方向的厚度（米）。 */
-const BAND_THICKNESS = 0.16;
-/** 槽口 AO 带的宽度（米）。 */
-const RIM_BAND = 0.012;
+/** 右侧剖切沿进深方向的长度（米）。10m 的台面不可能整条边都敞开。 */
+const SIDE_CUT_LENGTH = 2.4;
+/** 分割线宽度（米）：细到「能数清 4 轨」，粗到不是一道缝。 */
+const DIVIDER_WIDTH = 0.0016;
 
 function roundedRect(target: THREE.Shape | THREE.Path, cx: number, cy: number, w: number, h: number, r: number): void {
   const x0 = cx - w / 2;
@@ -67,28 +67,18 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
   group.name = 'table';
 
   const topY = params.tableHeight;
-  const plateThickness = params.slotDepth;
-  const floorTop = topY - plateThickness;
-  const cavityTop = floorTop - FLOOR_THICKNESS;
+  const plateBottom = topY - params.plateThickness;
+  const cavityTop = plateBottom;
   const cavityBottom = cavityTop - CAVITY_DEPTH;
   const zCenter = (g.nearZ + g.farZ) / 2;
 
-  // —— 顶板：外轮廓 + 6 个槽孔 ——
-  // 形状坐标系 (x, y) 经过 rotateX(+90°) 后 y 直接映射到世界 z，挤出方向朝下。
-  const outer = new THREE.Shape();
-  roundedRect(outer, 0, zCenter, g.width, g.depth, 0.01);
+  // —— 顶板：一块整板，没有孔 ——
+  // ExtrudeGeometry 的 bevel 会向 z 两端各多长出一段，所以深度要减掉两头、再整体下移。
+  const shape = new THREE.Shape();
+  roundedRect(shape, 0, zCenter, g.width, g.depth, 0.01);
 
-  const holes = g.laneX.map((x) => {
-    const hole = new THREE.Path();
-    roundedRect(hole, x, g.slotCenterZ, params.slotWidth, g.slotLength, 0.008);
-    return hole;
-  });
-  outer.holes.push(...holes);
-
-  // 注意：ExtrudeGeometry 的 bevel 会向 z 两端各多长出一段 bevelThickness。
-  // 所以挤出深度要减掉两头，再把几何体往下挪一段，顶面才真正落在 topY。
-  const plateGeometry = new THREE.ExtrudeGeometry(outer, {
-    depth: plateThickness - PLATE_BEVEL * 2,
+  const plateGeometry = new THREE.ExtrudeGeometry(shape, {
+    depth: params.plateThickness - PLATE_BEVEL * 2,
     bevelEnabled: true,
     bevelThickness: PLATE_BEVEL,
     bevelSize: PLATE_BEVEL,
@@ -103,246 +93,126 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
   plate.name = 'plate';
   group.add(plate);
 
-  // —— 槽底：一整块连续板，同时充当腔体顶盖 ——
-  const floor = new THREE.Mesh(
-    box(g.width - 0.02, FLOOR_THICKNESS, g.depth - 0.02, 0, floorTop - FLOOR_THICKNESS / 2, zCenter),
-    lib.slotFloor,
-  );
-  floor.name = 'slot-floor';
-  group.add(floor);
+  // —— 4 轨之间的分割线 ——
+  const dividerGeometries = g.dividerX.map((x) => {
+    const plane = new THREE.PlaneGeometry(DIVIDER_WIDTH, g.fieldLength);
+    plane.rotateX(-Math.PI / 2);
+    plane.translate(x, topY + 0.0006, g.fieldCenterZ);
+    return plane;
+  });
+  const dividerGeometry = mergeAll(dividerGeometries);
+  if (dividerGeometry) {
+    const dividers = new THREE.Mesh(dividerGeometry, lib.divider);
+    dividers.name = 'lane-dividers';
+    dividers.renderOrder = 2;
+    group.add(dividers);
+  }
 
-  // —— 槽内壁衬板：比顶板暗，负责把槽「压下去」——
-  const wallGeometries: THREE.BufferGeometry[] = [];
-  const wallHeight = plateThickness - 0.0015;
-  const wallY = topY - 0.0015 - wallHeight / 2;
-  for (const x of g.laneX) {
-    const halfW = params.slotWidth / 2 - 0.0004;
-    const halfL = g.slotLength / 2 - 0.0004;
-    wallGeometries.push(
-      box(0.0012, wallHeight, g.slotLength, x - halfW, wallY, g.slotCenterZ),
-      box(0.0012, wallHeight, g.slotLength, x + halfW, wallY, g.slotCenterZ),
-      box(params.slotWidth, wallHeight, 0.0012, x, wallY, g.slotCenterZ - halfL),
-      box(params.slotWidth, wallHeight, 0.0012, x, wallY, g.slotCenterZ + halfL),
+  // —— 判定带：台面上的一段冷白光带，静态 ——
+  if (params.showBand) {
+    const halo = new THREE.PlaneGeometry(g.width * 0.98, g.bandLength);
+    halo.rotateX(-Math.PI / 2);
+    halo.translate(0, topY + 0.0005, g.bandZ);
+    const haloMesh = new THREE.Mesh(halo, lib.band);
+    haloMesh.name = 'judgement-band-halo';
+    haloMesh.renderOrder = 2;
+    group.add(haloMesh);
+
+    const core = new THREE.PlaneGeometry(g.width * 0.96, 0.008);
+    core.rotateX(-Math.PI / 2);
+    core.translate(0, topY + 0.0008, g.bandZ);
+    const coreMesh = new THREE.Mesh(core, lib.bandCore);
+    coreMesh.name = 'judgement-band-core';
+    coreMesh.renderOrder = 3;
+    group.add(coreMesh);
+  }
+
+  // —— 轨号（调试）——
+  if (params.showLaneNumbers) {
+    g.laneX.forEach((x, lane) => {
+      const plane = new THREE.PlaneGeometry(0.018, 0.018);
+      plane.rotateX(-Math.PI / 2);
+      plane.translate(x, topY + 0.0011, g.nearZ - 0.02);
+      // 轨号沿用谱面层的编号：默认显示 1–4。
+      const digit = new THREE.Mesh(plane, lib.laneDigits[lane + 1]!);
+      digit.name = `lane-number-${lane}`;
+      digit.renderOrder = 3;
+      group.add(digit);
+    });
+  }
+
+  // —— 剖切腔体 ——
+  // 外壳：左侧与远端封闭；右侧只保留远端（靠玩家的一段切开）。
+  const skinParts: THREE.BufferGeometry[] = [];
+  skinParts.push(box(0.012, CAVITY_DEPTH, g.depth - 0.012, -g.width / 2 + 0.006, cavityBottom + CAVITY_DEPTH / 2, zCenter));
+  skinParts.push(box(g.width - 0.012, CAVITY_DEPTH, 0.012, 0, cavityBottom + CAVITY_DEPTH / 2, g.farZ + 0.006));
+
+  const rightWallLength = g.depth - SIDE_CUT_LENGTH - 0.012;
+  if (rightWallLength > 0) {
+    skinParts.push(
+      box(
+        0.012,
+        CAVITY_DEPTH,
+        rightWallLength,
+        g.width / 2 - 0.006,
+        cavityBottom + CAVITY_DEPTH / 2,
+        g.farZ + rightWallLength / 2 + 0.006,
+      ),
     );
   }
-  const wallGeometry = mergeAll(wallGeometries);
-  if (wallGeometry) {
-    const walls = new THREE.Mesh(wallGeometry, lib.slotWall);
-    walls.name = 'slot-walls';
-    group.add(walls);
-  }
-
-  // —— 隐藏轨的盲板：默认盖住 0 / 5 ——
-  if (!params.revealHidden) {
-    const hiddenLanes = g.laneX.map((_, i) => i).filter((i) => !g.visibleLanes.includes(i));
-    const coverGeometries = hiddenLanes.map((lane) => {
-      const shape = new THREE.Shape();
-      roundedRect(shape, g.laneX[lane]!, g.slotCenterZ, params.slotWidth + 0.006, g.slotLength + 0.006, 0.009);
-      const geometry = new THREE.ExtrudeGeometry(shape, {
-        depth: 0.0012,
-        bevelEnabled: true,
-        bevelThickness: 0.0004,
-        bevelSize: 0.0004,
-        bevelSegments: 1,
-        curveSegments: 6,
-      });
-      geometry.rotateX(Math.PI / 2);
-      geometry.translate(0, topY + 0.0016, 0);
-      return geometry;
-    });
-    const coverGeometry = mergeAll(coverGeometries);
-    if (coverGeometry) {
-      // 盖板底下先垫一圈板缝，让「这块能拆」读得出来。
-      const seamGeometries = hiddenLanes.map((lane) => {
-        const plane = new THREE.PlaneGeometry(params.slotWidth + 0.016, g.slotLength + 0.016);
-        plane.rotateX(-Math.PI / 2);
-        plane.translate(g.laneX[lane]!, topY + 0.0006, g.slotCenterZ);
-        return plane;
-      });
-      const seamGeometry = mergeAll(seamGeometries);
-      if (seamGeometry) {
-        const seam = new THREE.Mesh(seamGeometry, lib.seam);
-        seam.name = 'blanking-seams';
-        seam.renderOrder = 1;
-        group.add(seam);
-      }
-
-      const covers = new THREE.Mesh(coverGeometry, lib.blankingPlate);
-      covers.name = 'blanking-plates';
-      covers.renderOrder = 2;
-      group.add(covers);
-    }
-  }
-
-  // —— 轨间凸起导轨 + 镜面倒角条 ——
-  if (params.railHeight > 0.0002) {
-    const railWidth = Math.min(0.018, params.lanePitch - params.slotWidth - 0.006);
-    if (railWidth > 0.004) {
-      const railGeometries: THREE.BufferGeometry[] = [];
-      const chamferGeometries: THREE.BufferGeometry[] = [];
-      for (let i = 0; i < g.laneX.length - 1; i += 1) {
-        const x = (g.laneX[i]! + g.laneX[i + 1]!) / 2;
-        railGeometries.push(box(railWidth, params.railHeight, g.slotLength, x, topY + params.railHeight / 2, g.slotCenterZ));
-        chamferGeometries.push(
-          box(railWidth * 0.4, 0.0007, g.slotLength - 0.002, x, topY + params.railHeight + 0.00035, g.slotCenterZ),
-        );
-      }
-      const railGeometry = mergeAll(railGeometries);
-      if (railGeometry) {
-        const rails = new THREE.Mesh(railGeometry, lib.rail);
-        rails.name = 'rails';
-        group.add(rails);
-      }
-      const chamferGeometry = mergeAll(chamferGeometries);
-      if (chamferGeometry) {
-        const chamfers = new THREE.Mesh(chamferGeometry, lib.railChamfer);
-        chamfers.name = 'rail-chamfers';
-        group.add(chamfers);
-      }
-    }
-  }
-
-  // —— 槽口 AO：贴着台面的渐变带，把槽沿压暗 ——
-  // 四条边各一条；u=0 是暗端，靠旋转把暗端始终朝向槽内。
-  const aoGeometries: THREE.BufferGeometry[] = [];
-  for (const lane of g.visibleLanes) {
-    const x = g.laneX[lane]!;
-    const halfW = params.slotWidth / 2;
-    const halfL = g.slotLength / 2;
-    const rimY = topY + 0.0004;
-
-    const strips: Array<{ cx: number; cz: number; w: number; l: number; angle: number }> = [
-      { cx: x - halfW - RIM_BAND / 2, cz: g.slotCenterZ, w: RIM_BAND, l: g.slotLength, angle: Math.PI },
-      { cx: x + halfW + RIM_BAND / 2, cz: g.slotCenterZ, w: RIM_BAND, l: g.slotLength, angle: 0 },
-      { cx: x, cz: g.slotCenterZ + halfL + RIM_BAND / 2, w: RIM_BAND, l: params.slotWidth + 0.012, angle: -Math.PI / 2 },
-      { cx: x, cz: g.slotCenterZ - halfL - RIM_BAND / 2, w: RIM_BAND, l: params.slotWidth + 0.012, angle: Math.PI / 2 },
-    ];
-
-    for (const strip of strips) {
-      const plane = new THREE.PlaneGeometry(strip.w, strip.l);
-      plane.rotateX(-Math.PI / 2);
-      plane.rotateY(strip.angle);
-      plane.translate(strip.cx, rimY, strip.cz);
-      aoGeometries.push(plane);
-    }
-  }
-  const aoGeometry = mergeAll(aoGeometries);
-  if (aoGeometry) {
-    const ao = new THREE.Mesh(aoGeometry, lib.edgeFade);
-    ao.name = 'slot-rim-ao';
-    ao.renderOrder = 1;
-    group.add(ao);
-  }
-
-  // —— 判定带：槽底被照亮的一段带，静态，贴槽底 ——
-  // 两层：柔光晕 + 细芯线。只有这么多——它不是「浮线」，也不参与演出。
-  if (params.showBand) {
-    const haloGeometries: THREE.BufferGeometry[] = [];
-    const coreGeometries: THREE.BufferGeometry[] = [];
-    for (const lane of g.visibleLanes) {
-      const halo = new THREE.PlaneGeometry(params.slotWidth, BAND_THICKNESS);
-      halo.rotateX(-Math.PI / 2);
-      halo.translate(g.laneX[lane]!, floorTop + 0.0004, g.bandZ);
-      haloGeometries.push(halo);
-
-      const core = new THREE.PlaneGeometry(params.slotWidth - 0.02, 0.009);
-      core.rotateX(-Math.PI / 2);
-      core.translate(g.laneX[lane]!, floorTop + 0.0007, g.bandZ);
-      coreGeometries.push(core);
-    }
-
-    const haloGeometry = mergeAll(haloGeometries);
-    if (haloGeometry) {
-      const halo = new THREE.Mesh(haloGeometry, lib.band);
-      halo.name = 'judgement-band-halo';
-      halo.renderOrder = 2;
-      group.add(halo);
-    }
-
-    const coreGeometry = mergeAll(coreGeometries);
-    if (coreGeometry) {
-      const core = new THREE.Mesh(coreGeometry, lib.bandCore);
-      core.name = 'judgement-band-core';
-      core.renderOrder = 3;
-      group.add(core);
-    }
-  }
-
-  // —— 剖切腔体：近端 + 右侧敞开，露出层叠与驱动结构 ——
-  // 三层：顶板（带槽）→ 槽底板 → 腔体（中层甲板 + 纵筋）→ 承力底板。
-  // 只有「层」读得出来，剖切才不是「一个空盒子」。
-  const cutParts: THREE.BufferGeometry[] = [];
-
-  // 外壳：左侧、远端、右侧的远半段封闭；只有近端与右侧近半段被剖开。
-  cutParts.push(box(0.012, CAVITY_DEPTH, g.depth - 0.012, -g.width / 2 + 0.006, cavityBottom + CAVITY_DEPTH / 2, zCenter));
-  cutParts.push(box(g.width - 0.012, CAVITY_DEPTH, 0.012, 0, cavityBottom + CAVITY_DEPTH / 2, g.farZ + 0.006));
-  cutParts.push(box(0.012, CAVITY_DEPTH, g.depth / 2 - 0.012, g.width / 2 - 0.006, cavityBottom + CAVITY_DEPTH / 2, g.farZ + g.depth / 4));
 
   // 承力底板。
-  cutParts.push(box(g.width - 0.024, BASE_THICKNESS, g.depth - 0.024, 0, cavityBottom + BASE_THICKNESS / 2, zCenter));
+  skinParts.push(box(g.width - 0.024, BASE_THICKNESS, g.depth - 0.024, 0, cavityBottom + BASE_THICKNESS / 2, zCenter));
 
-  const cutSkinGeometry = mergeAll(cutParts);
-  if (cutSkinGeometry) {
-    const skin = new THREE.Mesh(cutSkinGeometry, lib.cavity);
+  const skinGeometry = mergeAll(skinParts);
+  if (skinGeometry) {
+    const skin = new THREE.Mesh(skinGeometry, lib.cavity);
     skin.name = 'cavity-skin';
     group.add(skin);
   }
 
-  // 中层甲板：从开口看进去的第二层。
-  const deckY = cavityBottom + 0.038;
-  const deckParts: THREE.BufferGeometry[] = [];
-  deckParts.push(box(g.width - 0.06, 0.006, 0.52, 0, deckY, g.farZ + 0.46));
-  deckParts.push(box(g.width * 0.34, 0.006, 0.42, g.width * 0.2, deckY, zCenter + 0.1));
-  for (const x of [-0.42, 0.12]) {
-    deckParts.push(box(0.01, deckY - (cavityBottom + BASE_THICKNESS), 0.52, x, (deckY + cavityBottom + BASE_THICKNESS) / 2, g.farZ + 0.46));
-  }
-  const deckGeometry = mergeAll(deckParts);
-  if (deckGeometry) {
-    const deck = new THREE.Mesh(deckGeometry, lib.machinedEdge);
-    deck.name = 'cavity-deck';
-    group.add(deck);
-  }
+  // 中层甲板 + 纵筋 + 横梁：剖切里能读出来的「层」。
+  const innerParts: THREE.BufferGeometry[] = [];
+  const deckY = cavityBottom + 0.034;
+  innerParts.push(box(g.width - 0.05, 0.006, g.depth * 0.42, 0, deckY, g.farZ + g.depth * 0.24));
+  innerParts.push(box(g.width * 0.32, 0.006, 1.4, g.width * 0.16, deckY, g.nearZ - 1.5));
 
-  // 纵向筋：从底板撑到槽底板，端面在近端开口处露出来。
-  const ribParts: THREE.BufferGeometry[] = [];
   const ribBottom = cavityBottom + BASE_THICKNESS;
   const ribHeight = cavityTop - ribBottom - 0.004;
-  for (const x of [-0.5, -0.17, 0.17, 0.5]) {
-    ribParts.push(box(0.014, ribHeight, g.depth - 0.05, x, ribBottom + ribHeight / 2, zCenter));
+  for (const x of [-g.width * 0.33, 0, g.width * 0.33]) {
+    innerParts.push(box(0.014, ribHeight, g.depth - 0.06, x, ribBottom + ribHeight / 2, zCenter));
   }
-  // 横向梁。
-  for (const z of [g.farZ + 0.36, zCenter - 0.1]) {
-    ribParts.push(box(g.width - 0.06, 0.03, 0.012, 0, cavityTop - 0.026, z));
-  }
-  const ribGeometry = mergeAll(ribParts);
-  if (ribGeometry) {
-    const ribs = new THREE.Mesh(ribGeometry, lib.rib);
-    ribs.name = 'cavity-ribs';
-    group.add(ribs);
+  for (const z of [g.nearZ - 0.9, g.nearZ - 2.2, g.nearZ - 4.6, g.nearZ - 7.2]) {
+    innerParts.push(box(g.width - 0.06, 0.028, 0.012, 0, cavityTop - 0.024, z));
   }
 
-  // 剖切面的倒角框：把两个开口「框」出来，读成切开的截面，而不是缺了一块。
+  const innerGeometry = mergeAll(innerParts);
+  if (innerGeometry) {
+    const inner = new THREE.Mesh(innerGeometry, lib.rib);
+    inner.name = 'cavity-structure';
+    group.add(inner);
+  }
+
+  // 剖切面倒角框：把两个开口框出来。
   const edgeParts: THREE.BufferGeometry[] = [];
   const frame = 0.006;
-  const nearHalfZ = g.nearZ - g.depth / 4;
+  const cutEndZ = g.nearZ - SIDE_CUT_LENGTH;
 
-  // 近端开口：整面敞开。
+  // 近端整面敞开。
   edgeParts.push(box(g.width, frame, frame, 0, cavityTop - frame / 2, g.nearZ - frame / 2));
   edgeParts.push(box(g.width, frame, frame, 0, cavityBottom + frame / 2, g.nearZ - frame / 2));
   edgeParts.push(box(frame, CAVITY_DEPTH, frame, -g.width / 2 + frame / 2, cavityBottom + CAVITY_DEPTH / 2, g.nearZ - frame / 2));
   edgeParts.push(box(frame, CAVITY_DEPTH, frame, g.width / 2 - frame / 2, cavityBottom + CAVITY_DEPTH / 2, g.nearZ - frame / 2));
 
-  // 右侧开口：只有近半段被切开。
-  edgeParts.push(box(frame, frame, g.depth / 2, g.width / 2 - frame / 2, cavityTop - frame / 2, nearHalfZ));
-  edgeParts.push(box(frame, frame, g.depth / 2, g.width / 2 - frame / 2, cavityBottom + frame / 2, nearHalfZ));
-  // 切口在哪收住的立边。
-  edgeParts.push(box(frame, CAVITY_DEPTH, frame, g.width / 2 - frame / 2, cavityBottom + CAVITY_DEPTH / 2, zCenter + frame / 2));
+  // 右侧靠玩家的一段。
+  edgeParts.push(box(frame, frame, SIDE_CUT_LENGTH, g.width / 2 - frame / 2, cavityTop - frame / 2, g.nearZ - SIDE_CUT_LENGTH / 2));
+  edgeParts.push(box(frame, frame, SIDE_CUT_LENGTH, g.width / 2 - frame / 2, cavityBottom + frame / 2, g.nearZ - SIDE_CUT_LENGTH / 2));
+  edgeParts.push(box(frame, CAVITY_DEPTH, frame, g.width / 2 - frame / 2, cavityBottom + CAVITY_DEPTH / 2, cutEndZ + frame / 2));
 
-  // 切面上的端头：筋、甲板、底板的断面。有了这三样，开口才像「切开」而不是「缺一块」。
-  for (const x of [-0.5, -0.17, 0.17, 0.5]) {
+  // 切面上的断面端头：筋 / 底板。
+  for (const x of [-g.width * 0.33, 0, g.width * 0.33]) {
     edgeParts.push(box(0.015, ribHeight, 0.0025, x, ribBottom + ribHeight / 2, g.nearZ - 0.0012));
   }
-  edgeParts.push(box(g.width - 0.06, 0.007, 0.0025, g.width * 0.2, deckY, g.nearZ - 0.0012));
   edgeParts.push(box(g.width - 0.024, 0.0025, 0.0025, 0, cavityBottom + BASE_THICKNESS / 2, g.nearZ - 0.0012));
 
   const edgeGeometry = mergeAll(edgeParts);
@@ -352,27 +222,12 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
     group.add(edges);
   }
 
-  // —— 轨号（调试）——
-  if (params.showLaneNumbers) {
-    for (const lane of g.visibleLanes) {
-      const plane = new THREE.PlaneGeometry(0.022, 0.022);
-      plane.rotateX(-Math.PI / 2);
-      plane.translate(g.laneX[lane]!, topY + 0.0011, g.nearZ - 0.028);
-      const digit = new THREE.Mesh(plane, lib.laneDigits[lane]!);
-      digit.name = `lane-number-${lane}`;
-      digit.renderOrder = 3;
-      group.add(digit);
-    }
-  }
-
   return {
     group,
     geometry: g,
     dispose(): void {
       group.traverse((object) => {
-        if (object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Points) {
-          object.geometry.dispose();
-        }
+        if (object instanceof THREE.Mesh) object.geometry.dispose();
       });
       group.clear();
     },

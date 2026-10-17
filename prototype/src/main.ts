@@ -8,7 +8,7 @@ import { createEnvironment } from './materials/environment';
 import { createMaterialLibrary } from './materials/library';
 import { buildBackdrop } from './scene/backdrop';
 import { createControllers } from './scene/controllers';
-import { buildHud, createHudTextures } from './scene/hud';
+import { buildDisplay, createDisplayTextures, DEFAULT_DISPLAY, type DisplayPlacement } from './scene/display';
 import { buildTable } from './scene/table';
 import { createDiagnostics } from './ui/diagnostics';
 import { probeXr } from './xr/xr-support';
@@ -39,7 +39,7 @@ container.append(renderer.domElement);
 // —— 场景 ——
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x05060a);
-scene.fog = new THREE.Fog(0x05060a, 5, 16);
+scene.fog = new THREE.Fog(0x05060a, 9, 30);
 
 const environment = createEnvironment(renderer);
 scene.environment = environment.texture;
@@ -58,6 +58,12 @@ const rimLight = new THREE.DirectionalLight(0x6c8cb6, 1.0);
 rimLight.position.set(-2.2, 2.6, -3.4);
 scene.add(rimLight);
 
+// 10m 的台面：只在近端打光，远端会掉进黑里。加一盏沿进深方向的主光。
+const runwayLight = new THREE.DirectionalLight(0xc9d8ea, 0.9);
+runwayLight.position.set(0.6, 5.5, -6.0);
+runwayLight.target.position.set(0, 0.95, -5.0);
+scene.add(runwayLight, runwayLight.target);
+
 // 低位补光：避免剖切腔体变成纯黑。
 const fillLight = new THREE.PointLight(0x8ea6c4, 0.8, 5, 2);
 fillLight.position.set(0.4, 0.5, 0.7);
@@ -69,7 +75,7 @@ cavityLight.position.set(0.1, 0.87, -0.3);
 scene.add(cavityLight);
 
 // 顶灯：像仪器上方的台灯，给出台面的一池光，同时照亮槽的近侧壁。
-const lamp = new THREE.SpotLight(0xe6f0ff, 26, 9, 0.85, 0.65, 1.6);
+const lamp = new THREE.SpotLight(0xe6f0ff, 30, 9, 0.9, 0.65, 1.6);
 lamp.position.set(0.15, 2.35, 1.05);
 lamp.target.position.set(0, 0.95, -0.75);
 scene.add(lamp, lamp.target);
@@ -79,11 +85,11 @@ const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerH
 camera.position.set(0, 1.62, 0.52);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0.95, -0.62);
+controls.target.set(0, 0.95, -1.4);
 controls.enableDamping = true;
 controls.dampingFactor = 0.075;
 controls.minDistance = 0.5;
-controls.maxDistance = 7;
+controls.maxDistance = 14;
 controls.maxPolarAngle = Math.PI * 0.495;
 
 // —— dev 相机覆盖：?cam=x,y,z&look=x,y,z&exposure=1.4 ——
@@ -105,19 +111,15 @@ if (import.meta.env.DEV) {
   const env = Number(query.get('env'));
   if (Number.isFinite(env) && env >= 0 && query.has('env')) scene.environmentIntensity = env;
 
-  const win = Number(query.get('window'));
-  if (win === -1 || win === 0 || win === 1) params.windowOffset = win;
-  if (query.get('reveal') === '1') params.revealHidden = true;
   if (query.get('numbers') === '1') params.showLaneNumbers = true;
 }
 
 // —— 内容 ——
-// HUD 挂在相机下面：它属于视野，不属于台面（见 hud.ts 顶部说明）。
-// 相机必须先加进场景，否则它的子物体不会被渲染。
-scene.add(camera);
-const hudTextures = createHudTextures();
-const hud = buildHud(hudTextures);
-camera.add(hud.group);
+// 浮空显示属于世界，不挂相机；位置可由调试面板调整（x / y / z）。
+const displayPlacement: DisplayPlacement = { ...DEFAULT_DISPLAY };
+const displayTextures = createDisplayTextures();
+const display = buildDisplay(displayTextures, displayPlacement);
+scene.add(display.group);
 
 let table = buildTable(params, lib);
 scene.add(table.group);
@@ -128,6 +130,12 @@ function rebuild(): void {
   table = buildTable(params, lib);
   scene.add(table.group);
 }
+
+function moveDisplay(): void {
+  display.group.position.set(displayPlacement.x, displayPlacement.y, displayPlacement.z);
+  display.aimAt(camera.position);
+}
+moveDisplay();
 
 // —— 控制器（VR）——
 const diagnostics = createDiagnostics();
@@ -211,7 +219,14 @@ document.body.append(stats.dom);
 // —— 调试面板（仅 dev）——
 if (import.meta.env.DEV) {
   void import('./ui/debug').then(({ createDebug }) => {
-    debugHandle = createDebug({ params, renderer, scene, onChange: rebuild });
+    debugHandle = debugHandle = createDebug({
+      params,
+      display: displayPlacement,
+      renderer,
+      scene,
+      onChange: rebuild,
+      onDisplayChange: moveDisplay,
+    });
   });
 }
 
@@ -222,6 +237,8 @@ let debugHandle: { dispose(): void } | undefined;
 
 renderer.setAnimationLoop((frameTime: number) => {
   if (controls.enabled) controls.update();
+
+  display.aimAt(camera.position);
 
   if (renderer.xr.isPresenting && !referenceSpaceSeen) {
     const space = renderer.xr.getReferenceSpace();
@@ -258,12 +275,12 @@ import.meta.hot?.dispose(() => {
   controllers.dispose();
   scene.remove(table.group);
   table.dispose();
-  camera.remove(hud.group);
-  hud.dispose();
+  scene.remove(display.group);
+  display.dispose();
   scene.remove(backdrop.group);
   backdrop.dispose();
   environment.dispose();
-  hudTextures.dispose();
+  displayTextures.dispose();
   lib.dispose();
   renderer.setAnimationLoop(null);
   renderer.dispose();

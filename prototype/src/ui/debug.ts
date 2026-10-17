@@ -2,19 +2,22 @@ import GUI from 'lil-gui';
 import type * as THREE from 'three';
 
 import { DEFAULT_PARAMS, type TableParams } from '../config';
+import { DEFAULT_DISPLAY, type DisplayPlacement } from '../scene/display';
 
 /**
  * 调试面板（仅 dev）。
  *
- * `agent.md` §5 要求能现场调：槽宽 / 槽深 / 导轨高度 / 台面高度 / 显示隐藏轨 / 轨号。
- * 明暗切换已决定后置（只做深色），所以这里只有曝光与环境强度，没有主题开关。
+ * 这一版的参数变少了：没有槽宽 / 槽深 / 导轨，也没有隐藏轨／窗口偏移。
+ * 多了「浮空显示」的位置 —— 它属于世界，可以整块挪到你顺眼的地方。
  */
 
 export interface DebugOptions {
   params: TableParams;
+  display: DisplayPlacement;
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   onChange(): void;
+  onDisplayChange(): void;
 }
 
 export interface DebugHandle {
@@ -22,26 +25,24 @@ export interface DebugHandle {
 }
 
 export function createDebug(options: DebugOptions): DebugHandle {
-  const { params, renderer, scene, onChange } = options;
+  const { params, display, renderer, scene, onChange, onDisplayChange } = options;
   const gui = new GUI({ title: 'PARALLAX · STEP 1', width: 288 });
 
   const table = gui.addFolder('台面');
   table.add(params, 'tableHeight', 0.8, 1.12, 0.005).name('高度 m').onChange(onChange);
-  table.add(params, 'tableDepth', 1.4, 2.4, 0.02).name('进深 m').onChange(onChange);
+  table.add(params, 'laneWidth', 0.16, 0.34, 0.005).name('轨宽 m').onChange(onChange);
+  table.add(params, 'tableDepth', 1.4, 12, 0.1).name('进深 m').onChange(onChange);
   table.add(params, 'nearOffset', 0.16, 0.5, 0.01).name('近端距离 m').onChange(onChange);
-  table.add(params, 'lanePitch', 0.15, 0.24, 0.005).name('轨距 m').onChange(onChange);
-  table.add(params, 'slotWidth', 0.1, 0.22, 0.005).name('槽宽 m').onChange(onChange);
-  table.add(params, 'slotDepth', 0.006, 0.03, 0.001).name('槽深 m').onChange(onChange);
-  table.add(params, 'railHeight', 0, 0.012, 0.001).name('导轨高度 m').onChange(onChange);
+  table.add(params, 'plateThickness', 0.006, 0.03, 0.001).name('板厚 m').onChange(onChange);
 
   const layout = gui.addFolder('布局');
-  layout
-    .add(params, 'windowOffset', { '0–3': -1, '1–4': 0, '2–5': 1 })
-    .name('4 轨窗口')
-    .onChange(onChange);
-  layout.add(params, 'revealHidden').name('揭开隐藏轨 0/5').onChange(onChange);
   layout.add(params, 'showLaneNumbers').name('近端轨号').onChange(onChange);
   layout.add(params, 'showBand').name('判定带').onChange(onChange);
+
+  const floating = gui.addFolder('浮空显示');
+  floating.add(display, 'x', -2, 2, 0.01).name('X 右').onChange(onDisplayChange);
+  floating.add(display, 'y', 0.4, 2.2, 0.01).name('Y 高').onChange(onDisplayChange);
+  floating.add(display, 'z', -8, 0, 0.05).name('Z 前').onChange(onDisplayChange);
 
   const look = gui.addFolder('表现');
   look.add(renderer, 'toneMappingExposure', 0.5, 2, 0.01).name('曝光');
@@ -52,8 +53,10 @@ export function createDebug(options: DebugOptions): DebugHandle {
       {
         reset: () => {
           Object.assign(params, DEFAULT_PARAMS);
+          Object.assign(display, DEFAULT_DISPLAY);
           gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
           onChange();
+          onDisplayChange();
         },
       },
       'reset',
