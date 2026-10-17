@@ -6,6 +6,7 @@ import {
   createDigitTexture,
   createEdgeFadeTexture,
   createGlassNormalMap,
+  createGlowTexture,
   createIceNormalMap,
   createSmudgeRoughnessMap,
   type BrushedMaps,
@@ -70,6 +71,8 @@ export interface MaterialLibrary {
   readonly iceCore: THREE.MeshBasicMaterial;
   /** 冰条（drag）用的更亮的冰。 */
   readonly iceBar: THREE.MeshPhysicalMaterial;
+  /** 冰条周围的加法辉光片（水平铺开，假 bloom）。 */
+  readonly dragGlow: THREE.MeshBasicMaterial;
   /** 冰（drag 的材质比喻）。 */
   readonly ice: THREE.MeshPhysicalMaterial;
 
@@ -270,10 +273,10 @@ export function createMaterialLibrary(): MaterialLibrary {
     return material;
   }
 
-  const clearGlass = createGlass(0x9fc0d4, 0x000000, 0, 0.32);
-  // 带手别的玻璃：比中性那条更实（0.42），否则釉色透在暗背景上就洗没了。
-  const clearGlassLeft = createGlass(HAND_LEFT.glass, HAND_LEFT.emissive, 0.6, 0.42);
-  const clearGlassRight = createGlass(HAND_RIGHT.glass, HAND_RIGHT.emissive, 0.6, 0.42);
+  const clearGlass = createGlass(0x9fc0d4, 0x000000, 0, 0.45);
+  // 带手别的玻璃：比中性那条更实（0.58），否则釉色透在暗背景上就洗没了。
+  const clearGlassLeft = createGlass(HAND_LEFT.glass, HAND_LEFT.emissive, 0.6, 0.58);
+  const clearGlassRight = createGlass(HAND_RIGHT.glass, HAND_RIGHT.emissive, 0.6, 0.58);
 
   // —— 冰：Worley 晶面 + 透明混合 ——
   const ice = new THREE.MeshPhysicalMaterial({
@@ -367,6 +370,17 @@ export function createMaterialLibrary(): MaterialLibrary {
   });
   iceBar.normalScale = new THREE.Vector2(0.9, 0.9);
 
+  // drag 的辉光：一张水平铺开的加法渐变片。不用壳层——薄片键的壳层会在两端亮成两个点。
+  const dragGlow = new THREE.MeshBasicMaterial({
+    map: createGlowTexture(),
+    color: 0xbfefff,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+    opacity: 0.55,
+  });
+
   // 冰的内部冷光：假次表面散射，让冰锥不是一块白塑料。
   const iceCore = new THREE.MeshBasicMaterial({
     color: 0x8fd0ec,
@@ -433,6 +447,7 @@ export function createMaterialLibrary(): MaterialLibrary {
     glassCoreRight,
     iceCore,
     iceBar,
+    dragGlow,
     ice,
     edgeFade,
     band,
@@ -469,6 +484,7 @@ export function createMaterialLibrary(): MaterialLibrary {
         glassCoreRight,
         iceCore,
         iceBar,
+        dragGlow,
         ice,
         edgeFade,
         band,

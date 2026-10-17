@@ -148,6 +148,23 @@ export function createBandTexture(): THREE.CanvasTexture {
   return texture;
 }
 
+/** 柔和辉光：薄片键的「发光」。中心亮、边缘完全归零，铺在键周围当作假 bloom。 */
+export function createGlowTexture(size = 128): THREE.CanvasTexture {
+  const { canvas, ctx } = makeCanvas(size, size);
+  const r = size / 2;
+  const g = ctx.createRadialGradient(r, r, 0, r, r, r);
+  g.addColorStop(0, 'rgba(255,255,255,0.95)');
+  g.addColorStop(0.35, 'rgba(255,255,255,0.38)');
+  g.addColorStop(0.7, 'rgba(255,255,255,0.09)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
 /** 背景：从冷灰向黑压下去的竖向渐变。 */
 export function createBackdropTexture(): THREE.CanvasTexture {
   const { canvas, ctx } = makeCanvas(8, 256);

@@ -32,22 +32,22 @@ export interface HandColor {
 
 /** 左手：青。 */
 export const HAND_LEFT: HandColor = {
-  glaze: 0x0f6c7d,
-  glass: 0x2ab6cc,
-  emissive: 0x06303b,
-  emissiveIntensity: 0.5,
-  core: 0x8ff0ff,
-  glow: 0x3fd8e8,
+  glaze: 0x0a4e5a,
+  glass: 0x1a7f92,
+  emissive: 0x03262c,
+  emissiveIntensity: 0.45,
+  core: 0x6fe3f2,
+  glow: 0x2fc4d8,
 };
 
 /** 右手：赤。 */
 export const HAND_RIGHT: HandColor = {
-  glaze: 0x8f1124,
-  glass: 0xd8334c,
-  emissive: 0x380510,
-  emissiveIntensity: 0.5,
-  core: 0xff8fa3,
-  glow: 0xff3b57,
+  glaze: 0x6a0f18,
+  glass: 0x9a1f31,
+  emissive: 0x24030a,
+  emissiveIntensity: 0.45,
+  core: 0xff7d93,
+  glow: 0xef2a45,
 };
 
 /**
@@ -57,7 +57,7 @@ export const HAND_RIGHT: HandColor = {
  * 但明度里不能带任何色相倾向，否则会被当成立场（「偏青 = 左手？」）。
  */
 export const NEUTRAL_GLAZE = {
-  glaze: 0x7d838b,
-  emissive: 0x14161a,
-  emissiveIntensity: 0.32,
+  glaze: 0x5a6067,
+  emissive: 0x101214,
+  emissiveIntensity: 0.28,
 } as const;

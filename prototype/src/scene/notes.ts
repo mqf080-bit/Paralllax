@@ -96,43 +96,53 @@ export function buildNotesPreview(params: TableParams, g: TableGeometry, lib: Ma
   }
 
   // —— drag：横置细冰条，三枚一串（中性冰，不编码手别）——
-  const z0 = g.nearZ - 0.62;
+  // 细 = 薄（0.011）且窄（0.022）；长 = 几乎横跨整轨（0.195）。
+  // 辉光：一张水平加法渐变片，铺在冰条周围 —— 壳层会在两端亮成两个点。
+  const dragBarGeometry = new RoundedBoxGeometry(0.195, 0.011, 0.022, 2, 0.0035);
+  const dragGlowGeometry = new THREE.PlaneGeometry(0.3, 0.12);
+
+  const dragZ0 = g.nearZ - 0.62;
   for (let i = 0; i < 3; i += 1) {
-    const drag = new THREE.Mesh(new RoundedBoxGeometry(0.15, 0.016, 0.03, 2, 0.004), lib.iceBar);
+    const x = g.laneX[3]!;
+    const z = dragZ0 - i * 0.145;
+
+    const drag = new THREE.Mesh(dragBarGeometry, lib.iceBar);
     drag.name = `note-drag-${i}`;
-    drag.position.set(g.laneX[3]!, topY + 0.07, z0 - i * 0.11);
+    drag.position.set(x, topY + 0.07, z);
     drag.castShadow = true;
     group.add(drag);
+
+    const glow = new THREE.Mesh(dragGlowGeometry, lib.dragGlow);
+    glow.rotation.x = -Math.PI / 2;
+    glow.position.set(x, drag.position.y + 0.002, z);
+    glow.renderOrder = 4;
+    group.add(glow);
   }
 
-  // —— hold：沿轨道的玻璃管 + 内部灌注（中性，不编码手别）——
-  const holdZ = g.nearZ - 1.45;
-  const holdLength = 0.8;
-  const holdShell = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.024, 0.024, holdLength, 32, 1, true),
+  // —— hold：贴在轨道上的平片（中性，不编码手别）——
+  // 横跨整条轨宽、沿轨道方向延伸；灌注是一条更亮的内片，不是「管子里的液面」。
+  const holdX = g.laneX[3]!;
+  const holdZ = g.nearZ - 1.75;
+  const holdLength = 1.2;
+  const holdWidth = g.laneWidth - 0.02;
+
+  const holdSheet = new THREE.Mesh(
+    new RoundedBoxGeometry(holdWidth, 0.006, holdLength, 2, 0.0025),
     lib.clearGlass,
   );
-  holdShell.rotation.x = Math.PI / 2;
-  holdShell.position.set(g.laneX[3]!, topY + 0.1, holdZ);
-  holdShell.name = 'note-hold-shell';
-  group.add(holdShell);
+  holdSheet.position.set(holdX, topY + 0.004, holdZ);
+  holdSheet.name = 'note-hold-sheet';
+  group.add(holdSheet);
 
+  // 灌注不是盖一层白板：是一条比片子窄得多的光带，读作「片子里被点亮的那一段」。
+  const holdFillLength = holdLength * 0.55;
   const holdFill = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.012, 0.012, holdLength * 0.55, 16),
+    new THREE.BoxGeometry(0.07, 0.0025, holdFillLength),
     lib.glassCore,
   );
-  holdFill.rotation.x = Math.PI / 2;
-  holdFill.position.set(g.laneX[3]!, topY + 0.1, holdZ + holdLength * 0.22);
+  holdFill.position.set(holdX, topY + 0.0095, holdZ + (holdLength - holdFillLength) / 2);
   holdFill.name = 'note-hold-fill';
   group.add(holdFill);
-
-  // 管口两端的环：把「管」而不是「条」读出来。
-  for (const offset of [-1, 1]) {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.0035, 8, 28), lib.railChamfer);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.set(g.laneX[3]!, topY + 0.1, holdZ + (offset * holdLength) / 2);
-    group.add(ring);
-  }
 
   // —— arc：两条并排，青 / 赤 ——
   // 管壁、管芯、泛光三层同色相，缺一层颜色就会散。
