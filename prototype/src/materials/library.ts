@@ -218,7 +218,7 @@ export function createMaterialLibrary(): MaterialLibrary {
   // —— 清玻璃：hold / arc 的管壁 ——
   // 用 transmission 试真实折射：高光与波纹会直接体现在「透过它看到的东西」上。
   const clearGlass = new THREE.MeshPhysicalMaterial({
-    color: 0xffffff,
+    color: 0x455663,
     metalness: 0.0,
     roughness: 0.06,
     ior: 1.5,
@@ -236,15 +236,15 @@ export function createMaterialLibrary(): MaterialLibrary {
   // —— 冰：Worley 晶面 + 真折射 ——
   // 冰和玻璃走同一条 transmission 管线，但吸收更强、棱面更硬。
   const ice = new THREE.MeshPhysicalMaterial({
-    color: 0xffffff,
+    color: 0x65828f,
     metalness: 0.0,
     roughness: 0.24,
     ior: 1.31,
-    transmission: 0.92,
-    thickness: 0.045,
-    attenuationColor: 0xa8cbdd,
-    attenuationDistance: 0.07,
-    envMapIntensity: 1.25,
+    transmission: 0.9,
+    thickness: 0.07,
+    attenuationColor: 0x6e98b4,
+    attenuationDistance: 0.04,
+    envMapIntensity: 0.6,
     clearcoat: 0.5,
     clearcoatRoughness: 0.14,
     normalMap: createIceNormalMap(256, 40, 11),
