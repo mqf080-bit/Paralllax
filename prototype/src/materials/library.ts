@@ -216,41 +216,40 @@ export function createMaterialLibrary(): MaterialLibrary {
   smokedGlass.normalScale = new THREE.Vector2(0.35, 0.35);
 
   // —— 清玻璃：hold / arc 的管壁 ——
-  // 用 transmission 试真实折射：高光与波纹会直接体现在「透过它看到的东西」上。
+  // 不用 transmission：它在这个亮台面上会变成一块发白的板。
+  // 回到透明混合 + 冷色基色：背后的东西看得见，颜色也不会被亮背景吃掉。
   const clearGlass = new THREE.MeshPhysicalMaterial({
-    color: 0x455663,
+    color: 0x9fc0d4,
     metalness: 0.0,
-    roughness: 0.06,
+    roughness: 0.04,
+    transparent: true,
+    depthWrite: false,
+    opacity: 0.32,
     ior: 1.5,
-    transmission: 0.9,
-    thickness: 0.018,
-    attenuationColor: 0xcfe4f0,
-    attenuationDistance: 0.3,
-    envMapIntensity: 1.5,
-    normalMap: createGlassNormalMap(128, 5),
-    roughnessMap: createSmudgeRoughnessMap(),
+    clearcoat: 0.6,
+    clearcoatRoughness: 0.06,
+    envMapIntensity: 1.0,
+    normalMap: createGlassNormalMap(128, 4),
   });
-  clearGlass.normalScale = new THREE.Vector2(0.85, 0.85);
+  clearGlass.normalScale = new THREE.Vector2(1.2, 1.2);
 
-  // —— 冰：Worley 晶面法线，棱面靠它对光 ——
-  // —— 冰：Worley 晶面 + 真折射 ——
-  // 冰和玻璃走同一条 transmission 管线，但吸收更强、棱面更硬。
+  // —— 冰：Worley 晶面 + 透明混合 ——
   const ice = new THREE.MeshPhysicalMaterial({
-    color: 0x65828f,
+    color: 0xb8d6e4,
     metalness: 0.0,
-    roughness: 0.24,
+    roughness: 0.2,
+    transparent: true,
+    depthWrite: false,
+    opacity: 0.42,
     ior: 1.31,
-    transmission: 0.9,
-    thickness: 0.07,
-    attenuationColor: 0x6e98b4,
-    attenuationDistance: 0.04,
-    envMapIntensity: 0.6,
-    clearcoat: 0.5,
-    clearcoatRoughness: 0.14,
+    clearcoat: 0.55,
+    clearcoatRoughness: 0.12,
+    envMapIntensity: 0.9,
     normalMap: createIceNormalMap(256, 40, 11),
     roughnessMap: createSmudgeRoughnessMap(),
   });
   ice.normalScale = new THREE.Vector2(1.5, 1.5);
+
   const edgeFadeMap = createEdgeFadeTexture();
   const edgeFade = new THREE.MeshBasicMaterial({
     map: edgeFadeMap,
