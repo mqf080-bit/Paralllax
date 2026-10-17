@@ -5,6 +5,9 @@ import {
   createBrushedMaps,
   createDigitTexture,
   createEdgeFadeTexture,
+  createGlassNormalMap,
+  createIceNormalMap,
+  createSmudgeRoughnessMap,
   type BrushedMaps,
 } from './textures';
 
@@ -46,6 +49,12 @@ export interface MaterialLibrary {
   readonly ceramic: THREE.MeshPhysicalMaterial;
   /** 烟熏玻璃。 */
   readonly smokedGlass: THREE.MeshPhysicalMaterial;
+  /** 清玻璃（hold / arc 的管壁）。 */
+  readonly clearGlass: THREE.MeshPhysicalMaterial;
+  /** 玻璃管内的光带。 */
+  readonly glassCore: THREE.MeshBasicMaterial;
+  /** 冰的内部冷光。 */
+  readonly iceCore: THREE.MeshBasicMaterial;
   /** 冰（drag 的材质比喻）。 */
   readonly ice: THREE.MeshPhysicalMaterial;
 
@@ -175,35 +184,68 @@ export function createMaterialLibrary(): MaterialLibrary {
     roughness: 0.88,
   });
 
+  // —— 釉面：低频起伏 + 手摸过的粗糙度斑 ——
   const ceramic = new THREE.MeshPhysicalMaterial({
     color: 0x1a1d24,
     metalness: 0.0,
-    roughness: 0.4,
+    roughness: 0.45,
     clearcoat: 1.0,
-    clearcoatRoughness: 0.16,
-    envMapIntensity: 1.0,
+    clearcoatRoughness: 0.14,
+    envMapIntensity: 1.05,
+    normalMap: createGlassNormalMap(128, 5),
+    roughnessMap: createSmudgeRoughnessMap(),
   });
+  ceramic.normalScale = new THREE.Vector2(0.22, 0.22);
 
+  // —— 烟熏玻璃：波纹法线 + 斑块粗糙度 + 强 clearcoat ——
   const smokedGlass = new THREE.MeshPhysicalMaterial({
-    color: 0x161b22,
+    color: 0x141920,
     metalness: 0.0,
-    roughness: 0.05,
+    roughness: 0.22,
     transparent: true,
-    opacity: 0.62,
-    envMapIntensity: 2.1,
+    opacity: 0.4,
+    ior: 1.5,
+    clearcoat: 0.55,
+    clearcoatRoughness: 0.08,
+    envMapIntensity: 1.5,
+    normalMap: createGlassNormalMap(128, 4),
+    roughnessMap: createSmudgeRoughnessMap(),
   });
+  smokedGlass.normalScale = new THREE.Vector2(0.35, 0.35);
 
-  const ice = new THREE.MeshPhysicalMaterial({
-    color: 0xbdd9e9,
+  // —— 清玻璃：hold / arc 的管壁 ——
+  const clearGlass = new THREE.MeshPhysicalMaterial({
+    color: 0xc3dcec,
     metalness: 0.0,
-    roughness: 0.1,
+    roughness: 0.2,
     transparent: true,
-    opacity: 0.72,
-    ior: 1.31,
-    emissive: 0x08141b,
-    emissiveIntensity: 1.0,
-    envMapIntensity: 1.7,
+    opacity: 0.17,
+    ior: 1.5,
+    clearcoat: 0.5,
+    clearcoatRoughness: 0.1,
+    envMapIntensity: 1.35,
+    normalMap: createGlassNormalMap(128, 3),
+    roughnessMap: createSmudgeRoughnessMap(),
   });
+  clearGlass.normalScale = new THREE.Vector2(0.4, 0.4);
+
+  // —— 冰：Worley 晶面法线，棱面靠它对光 ——
+  const ice = new THREE.MeshPhysicalMaterial({
+    color: 0x8fc0da,
+    metalness: 0.0,
+    roughness: 0.34,
+    transparent: true,
+    opacity: 0.5,
+    ior: 1.31,
+    clearcoat: 0.7,
+    clearcoatRoughness: 0.12,
+    emissive: 0x0a1c26,
+    emissiveIntensity: 1.2,
+    envMapIntensity: 1.35,
+    normalMap: createIceNormalMap(256, 40, 11),
+    roughnessMap: createSmudgeRoughnessMap(),
+  });
+  ice.normalScale = new THREE.Vector2(1.8, 1.8);
 
   const edgeFadeMap = createEdgeFadeTexture();
   const edgeFade = new THREE.MeshBasicMaterial({
@@ -262,6 +304,24 @@ export function createMaterialLibrary(): MaterialLibrary {
     depthWrite: false,
   });
 
+  // 冰的内部冷光：假次表面散射，让冰锥不是一块白塑料。
+  const iceCore = new THREE.MeshBasicMaterial({
+    color: 0x8fd0ec,
+    transparent: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+    opacity: 0.22,
+  });
+
+  // 玻璃管里的光带：不是灯，是「被推着走的那团光」的占位。
+  const glassCore = new THREE.MeshBasicMaterial({
+    color: 0xc6e9ff,
+    toneMapped: false,
+    transparent: true,
+    opacity: 0.9,
+  });
+
   const laneDigits = Array.from({ length: 6 }, (_, i) => {
     const texture = createDigitTexture(i);
     return new THREE.MeshBasicMaterial({
@@ -289,6 +349,9 @@ export function createMaterialLibrary(): MaterialLibrary {
     wire,
     ceramic,
     smokedGlass,
+    clearGlass,
+    glassCore,
+    iceCore,
     ice,
     edgeFade,
     band,
@@ -315,6 +378,9 @@ export function createMaterialLibrary(): MaterialLibrary {
         wire,
         ceramic,
         smokedGlass,
+        clearGlass,
+        glassCore,
+        iceCore,
         ice,
         edgeFade,
         band,

@@ -9,6 +9,7 @@ import { createMaterialLibrary } from './materials/library';
 import { buildBackdrop } from './scene/backdrop';
 import { createControllers } from './scene/controllers';
 import { buildDisplay, createDisplayTextures, DEFAULT_DISPLAY, type DisplayPlacement } from './scene/display';
+import { buildMaterialLab } from './scene/materialLab';
 import { buildTable } from './scene/table';
 import { createDiagnostics } from './ui/diagnostics';
 import { probeXr } from './xr/xr-support';
@@ -121,6 +122,19 @@ const displayTextures = createDisplayTextures();
 const display = buildDisplay(displayTextures, displayPlacement);
 scene.add(display.group);
 
+// 材质实验台：dev 下默认显示，?lab=0 关掉。不参与玩法，只在调材质时打开。
+const lab = buildMaterialLab(lib);
+scene.add(lab.group);
+const labState = { visible: import.meta.env.DEV };
+if (import.meta.env.DEV) {
+  const query = new URLSearchParams(window.location.search);
+  if (query.get('lab') === '0') labState.visible = false;
+}
+function applyLab(): void {
+  lab.group.visible = labState.visible;
+}
+applyLab();
+
 let table = buildTable(params, lib);
 scene.add(table.group);
 
@@ -219,13 +233,15 @@ document.body.append(stats.dom);
 // —— 调试面板（仅 dev）——
 if (import.meta.env.DEV) {
   void import('./ui/debug').then(({ createDebug }) => {
-    debugHandle = debugHandle = createDebug({
+    debugHandle = createDebug({
       params,
       display: displayPlacement,
+      lab: labState,
       renderer,
       scene,
       onChange: rebuild,
       onDisplayChange: moveDisplay,
+      onLabChange: applyLab,
     });
   });
 }
@@ -275,6 +291,8 @@ import.meta.hot?.dispose(() => {
   controllers.dispose();
   scene.remove(table.group);
   table.dispose();
+  scene.remove(lab.group);
+  lab.dispose();
   scene.remove(display.group);
   display.dispose();
   scene.remove(backdrop.group);

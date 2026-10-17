@@ -14,10 +14,12 @@ import { DEFAULT_DISPLAY, type DisplayPlacement } from '../scene/display';
 export interface DebugOptions {
   params: TableParams;
   display: DisplayPlacement;
+  lab: { visible: boolean };
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   onChange(): void;
   onDisplayChange(): void;
+  onLabChange(): void;
 }
 
 export interface DebugHandle {
@@ -25,7 +27,7 @@ export interface DebugHandle {
 }
 
 export function createDebug(options: DebugOptions): DebugHandle {
-  const { params, display, renderer, scene, onChange, onDisplayChange } = options;
+  const { params, display, lab, renderer, scene, onChange, onDisplayChange, onLabChange } = options;
   const gui = new GUI({ title: 'PARALLAX · STEP 1', width: 288 });
 
   const table = gui.addFolder('台面');
@@ -43,6 +45,9 @@ export function createDebug(options: DebugOptions): DebugHandle {
   floating.add(display, 'x', -2, 2, 0.01).name('X 右').onChange(onDisplayChange);
   floating.add(display, 'y', 0.4, 2.2, 0.01).name('Y 高').onChange(onDisplayChange);
   floating.add(display, 'z', -8, 0, 0.05).name('Z 前').onChange(onDisplayChange);
+
+  const material = gui.addFolder('材质实验台');
+  material.add(lab, 'visible').name('显示样品').onChange(onLabChange);
 
   const look = gui.addFolder('表现');
   look.add(renderer, 'toneMappingExposure', 0.5, 2, 0.01).name('曝光');
