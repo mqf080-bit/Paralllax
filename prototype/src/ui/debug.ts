@@ -58,7 +58,7 @@ export function createDebug(options: DebugOptions): DebugHandle {
   playFolder.add({ restart: onPlayRestart }, 'restart').name('重开这一波');
 
   const floating = gui.addFolder('浮空显示');
-  floating.add(display, 'x', -2, 2, 0.01).name('X 右').onChange(onDisplayChange);
+  floating.add(display, 'x', -1, 1, 0.01).name('X 偏移').onChange(onDisplayChange);
   floating.add(display, 'y', 0.4, 2.2, 0.01).name('Y 高').onChange(onDisplayChange);
   floating.add(display, 'z', -8, 0, 0.05).name('Z 前').onChange(onDisplayChange);
 

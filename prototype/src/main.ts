@@ -10,7 +10,7 @@ import { createEnvironment } from './materials/environment';
 import { createMaterialLibrary } from './materials/library';
 import { buildBackdrop } from './scene/backdrop';
 import { createControllers } from './scene/controllers';
-import { buildDisplay, createDisplayTextures, DEFAULT_DISPLAY, type DisplayPlacement } from './scene/display';
+import { buildDisplay, createDisplayTextures, DEFAULT_DISPLAY, DISPLAY_GAP, DISPLAY_WIDTH, type DisplayPlacement } from './scene/display';
 import { buildMaterialLab } from './scene/materialLab';
 import { buildNotesPreview } from './scene/notes';
 import { buildTable } from './scene/table';
@@ -234,8 +234,11 @@ function rebuild(): void {
   scene.add(playfield.group);
 }
 
+/** 浮空显示绑定在「窗口右缘 + 固定距离」上：shift 时跟着窗口走。 */
 function moveDisplay(): void {
-  display.group.position.set(displayPlacement.x, displayPlacement.y, displayPlacement.z);
+  const rightEdge = (2 + shiftValue) * params.laneWidth;
+  const x = rightEdge + DISPLAY_GAP + DISPLAY_WIDTH / 2 + displayPlacement.x;
+  display.group.position.set(x, displayPlacement.y, displayPlacement.z);
   display.aimAt(camera.position);
 }
 moveDisplay();
@@ -370,8 +373,6 @@ renderer.setAnimationLoop((frameTime: number) => {
   controls.enablePan = controls.enableRotate;
   if (controls.enabled) controls.update();
 
-  display.aimAt(camera.position);
-
   if (!frozen) {
     hands.update(dt, camera);
     playfield.update(dt, hands.samples);
@@ -382,6 +383,7 @@ renderer.setAnimationLoop((frameTime: number) => {
   const shiftTarget = shiftState.mode === 'left' ? -1 : shiftState.mode === 'right' ? 1 : 0;
   shiftValue += (shiftTarget - shiftValue) * Math.min(1, dt * 7);
   table.setWindow(shiftValue);
+  moveDisplay();
 
   const { perfect, good, miss, lastGrade, lastOffsetMs } = playfield.stats;
   const gradeRow = `${perfect} / ${good} / ${miss}`;

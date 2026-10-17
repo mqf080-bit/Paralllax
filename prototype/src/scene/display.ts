@@ -30,16 +30,22 @@ export interface DisplayPlacement {
   z: number;
 }
 
-/** 默认位置：右前方 2.6m、台面上方 0.1m。看轨道时在视野上沿。 */
-export const DEFAULT_DISPLAY: DisplayPlacement = { x: 0.72, y: 1.05, z: -2.6 };
+/** 默认位置：右前方 2.6m、台面上方 0.1m。x 现在是相对「窗口右缘」的额外偏移。 */
+export const DEFAULT_DISPLAY: DisplayPlacement = { x: 0, y: 1.05, z: -2.6 };
 
-const TEXTURE_WIDTH = 1024;
-const TEXTURE_HEIGHT = 320;
-const PLANE_WIDTH = 0.64;
+const TEXTURE_WIDTH = 1536;
+const TEXTURE_HEIGHT = 480;
+/** 显示的世界宽度（米）。之前 0.64m，太小了。 */
+export const DISPLAY_WIDTH = 1.0;
+/** 留给「轨道右缘 → 显示左缘」的距离（米）。 */
+export const DISPLAY_GAP = 0.3;
+const PLANE_WIDTH = DISPLAY_WIDTH;
 const PLANE_HEIGHT = (PLANE_WIDTH * TEXTURE_HEIGHT) / TEXTURE_WIDTH;
 
 export function createDisplayTextures(): DisplayTextures {
   const panel = drawToTexture(TEXTURE_WIDTH, TEXTURE_HEIGHT, (ctx) => {
+    // 画布放大 1.5 倍，排版坐标沿用原来的值。
+    ctx.scale(1.5, 1.5);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
 
