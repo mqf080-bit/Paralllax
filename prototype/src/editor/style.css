@@ -166,6 +166,21 @@ select {
   text-align: right;
 }
 
+.input--div {
+  width: 46px;
+  text-align: right;
+  padding: 0 4px;
+}
+
+.snap-fields {
+  gap: 4px;
+}
+
+.snap-fields .button--small {
+  padding: 0 6px;
+  min-width: 28px;
+}
+
 .input--range {
   width: 100%;
   accent-color: var(--brass);

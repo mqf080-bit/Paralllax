@@ -2,14 +2,16 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 import { createAudioClock, type AudioClock } from '../audio/clock';
-import { chartLimits, noteHeight, noteX, NOTE_HEIGHT, type Chart, type Note } from '../chart/schema';
+import { chartLimits, noteHeight, noteX, NOTE_HEIGHT, type ArcNote, type Chart, type Note } from '../chart/schema';
 import { DEFAULT_PARAMS } from '../config';
 import { createPlayer, type Player } from '../game/player';
 import { createEnvironment } from '../materials/environment';
 import { createMaterialLibrary, type MaterialLibrary } from '../materials/library';
 import { buildBackdrop } from '../scene/backdrop';
 import { buildTable } from '../scene/table';
-import { chartSpan, snapArcX, snapGroundX, snapSpatialY, X_GRID, Y_GRID, type ToolId } from './model';
+import { createArcEditOverlay, type ArcAxis, type ArcEditOverlay } from './arcEdit';
+import { arcDuration, chartSpan, sampleArcPoint, snapArcX, snapGroundX, snapSpatialY, X_GRID, Y_GRID, type ToolId } from './model';
+import { createTimeline, type Timeline } from '../chart/timeline';
 
 /**
  * 3D 预览：直接跑 Step 4 的播放器。
@@ -34,7 +36,10 @@ export interface PreviewState {
 export interface PreviewEditHooks {
   tool(): ToolId;
   gridSnap(): boolean;
+  /** 时间吸附；free = Ctrl / Cmd 临时关闭。 */
+  snapTime(timeMs: number, free: boolean): number;
   select(note: Note | null): void;
+  selectArcPoint(note: ArcNote, index: number): void;
   /** 放置一颗 note；返回创建出来的对象（不存在 = 当前工具不放置）。 */
   place(x: number, y: number, timeMs: number): Note | null;
   /**
@@ -42,6 +47,12 @@ export interface PreviewEditHooks {
    * x 单位是轨号，z 是台面上方米数。
    */
   move(note: Note, x: number, y: number, dx: number, dy: number): void;
+  /** 只改 arc 的某一个点；axis 限定只动 x 或只动 z。 */
+  moveArcPoint(note: ArcNote, index: number, x: number, z: number, axis: ArcAxis): void;
+  /** 在弧上插点；返回新点下标（已存在则返回原下标）。 */
+  addArcPoint(note: ArcNote, timeMs: number, x: number, z: number): number;
+  /** 点击物量珠：切 KEY（自动物量会先转成显式表）；time 是相对 arc 起点。 */
+  toggleArcTick(note: ArcNote, timeMs: number): void;
   beginGesture(): void;
   endGesture(): void;
   commit(): void;
@@ -61,8 +72,10 @@ export interface Preview {
   setOffset(offsetMs: number): void;
   setChart(chart: Chart): void;
   setEditMode(enabled: boolean): void;
-  setSelection(note: Note | null): void;
+  setSelection(note: Note | null, arcPoint?: number | null): void;
   setEditHooks(hooks: PreviewEditHooks | null): void;
+  /** 外部改了谱面：下一帧重画（暂停时也能看到）。 */
+  invalidate(): void;
   loadTrack(file: File): Promise<boolean>;
   clearTrack(): void;
   update(dt: number): void;
@@ -77,7 +90,8 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
 
   // —— renderer / scene ——
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  // 不是游戏画面：1.5× 已经足够锐，4K 屏上 2× 会让风扇白转。
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   renderer.localClippingEnabled = true;
@@ -124,6 +138,10 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
   controls.minDistance = 0.5;
   controls.maxDistance = 14;
   controls.maxPolarAngle = Math.PI * 0.495;
+  // 滚轮缩放 / 程序化改 target 不会经过 pointermove；靠 change 事件推一帧。
+  controls.addEventListener('change', () => {
+    needsRender = true;
+  });
 
   const table = buildTable(params, lib);
   scene.add(table.group);
@@ -147,6 +165,9 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
   let rate = 1;
   let reverse = false;
   let audioDriven = false;
+  /** 暂停时不再每帧重画：只有这些 dirty 才推一帧。 */
+  let needsRender = true;
+  let playerDirty = true;
 
   player.setTimeSource(() => timeMs);
 
@@ -154,20 +175,34 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
   let editMode = false;
   let editHooks: PreviewEditHooks | null = null;
   let selectedNote: Note | null = null;
+  let selectedArcPoint: number | null = null;
   let gridHover = false;
-  let editDrag: {
-    note: Note;
-    plane: THREE.Plane;
-    startWorld: THREE.Vector3;
-    baseX: number;
-    baseY: number;
-    arc: boolean;
-  } | null = null;
+  type PreviewDrag =
+    | {
+        kind: 'note';
+        note: Exclude<Note, ArcNote>;
+        plane: THREE.Plane;
+        startWorld: THREE.Vector3;
+        baseX: number;
+        baseY: number;
+      }
+    | { kind: 'arc'; note: ArcNote; plane: THREE.Plane; startWorld: THREE.Vector3 }
+    | { kind: 'arc-point'; note: ArcNote; index: number; axis: ArcAxis; plane: THREE.Plane };
+  let editDrag: PreviewDrag | null = null;
+  let timeline: Timeline = createTimeline(activeChart);
 
   const raycaster = new THREE.Raycaster();
   const pointerNdc = new THREE.Vector2();
   const bandZ = table.geometry.bandZ;
   const placementPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -bandZ);
+  const arcOverlay: ArcEditOverlay = createArcEditOverlay({
+    laneWidth: params.laneWidth,
+    tableHeight: params.tableHeight,
+    bandZ,
+    baseSpeed: settings.flowSpeed,
+    scroll: (time) => timeline.scrollDistance(time),
+  });
+  scene.add(arcOverlay.group);
   const gridGroup = new THREE.Group();
   gridGroup.name = 'edit-grid';
   gridGroup.visible = false;
@@ -328,6 +363,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
   }
 
   function updateHover(event: PointerEvent): void {
+    needsRender = true;
     if (!editMode || !editHooks) {
       hoverMarker.visible = false;
       return;
@@ -358,41 +394,115 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     hoverMarker.visible = true;
   }
 
-  function beginDrag(note: Note, point: THREE.Vector3, shift: boolean): void {
+  function beginDrag(
+    note: Note,
+    point: THREE.Vector3,
+    shift: boolean,
+    pointIndex?: number,
+    axis: ArcAxis = 'free',
+  ): void {
     const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -point.z);
-    editDrag = {
-      note,
-      plane,
-      startWorld: point.clone(),
-      baseX: note.type === 'arc' ? 0 : noteX(note),
-      baseY: note.type === 'arc' ? 0 : noteHeight(note),
-      arc: note.type === 'arc',
-    };
+    if (note.type === 'arc' && pointIndex !== undefined) {
+      editDrag = { kind: 'arc-point', note, index: pointIndex, axis, plane };
+    } else if (note.type === 'arc') {
+      editDrag = { kind: 'arc', note, plane, startWorld: point.clone() };
+    } else {
+      editDrag = {
+        kind: 'note',
+        note,
+        plane,
+        startWorld: point.clone(),
+        baseX: noteX(note),
+        baseY: noteHeight(note),
+      };
+    }
     gridGroup.position.z = point.z - bandZ;
     selectionMarker.position.copy(point);
-    selectionMarker.visible = editMode;
+    selectionMarker.visible = editMode && note.type !== 'arc';
     void shift;
+  }
+
+  function capture(event: PointerEvent): void {
+    applyGridVisibility();
+    try {
+      renderer.domElement.setPointerCapture(event.pointerId);
+    } catch {
+      // 合成事件没有 active pointer
+    }
+    event.preventDefault();
+  }
+
+  /** 在弧身上插点：时间按 SNAP 吸附，x/z 保持在原弧上，随后直接拖这个新点。 */
+  function insertPoint(note: ArcNote, hit: THREE.Vector3, event: PointerEvent): void {
+    const free = event.ctrlKey || event.metaKey;
+    const rel = arcOverlay.nearestRelTime(note, hit, timeMs);
+    const snapped = editHooks!.snapTime(Math.max(0, note.time + rel), free);
+    const relSnapped = Math.min(arcDuration(note), Math.max(0, Math.round(snapped - note.time)));
+    const sample = sampleArcPoint(note.points, relSnapped);
+    const position = arcOverlay.worldAt(note, relSnapped, timeMs);
+
+    editHooks!.beginGesture();
+    editHooks!.select(note);
+    const index = editHooks!.addArcPoint(note, note.time + relSnapped, sample.x, sample.z);
+    editHooks!.selectArcPoint(note, index);
+    beginDrag(note, position, event.shiftKey, index, 'free');
+    capture(event);
   }
 
   function onEditPointerDown(event: PointerEvent): void {
     if (!editMode || !editHooks || event.button !== 0) return;
     hoverMarker.visible = false;
     setNdc(event);
-    const picked = pickNote();
-    if (picked) {
-      editHooks.beginGesture();
-      editHooks.select(picked.note);
-      beginDrag(picked.note, picked.point, event.shiftKey);
-      applyGridVisibility();
-      try {
-        renderer.domElement.setPointerCapture(event.pointerId);
-      } catch {
-        // 合成事件没有 active pointer
+    const tool = editHooks.tool();
+
+    // 1) 选中的 arc 编辑层优先级最高：物量珠 / 控制点 / 轴把手 / 弧身。
+    const overlayPick = selectedNote?.type === 'arc' ? arcOverlay.pick(raycaster) : null;
+    if (overlayPick) {
+      if (overlayPick.kind === 'tick') {
+        if (selectedNote !== overlayPick.note) editHooks.select(overlayPick.note);
+        editHooks.toggleArcTick(overlayPick.note, overlayPick.time);
+        needsRender = true;
+        event.preventDefault();
+        return;
       }
-      event.preventDefault();
+      if (overlayPick.kind === 'point') {
+        editHooks.beginGesture();
+        editHooks.selectArcPoint(overlayPick.note, overlayPick.index);
+        const position = arcOverlay.worldAt(
+          overlayPick.note,
+          overlayPick.note.points[overlayPick.index]?.time ?? 0,
+          timeMs,
+        );
+        beginDrag(overlayPick.note, position, event.shiftKey, overlayPick.index, overlayPick.axis);
+        capture(event);
+        return;
+      }
+      if (tool === 'arc') {
+        insertPoint(overlayPick.note, overlayPick.point, event);
+        return;
+      }
+      editHooks.beginGesture();
+      editHooks.select(overlayPick.note);
+      beginDrag(overlayPick.note, overlayPick.point, event.shiftKey);
+      capture(event);
       return;
     }
 
+    // 2) 播放器里的 note（未选中 arc 时也能直接点弧身加点）。
+    const picked = pickNote();
+    if (picked) {
+      if (picked.note.type === 'arc' && tool === 'arc') {
+        insertPoint(picked.note, picked.point, event);
+        return;
+      }
+      editHooks.beginGesture();
+      editHooks.select(picked.note);
+      beginDrag(picked.note, picked.point, event.shiftKey);
+      capture(event);
+      return;
+    }
+
+    // 3) 空白处：在播放头时间放置（时间走 SNAP）。
     const point = new THREE.Vector3();
     if (!raycaster.ray.intersectPlane(placementPlane, point)) {
       editHooks.select(null);
@@ -404,7 +514,6 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
       editHooks.select(null);
       return;
     }
-    const tool = editHooks.tool();
     if (tool === 'select') {
       editHooks.select(null);
       return;
@@ -415,7 +524,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     const note = editHooks.place(
       snapX(x, event.shiftKey, free, tool === 'arc'),
       snapY(y, event.shiftKey, free),
-      timeMs,
+      editHooks.snapTime(Math.max(0, timeMs), free),
     );
     if (!note) {
       editHooks.endGesture();
@@ -423,13 +532,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     }
     beginDrag(note, point, event.shiftKey);
     editHooks.select(note);
-    applyGridVisibility();
-    try {
-      renderer.domElement.setPointerCapture(event.pointerId);
-    } catch {
-      // ignore
-    }
-    event.preventDefault();
+    capture(event);
   }
 
   function onEditPointerMove(event: PointerEvent): void {
@@ -441,17 +544,32 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     setNdc(event);
     const world = new THREE.Vector3();
     if (!raycaster.ray.intersectPlane(editDrag.plane, world)) return;
-    const dx = (world.x - editDrag.startWorld.x) / params.laneWidth;
-    const dy = world.y - editDrag.startWorld.y;
-    if (editDrag.arc) {
-      const free = event.ctrlKey || event.metaKey;
+    const free = event.ctrlKey || event.metaKey;
+
+    if (editDrag.kind === 'arc-point') {
+      const point = editDrag.note.points[editDrag.index];
+      if (!point) return;
+      let x = point.x;
+      let z = point.z;
+      if (editDrag.axis !== 'z') {
+        x = snapX(fromWorldX(world.x), event.shiftKey, free, true);
+      }
+      if (editDrag.axis !== 'x') {
+        z = snapY(Math.max(0, fromWorldY(world.y)), event.shiftKey, free);
+      }
+      editHooks.moveArcPoint(editDrag.note, editDrag.index, x, z, editDrag.axis);
+      selectionMarker.visible = false;
+    } else if (editDrag.kind === 'arc') {
+      const dx = (world.x - editDrag.startWorld.x) / params.laneWidth;
+      const dy = world.y - editDrag.startWorld.y;
       const stepX = editHooks.gridSnap() && !free ? X_GRID : 0.01;
       const stepY = editHooks.gridSnap() && !free ? Y_GRID : 0.001;
-      const sx = Math.round(dx / stepX) * stepX;
-      const sy = Math.round(dy / stepY) * stepY;
-      editHooks.move(editDrag.note, 0, 0, sx, sy);
+      editHooks.move(editDrag.note, 0, 0, Math.round(dx / stepX) * stepX, Math.round(dy / stepY) * stepY);
+      selectionMarker.position.copy(world);
+      selectionMarker.visible = false;
     } else {
-      const free = event.ctrlKey || event.metaKey;
+      const dx = (world.x - editDrag.startWorld.x) / params.laneWidth;
+      const dy = world.y - editDrag.startWorld.y;
       editHooks.move(
         editDrag.note,
         snapX(editDrag.baseX + dx, event.shiftKey, free, false),
@@ -459,10 +577,12 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
         0,
         0,
       );
+      selectionMarker.position.copy(world);
+      selectionMarker.visible = true;
     }
-    selectionMarker.position.copy(world);
-    selectionMarker.visible = true;
     editHooks.commit();
+    playerDirty = true;
+    needsRender = true;
     event.preventDefault();
   }
 
@@ -471,6 +591,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     editDrag = null;
     gridGroup.position.z = 0;
     applyGridVisibility();
+    needsRender = true;
     editHooks?.endGesture();
     try {
       renderer.domElement.releasePointerCapture(event.pointerId);
@@ -487,11 +608,13 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
 
   renderer.domElement.addEventListener('pointerenter', () => {
     gridHover = true;
+    needsRender = true;
     applyGridVisibility();
   });
   renderer.domElement.addEventListener('pointerleave', () => {
     if (!editDrag) gridHover = false;
     hoverMarker.visible = false;
+    needsRender = true;
     applyGridVisibility();
   });
   renderer.domElement.addEventListener('pointerdown', onEditPointerDown);
@@ -509,6 +632,8 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     if (!editMode) hoverMarker.visible = false;
     applyGridVisibility();
     selectionMarker.visible = editMode && selectedNote !== null;
+    needsRender = true;
+    playerDirty = true;
     renderer.domElement.style.cursor = editMode ? 'crosshair' : '';
     controls.mouseButtons = editMode
       ? {
@@ -523,8 +648,34 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
         };
   }
 
+  let hiddenArc: Note | null = null;
+
+  function setArcGroupVisible(note: Note, visible: boolean): void {
+    for (const child of player.group.children) {
+      if (child.userData.chartNote === note) child.visible = visible;
+    }
+  }
+
+  function updateArcOverlay(): void {
+    const show = editMode && !playing && selectedNote?.type === 'arc';
+    if (!show) {
+      arcOverlay.setVisible(false);
+      if (hiddenArc) {
+        setArcGroupVisible(hiddenArc, true);
+        hiddenArc = null;
+      }
+      return;
+    }
+    const note = selectedNote as ArcNote;
+    arcOverlay.rebuild(activeChart, timeMs, note, selectedArcPoint);
+    arcOverlay.setVisible(true);
+    if (hiddenArc && hiddenArc !== note) setArcGroupVisible(hiddenArc, true);
+    hiddenArc = note;
+    setArcGroupVisible(note, false);
+  }
+
   function updateSelectionMarker(): void {
-    if (!editMode || !selectedNote || editDrag) {
+    if (!editMode || !selectedNote || selectedNote.type === 'arc' || editDrag) {
       if (!editDrag) selectionMarker.visible = false;
       return;
     }
@@ -572,17 +723,22 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
       pauseAudio();
     }
     playing = true;
+    playerDirty = true;
+    needsRender = true;
   }
 
   function pause(): void {
     if (!playing) return;
     playing = false;
     if (audioDriven) pauseAudio();
+    needsRender = true;
   }
 
   function seek(value: number): void {
     timeMs = clampTime(value);
     restartPlayer();
+    playerDirty = true;
+    needsRender = true;
     if (playing) {
       if (audioDriven) audio.play(timeMs);
     }
@@ -609,6 +765,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     player = createPlayer(params, table.geometry, lib, activeChart, settings, {});
     player.setTimeSource(() => timeMs);
     scene.add(player.group);
+    hiddenArc = null;
     audio.setTiming(activeChart.timing);
     audio.settings.offsetMs = activeChart.meta.offset;
     audioDriven = false;
@@ -617,6 +774,8 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     timeMs = clampTime(timeMs);
     restartPlayer();
     buildEditGrid();
+    playerDirty = true;
+    needsRender = true;
   }
 
   async function loadTrack(file: File): Promise<boolean> {
@@ -652,6 +811,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     renderer.setSize(width, height);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    needsRender = true;
   });
   resizeObserver.observe(container);
 
@@ -673,16 +833,30 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
           playing = false;
         }
       }
+      playerDirty = true;
+      needsRender = true;
     }
     if (audioDriven) audio.update();
 
+    // 暂停且没有任何变化：3D 也不画。笔记本风扇主要就是这里停下来的。
+    if (!playing && !needsRender && !playerDirty) return;
+
     // 暂停时不自动打：刚放下的 note 不应该在暂停帧里被判掉。
     settings.auto = autoEnabled && playing;
-    player.update(dt, []);
+    if (playing || playerDirty) {
+      player.update(dt, []);
+      playerDirty = false;
+    }
     table.setWindow(player.windowValue);
-    controls.update();
-    updateSelectionMarker();
-    renderer.render(scene, camera);
+    let damping = false;
+    if (needsRender || playing) {
+      damping = controls.update();
+      updateArcOverlay();
+      updateSelectionMarker();
+      renderer.render(scene, camera);
+    }
+    // 轨道惯性还没停：下一帧继续，停了就真的停。
+    needsRender = damping;
   }
 
   return {
@@ -727,9 +901,16 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
       editMode = enabled;
       applyEditMode();
     },
-    setSelection(note: Note | null): void {
+    setSelection(note: Note | null, arcPoint: number | null = null): void {
       selectedNote = note;
-      selectionMarker.visible = editMode && note !== null;
+      selectedArcPoint = note?.type === 'arc' && arcPoint !== null && arcPoint !== undefined ? arcPoint : null;
+      selectionMarker.visible = editMode && note !== null && note.type !== 'arc';
+      playerDirty = true;
+      needsRender = true;
+    },
+    invalidate(): void {
+      playerDirty = true;
+      needsRender = true;
     },
     setEditHooks(hooks: PreviewEditHooks | null): void {
       editHooks = hooks;
@@ -746,6 +927,8 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
       renderer.domElement.removeEventListener('pointercancel', onEditPointerUp);
       renderer.domElement.removeEventListener('contextmenu', onEditContextMenu);
       scene.remove(gridGroup);
+      scene.remove(arcOverlay.group);
+      arcOverlay.dispose();
       scene.remove(selectionMarker);
       scene.remove(hoverMarker);
       hoverMarker.geometry.dispose();

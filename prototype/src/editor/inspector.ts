@@ -13,6 +13,7 @@ import {
 } from '../chart/schema';
 import {
   arcDuration,
+  arcTicks,
   chartEnd,
   clampLane,
   clampX,
@@ -52,6 +53,7 @@ export interface InspectorHost {
   endGesture(): void;
   addShift(target: ShiftEvent['target']): void;
   addTiming(): void;
+  toggleArcKey(note: ArcNote, time: number): void;
   importAudio(file: File): void;
   setVolume(volume: number): void;
   setMetronome(enabled: boolean): void;
@@ -467,7 +469,7 @@ export class Inspector {
         }),
       );
       root.append(
-        el('p', 'inspector__note', 'AUTO：普通物量按 OBJECTS/S 均匀生成，另加 KEY OBJECTS。'),
+        el('p', 'inspector__note', 'AUTO：普通物量按 OBJECTS/S 均匀生成，另加 KEY OBJECTS。3D 里直接点弧上的物量珠可切 KEY。'),
       );
       root.append(tickActions);
     }
@@ -586,6 +588,12 @@ export class Inspector {
         ),
       ),
     );
+    const keyed = arcHasKey(note, point.time);
+    const keyAction = el('div', 'inspector__actions');
+    keyAction.append(
+      button(keyed ? 'REMOVE KEY @ POINT' : 'MAKE KEY @ POINT', () => host.toggleArcKey(note, point.time)),
+    );
+    root.append(keyAction);
     if (index > 0) {
       root.append(
         field(
@@ -598,7 +606,13 @@ export class Inspector {
         ),
       );
     }
-    root.append(el('p', 'inspector__note', '在高度轨里上下拖这个点改 y；Shift 吸附到胸 / 面 / 头顶。'));
+    root.append(
+      el(
+        'p',
+        'inspector__note',
+        '3D：拖白球同时改 X/Z；拖青球只改 X；拖黄铜球只改 Z。高度轨上下拖改 Z；Shift 吸附胸 / 面 / 头顶。',
+      ),
+    );
   }
 
   private renderSpeed(root: HTMLElement, event: SpeedEvent): void {
@@ -871,15 +885,16 @@ export class Inspector {
     for (const line of [
       '2D 左键：选中 / 放置 / 拖动（时间 + 连续 x / z）',
       '2D 右键：删除光标下的对象；Delete：删除选区',
-      '3D 左键：拾取 note 并拖 x/z；空处 = 在播放头时间放置',
+      '3D 左键：空处放置（时间吸附）；拖白点 = x+z，青点 = x，黄铜 = z',
+      '3D 点弧身（ARC 工具）= 在该时间加点；点物量珠 = 切 KEY',
       '3D 右键拖拽：转视角（3D EDIT 开启时）；滚轮缩放',
       '中键 / Alt+左键：平移 2D；滚轮：平移；Ctrl+滚轮：缩放',
-      'SNAP（时间）和 SNAP XZ（x/z 网格）互相独立；G 切空间吸附',
+      'SNAP（时间）和 SNAP XZ（x/z 网格）互相独立；DIV/DOT/3 自定义时间网格',
       '1–5：SELECT / HIT / DRAG / HOLD / ARC；地面键默认吸整轨',
       'Space：播放 / 暂停；R：倒放；F：适配窗口',
       '← / →：按吸附步长移动播放头；Shift 加速 10×',
       'Ctrl+Z / Ctrl+Shift+Z：撤销 / 重做；Ctrl+S：导出',
-      'ARC：空处拖 = 新建；点弧身 = 插点；高度轨上下拖 = 改 y',
+      'ARC：空处拖 = 新建；2D/3D 点弧身 = 插点；高度轨上下拖 = 改 Z',
       '高度轨：hit/drag 是点，arc 是曲线；hold 固定贴地；Z 可拖',
       'Ctrl/⌘ 拖：临时关掉时间 / 轨 / Z 吸附（5连、附点、离轨）',
       '弧物量 MAKE EXPLICIT 后可增删；没加 tick 的时间不结算',
@@ -940,6 +955,10 @@ function addArcTick(host: InspectorHost, note: ArcNote, key: boolean): void {
   note.ticks.sort((a, b) => a.time - b.time);
   host.commit();
   host.endGesture();
+}
+
+function arcHasKey(note: ArcNote, time: number): boolean {
+  return arcTicks(note).some((tick) => tick.key && Math.abs(tick.time - time) <= 1);
 }
 
 function buildAutoTicks(note: ArcNote): Array<{ time: number; key: boolean }> {

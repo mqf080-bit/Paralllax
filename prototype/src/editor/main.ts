@@ -1,5 +1,5 @@
 import { EditorController, type EditorElements } from './controller';
-import { SNAP_OPTIONS, type ToolId } from './model';
+import { SNAP_PRESETS, type ToolId } from './model';
 import './style.css';
 
 /**
@@ -42,10 +42,10 @@ for (const tool of TOOLS) {
 }
 
 const snap = byId<HTMLSelectElement>('snap');
-for (const option of SNAP_OPTIONS) {
+for (const preset of SNAP_PRESETS) {
   const node = document.createElement('option');
-  node.value = option.id;
-  node.textContent = option.label;
+  node.value = preset.id;
+  node.textContent = preset.label;
   snap.append(node);
 }
 
@@ -59,6 +59,9 @@ const elements: EditorElements = {
   inspectorHost: byId('inspector'),
   tools,
   snap,
+  snapDiv: byId<HTMLInputElement>('snap-div'),
+  snapDot: byId('snap-dot'),
+  snapTriplet: byId('snap-triplet'),
   play: byId('play'),
   stop: byId('stop'),
   rate: byId('rate'),

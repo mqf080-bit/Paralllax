@@ -16,8 +16,9 @@ import {
   formatTime,
   LANE_COUNT,
   sampleArcPoint,
-  snapOption,
+  snapBeats,
   type Selection,
+  type SnapSpec,
   type ToolId,
 } from './model';
 
@@ -78,7 +79,7 @@ export interface TimelineState {
   selection: Selection | null;
   playhead: number;
   tool: ToolId;
-  snap: string;
+  snap: SnapSpec;
   waveform: WaveformPeaks | null;
   /** `meta.offset`：波形按它平移。 */
   audioOffset: number;
@@ -340,10 +341,10 @@ export class TimelineRenderer {
     const viewEnd = xToTime(state.view, layout.width);
     const from = state.view.start - 1000;
     const to = viewEnd + 1000;
-    const snapBeats = snapOption(state.snap).beats;
+    const snapStep = snapBeats(state.snap);
     const refBpm = state.chart.timing[0]?.bpm ?? 150;
-    const stepPx = (60000 / Math.max(1, refBpm)) * snapBeats * state.view.pxPerMs;
-    const gridStep = snapBeats > 0 && stepPx >= 7 ? snapBeats : 1;
+    const stepPx = (60000 / Math.max(1, refBpm)) * snapStep * state.view.pxPerMs;
+    const gridStep = snapStep > 0 && stepPx >= 7 ? snapStep : 1;
     const grid = collectGridLines(state.chart, from, to, gridStep);
 
     this.drawRuler(state, timeline, grid);

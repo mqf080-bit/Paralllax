@@ -23,6 +23,13 @@
           <select id="snap" class="input"></select>
         </label>
 
+        <div class="topbar__group snap-fields" title="DIV = 每全音符分几份；DOT = 附点 ×1.5；3 = 三连 ×2/3">
+          <span class="topbar__label">DIV</span>
+          <input id="snap-div" class="input input--div" type="number" min="0" max="64" step="1" value="8" />
+          <button id="snap-dot" class="button button--small" type="button">DOT</button>
+          <button id="snap-triplet" class="button button--small" type="button">3</button>
+        </div>
+
         <div class="topbar__group topbar__group--grow">
           <span class="topbar__label">VIEW</span>
           <label class="check"><input id="grid" type="checkbox" checked /><span>SNAP XZ</span></label>
@@ -44,7 +51,7 @@
 
       <main class="work">
         <section class="preview">
-          <div id="preview-hint" class="preview__hint">3D EDIT · 左键放置 / 拖动（x/z） · 右键拖拽视角</div>
+          <div id="preview-hint" class="preview__hint">3D EDIT · 白点=自由 · 青点=X · 黄铜=Z · ARC 点弧加节点 · 点珠 KEY</div>
           <div id="preview" class="preview__viewport"></div>
           <div class="transport">
             <div class="transport__row">

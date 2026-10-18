@@ -1,4 +1,4 @@
-import { CHART_DEFAULTS, chartLimits, type Chart, type Note, type ShiftEvent } from '../chart/schema';
+import { CHART_DEFAULTS, chartLimits, type ArcNote, type Chart, type Note, type ShiftEvent } from '../chart/schema';
 import { DEMO_CHART } from '../chart/demo';
 import { TEST_CHART } from '../chart/test';
 import { createTimeline, validateChart, type Timeline } from '../chart/timeline';
@@ -8,20 +8,28 @@ import { OverviewTimeline } from './overview';
 import { createPreview, type Preview, type PreviewState } from './preview';
 import * as persistence from './persistence';
 import {
+  arcDuration,
+  arcTicks,
   beatMs,
   chartEnd,
+  clampHeight,
   clampLane,
   clampX,
   chartSpan,
   countObjects,
   createDefaultChart,
   formatTime,
+  insertArcPoint,
   normalizeChart,
-  snapOption,
+  snapBeats,
+  snapLabel,
+  snapPreset,
+  snapPresetFor,
   snapTime,
   sortChart,
   timingAt,
   type Selection,
+  type SnapSpec,
   type ToolId,
 } from './model';
 import {
@@ -49,6 +57,9 @@ export interface EditorElements {
   inspectorHost: HTMLElement;
   tools: Map<ToolId, HTMLButtonElement>;
   snap: HTMLSelectElement;
+  snapDiv: HTMLInputElement;
+  snapDot: HTMLButtonElement;
+  snapTriplet: HTMLButtonElement;
   play: HTMLButtonElement;
   stop: HTMLButtonElement;
   rate: HTMLSelectElement;
@@ -98,7 +109,7 @@ export class EditorController implements EditorHost, InspectorHost {
   chart: Chart;
   selection: Selection | null = null;
   tool: ToolId = 'select';
-  snap = '1/8';
+  snap: SnapSpec = { div: 8, dotted: false, triplet: false };
   gridSnap = true;
   view: Viewport = { start: -500, pxPerMs: 0.04 };
   layout: Layout;
@@ -129,7 +140,10 @@ export class EditorController implements EditorHost, InspectorHost {
   private toastTimer: number | null = null;
   private raf = 0;
   private lastFrame = 0;
-  private readonly lastUi = { play: '', time: '', audio: '', reverse: '' };
+  /** UI 层的 dirty：暂停时只有它 / 播放时间变化才重画 2D 和总览。 */
+  private uiDirty = true;
+  private lastUiTime = Number.NaN;
+  private readonly lastUi = { play: '', overview: '', time: '', audio: '', reverse: '' };
   private follow = true;
 
   constructor(elements: EditorElements) {
@@ -155,9 +169,15 @@ export class EditorController implements EditorHost, InspectorHost {
     this.preview.setEditHooks({
       tool: () => this.tool,
       gridSnap: () => this.gridSnap,
+      snapTime: (time, free) =>
+        free ? Math.max(0, Math.round(time)) : snapTime(this.chart, Math.max(0, time), this.snap),
       select: (note) => this.select(note ? { kind: 'note', note } : null),
+      selectArcPoint: (note, index) => this.select({ kind: 'arc-point', note, index }),
       place: (x, y, time) => this.placeAt(x, y, time),
       move: (note, x, y, dx, dy) => this.moveNote(note, x, y, dx, dy),
+      moveArcPoint: (note, index, x, z, axis) => this.moveArcPoint(note, index, x, z, axis),
+      addArcPoint: (note, time, x, z) => this.addArcPoint(note, time, x, z),
+      toggleArcTick: (note, time) => this.toggleArcTick(note, time),
       beginGesture: () => this.beginGesture(),
       endGesture: () => this.endGesture(),
       commit: () => this.commit({ preview: true }),
@@ -212,8 +232,25 @@ export class EditorController implements EditorHost, InspectorHost {
     for (const [tool, button] of this.elements.tools) {
       button.addEventListener('click', () => this.setTool(tool));
     }
-    this.elements.snap.value = this.snap;
-    this.elements.snap.addEventListener('change', () => this.setSnap(this.elements.snap.value));
+    this.syncSnapUi();
+    this.elements.snap.addEventListener('change', () => {
+      const preset = snapPreset(this.elements.snap.value);
+      if (preset && preset.id !== 'custom') this.setSnap(preset.spec);
+    });
+    this.elements.snapDiv.addEventListener('change', () => {
+      const value = Math.round(Number(this.elements.snapDiv.value));
+      if (!Number.isFinite(value)) {
+        this.syncSnapUi();
+        return;
+      }
+      this.setSnap({ ...this.snap, div: Math.min(64, Math.max(0, value)) });
+    });
+    this.elements.snapDot.addEventListener('click', () => {
+      this.setSnap({ ...this.snap, dotted: !this.snap.dotted });
+    });
+    this.elements.snapTriplet.addEventListener('click', () => {
+      this.setSnap({ ...this.snap, triplet: !this.snap.triplet });
+    });
     this.elements.play.addEventListener('click', () => this.preview.toggle());
     this.elements.overviewPlay.addEventListener('click', () => this.preview.toggle());
     this.elements.stop.addEventListener('click', () => {
@@ -283,15 +320,19 @@ export class EditorController implements EditorHost, InspectorHost {
   select(selection: Selection | null): void {
     this.selection = selection;
     this.renderer.setState(this.renderState());
-    this.preview.setSelection(selection && (selection.kind === 'note' || selection.kind === 'arc-point') ? selection.note : null);
+    this.uiDirty = true;
+    this.preview.setSelection(
+      selection && (selection.kind === 'note' || selection.kind === 'arc-point') ? selection.note : null,
+      selection?.kind === 'arc-point' ? selection.index : null,
+    );
     this.inspector.render();
   }
 
   seek(timeMs: number): void {
     const end = Math.max(1000, chartSpan(this.chart));
     this.preview.seek(clamp(timeMs, -1000, end));
-    this.renderer.setPlayhead(this.preview.state.timeMs);
-    this.renderer.render();
+    this.preview.invalidate();
+    this.uiDirty = true;
   }
 
   setTool(tool: ToolId): void {
@@ -308,6 +349,7 @@ export class EditorController implements EditorHost, InspectorHost {
       pxPerMs: clamp(view.pxPerMs ?? this.view.pxPerMs, MIN_ZOOM, MAX_ZOOM),
     };
     this.renderer.setState(this.renderState());
+    this.uiDirty = true;
   }
 
   commit(options: { preview?: boolean } = {}): void {
@@ -317,6 +359,8 @@ export class EditorController implements EditorHost, InspectorHost {
     this.svDomain = svDomainFor(this.chart);
     this.preview.setOffset(this.chart.meta.offset);
     this.renderer.setState(this.renderState());
+    this.preview.invalidate();
+    this.uiDirty = true;
     if (options.preview !== false) {
       // 拖动过程中不重建 3D 预览：等松手再做一次，避免每 180ms 拆一次播放器。
       if (this.gestureDepth === 0) this.schedulePreview();
@@ -468,10 +512,55 @@ export class EditorController implements EditorHost, InspectorHost {
     note.z = Math.round(Math.min(maxHeight, Math.max(0, y)) * 1000) / 1000;
   }
 
+  /** 3D 只改 arc 的一个点；axis 把 x / z 分开。 */
+  private moveArcPoint(note: ArcNote, index: number, x: number, z: number, axis: 'free' | 'x' | 'z'): void {
+    const point = note.points[index];
+    if (!point) return;
+    if (axis !== 'z') point.x = Math.round(clampX(x) * 100) / 100;
+    if (axis !== 'x') point.z = Math.round(clampHeight(this.chart, z) * 1000) / 1000;
+  }
+
+  private addArcPoint(note: ArcNote, time: number, x: number, z: number): number {
+    const index = insertArcPoint(note, time, x, z);
+    this.select({ kind: 'arc-point', note, index });
+    this.commit({ preview: true });
+    return index;
+  }
+
+  toggleArcKey(note: ArcNote, time: number): void {
+    this.toggleArcTick(note, time);
+  }
+
+  private toggleArcTick(note: ArcNote, time: number): void {
+    const duration = arcDuration(note);
+    const at = Math.min(duration, Math.max(0, Math.round(time)));
+    this.beginGesture();
+    if (!note.ticks) {
+      note.ticks = arcTicks(note).map((tick) => ({ time: Math.round(tick.time), key: tick.key }));
+    }
+    const ticks = note.ticks;
+    let nearest: { time: number; key?: boolean } | null = null;
+    let best = 2;
+    for (const tick of ticks) {
+      const distance = Math.abs(tick.time - at);
+      if (distance <= best) {
+        best = distance;
+        nearest = tick;
+      }
+    }
+    if (nearest) nearest.key = nearest.key !== true;
+    else ticks.push({ time: at, key: true });
+    ticks.sort((a, b) => a.time - b.time);
+    this.commit({ preview: true });
+    this.endGesture();
+  }
+
   setGridSnap(enabled: boolean): void {
     this.gridSnap = enabled;
     this.elements.grid.checked = enabled;
     this.renderer.setState(this.renderState());
+    this.preview.invalidate();
+    this.uiDirty = true;
   }
 
   setEdit3d(enabled: boolean): void {
@@ -511,13 +600,21 @@ export class EditorController implements EditorHost, InspectorHost {
     });
   }
 
-  setSnap(id: string): void {
-    const option = snapOption(id);
-    if (option.id !== id) return;
-    this.snap = id;
-    this.elements.snap.value = id;
+  setSnap(spec: SnapSpec): void {
+    const div = Math.min(64, Math.max(0, Math.round(spec.div)));
+    this.snap = { div, dotted: div > 0 && spec.dotted, triplet: div > 0 && spec.triplet };
+    this.syncSnapUi();
     this.renderer.setState(this.renderState());
+    this.preview.invalidate();
+    this.uiDirty = true;
     this.updateUi();
+  }
+
+  private syncSnapUi(): void {
+    this.elements.snap.value = snapPresetFor(this.snap);
+    this.elements.snapDiv.value = String(this.snap.div);
+    this.elements.snapDot.classList.toggle('is-active', this.snap.dotted);
+    this.elements.snapTriplet.classList.toggle('is-active', this.snap.triplet);
   }
 
   fitView(): void {
@@ -526,6 +623,7 @@ export class EditorController implements EditorHost, InspectorHost {
     const pxPerMs = clamp(width / span, MIN_ZOOM, MAX_ZOOM);
     this.view = { start: -500, pxPerMs };
     this.renderer.setState(this.renderState());
+    this.uiDirty = true;
   }
 
   zoomBy(factor: number): void {
@@ -536,6 +634,7 @@ export class EditorController implements EditorHost, InspectorHost {
       pxPerMs,
     };
     this.renderer.setState(this.renderState());
+    this.uiDirty = true;
   }
 
   undo(): void {
@@ -614,6 +713,8 @@ export class EditorController implements EditorHost, InspectorHost {
     this.preview.setOffset(chart.meta.offset);
     this.fitView();
     this.renderer.setState(this.renderState());
+    this.preview.invalidate();
+    this.uiDirty = true;
     this.inspector.render();
     this.updateUi();
     this.scheduleDraft();
@@ -634,6 +735,8 @@ export class EditorController implements EditorHost, InspectorHost {
     this.svDomain = svDomainFor(chart);
     this.preview.setChart(chart);
     this.renderer.setState(this.renderState());
+    this.preview.invalidate();
+    this.uiDirty = true;
     this.inspector.render();
     this.updateUi();
     this.scheduleDraft();
@@ -663,6 +766,8 @@ export class EditorController implements EditorHost, InspectorHost {
     if (width < 10 || height < 10) return;
     this.layout = this.renderer.resize(width, height);
     this.renderer.setState(this.renderState());
+    this.preview.invalidate();
+    this.uiDirty = true;
   }
 
   private schedulePreview(): void {
@@ -714,7 +819,7 @@ export class EditorController implements EditorHost, InspectorHost {
       this.elements.saveState.className = 'save-state';
     }
 
-    this.elements.status.textContent = `${TOOL_LABELS[this.tool]} · SNAP ${snapOption(this.snap).label} · ${this.chart.notes.length} NOTES · ${countObjects(this.chart)} OBJECTS · ${formatTime(chartEnd(this.chart))}`;
+    this.elements.status.textContent = `${TOOL_LABELS[this.tool]} · SNAP ${snapLabel(this.snap)} · ${this.chart.notes.length} NOTES · ${countObjects(this.chart)} OBJECTS · ${formatTime(chartEnd(this.chart))}`;
     document.title = `${this.chart.meta.title || 'UNTITLED'} — Parallax Editor`;
   }
 
@@ -733,7 +838,11 @@ export class EditorController implements EditorHost, InspectorHost {
       this.elements.time.textContent = time;
       this.elements.overviewTime.textContent = formatTime(state.timeMs);
     }
-    this.elements.overviewPlay.textContent = state.playing ? '❙❙' : '▶';
+    const overview = state.playing ? '❙❙' : '▶';
+    if (overview !== this.lastUi.overview) {
+      this.lastUi.overview = overview;
+      this.elements.overviewPlay.textContent = overview;
+    }
 
     const audio = state.error
       ? `ERROR · ${state.error}`
@@ -783,9 +892,14 @@ export class EditorController implements EditorHost, InspectorHost {
       }
     }
 
-    this.renderer.setPlayhead(state.timeMs);
-    this.renderer.render();
-    this.overview.render();
+    const timeChanged = state.timeMs !== this.lastUiTime;
+    if (this.uiDirty || state.playing || timeChanged) {
+      this.renderer.setPlayhead(state.timeMs);
+      this.renderer.render();
+      this.overview.render();
+      this.lastUiTime = state.timeMs;
+      this.uiDirty = false;
+    }
     this.updateTransportUi();
     this.raf = requestAnimationFrame(this.frame);
   };
@@ -849,8 +963,8 @@ export class EditorController implements EditorHost, InspectorHost {
       case 'ArrowLeft':
       case 'ArrowRight': {
         event.preventDefault();
-        const option = snapOption(this.snap);
-        const step = option.beats > 0 ? beatMs(this.chart, this.playhead) * option.beats : 100;
+        const beats = snapBeats(this.snap);
+        const step = beats > 0 ? beatMs(this.chart, this.playhead) * beats : 100;
         const scale = event.shiftKey ? 10 : 1;
         this.seek(this.playhead + (event.code === 'ArrowLeft' ? -step : step) * scale);
         break;

@@ -32,36 +32,72 @@ export type Selection =
   | { kind: 'speed'; event: SpeedEvent }
   | { kind: 'shift'; event: ShiftEvent };
 
-export interface SnapOption {
-  id: string;
-  label: string;
-  /** 吸附步长（拍）。0 = 不吸附。 */
-  beats: number;
+/**
+ * 时间吸附参数。
+ *
+ * `div` 是「每全音符分几份」：8 = 1/8、12 = 1/12、20 = 1/20（五连）。
+ * `dotted` / `triplet` 是在这个分母上再乘 / 除以时值 —— 和乐理里的附点、三连一致。
+ * 不再枚举几十个下拉项：预设只负责把常用组合填进来，之后都可以手改。
+ */
+export interface SnapSpec {
+  div: number;
+  dotted: boolean;
+  triplet: boolean;
 }
 
-/** 吸附粒度按「拍」算，和 Arcaea 编辑器的 1/16 … 1/1 一致。 */
-export const SNAP_OPTIONS: SnapOption[] = [
-  { id: 'off', label: 'OFF（自由）', beats: 0 },
-  { id: '1/32', label: '1/32', beats: 0.125 },
-  { id: '1/24', label: '1/24', beats: 1 / 6 },
-  { id: '1/20', label: '1/20 · 5连', beats: 0.2 },
-  { id: '1/16', label: '1/16', beats: 0.25 },
-  { id: '1/12', label: '1/12 · 3连', beats: 1 / 3 },
-  { id: '1/10', label: '1/10 · 5连', beats: 0.4 },
-  { id: '1/8', label: '1/8', beats: 0.5 },
-  { id: '1/6', label: '1/6 · 3连', beats: 2 / 3 },
-  { id: '3/16', label: '附点 1/8', beats: 0.75 },
-  { id: '1/5', label: '1/5 · 5连', beats: 0.8 },
-  { id: '1/4', label: '1/4', beats: 1 },
-  { id: '1/3', label: '1/3 · 3连', beats: 4 / 3 },
-  { id: '3/8', label: '附点 1/4', beats: 1.5 },
-  { id: '1/2', label: '1/2', beats: 2 },
-  { id: '3/4', label: '附点 1/2', beats: 3 },
-  { id: '1/1', label: '1/1', beats: 4 },
+export const SNAP_OFF: SnapSpec = { div: 0, dotted: false, triplet: false };
+
+export interface SnapPreset {
+  id: string;
+  label: string;
+  spec: SnapSpec;
+}
+
+/** 只保留常用预设；五连 / 附点 / 自定义拍号由 DIV、DOT、3 三个控件直接改。 */
+export const SNAP_PRESETS: SnapPreset[] = [
+  { id: 'off', label: 'OFF（自由）', spec: SNAP_OFF },
+  { id: '1/4', label: '1/4', spec: { div: 4, dotted: false, triplet: false } },
+  { id: '1/8', label: '1/8', spec: { div: 8, dotted: false, triplet: false } },
+  { id: '1/12', label: '1/12（三连）', spec: { div: 12, dotted: false, triplet: false } },
+  { id: '1/16', label: '1/16', spec: { div: 16, dotted: false, triplet: false } },
+  { id: '1/20', label: '1/20（五连）', spec: { div: 20, dotted: false, triplet: false } },
+  { id: '1/24', label: '1/24', spec: { div: 24, dotted: false, triplet: false } },
+  { id: '1/32', label: '1/32', spec: { div: 32, dotted: false, triplet: false } },
+  { id: 'custom', label: 'CUSTOM…', spec: { div: 8, dotted: false, triplet: false } },
 ];
 
-export function snapOption(id: string): SnapOption {
-  return SNAP_OPTIONS.find((option) => option.id === id) ?? SNAP_OPTIONS[0]!;
+/** 吸附步长（拍）。0 = 不吸附。 */
+export function snapBeats(spec: SnapSpec): number {
+  if (spec.div <= 0) return 0;
+  let beats = 4 / spec.div;
+  if (spec.triplet) beats *= 2 / 3;
+  if (spec.dotted) beats *= 1.5;
+  return beats;
+}
+
+export function snapLabel(spec: SnapSpec): string {
+  if (spec.div <= 0) return 'OFF';
+  let label = `1/${spec.div}`;
+  if (spec.triplet) label += ' · 3连';
+  if (spec.dotted) label += ' · 附点';
+  return label;
+}
+
+export function snapPreset(id: string): SnapPreset | undefined {
+  return SNAP_PRESETS.find((preset) => preset.id === id);
+}
+
+/** 当前参数对应的预设 id；没有完全匹配的就是 CUSTOM。 */
+export function snapPresetFor(spec: SnapSpec): string {
+  if (spec.div <= 0) return 'off';
+  const match = SNAP_PRESETS.find(
+    (preset) =>
+      preset.id !== 'custom' &&
+      preset.spec.div === spec.div &&
+      preset.spec.dotted === spec.dotted &&
+      preset.spec.triplet === spec.triplet,
+  );
+  return match?.id ?? 'custom';
 }
 
 /** 新建谱面的默认值：150 BPM / 4 拍，和测试谱同一套网格。 */
@@ -129,13 +165,13 @@ export function beatMs(chart: Chart, time: number): number {
 }
 
 /** 把一个时间吸附到最近的网格点。 */
-export function snapTime(chart: Chart, time: number, snap: string): number {
-  const option = snapOption(snap);
-  if (option.beats <= 0) return Math.max(0, Math.round(time));
+export function snapTime(chart: Chart, time: number, snap: SnapSpec): number {
+  const step = snapBeats(snap);
+  if (step <= 0) return Math.max(0, Math.round(time));
   const point = timingAt(chart, time);
   const beat = 60000 / Math.max(1e-3, point.bpm);
   const beats = (time - point.time) / beat;
-  const snapped = Math.round(beats / option.beats) * option.beats;
+  const snapped = Math.round(beats / step) * step;
   return Math.max(0, Math.round(point.time + snapped * beat));
 }
 

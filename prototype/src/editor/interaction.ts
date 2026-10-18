@@ -20,12 +20,13 @@ import {
   removeArcPoint,
   sampleArcPoint,
   snapArcX,
+  snapBeats,
   snapGroundX,
   snapHeightLevel,
-  snapOption,
   snapSpatialY,
   snapTime,
   type Selection,
+  type SnapSpec,
   type ToolId,
 } from './model';
 import {
@@ -64,7 +65,7 @@ export interface EditorHost {
   readonly layout: Layout;
   readonly selection: Selection | null;
   readonly tool: ToolId;
-  readonly snap: string;
+  readonly snap: SnapSpec;
   /** 空间吸附（x/z 网格）开关。 */
   readonly gridSnap: boolean;
   readonly svDomain: SvDomain;
@@ -131,9 +132,9 @@ function snapTimeMaybe(host: EditorHost, time: number, free: boolean): number {
 
 /** 一次拖动的最小时间长度（吸附格 / 100ms）。 */
 function minSpan(host: EditorHost, time: number): number {
-  const option = snapOption(host.snap);
-  if (option.beats <= 0) return MIN_DRAG_MS;
-  return Math.max(20, beatMs(host.chart, time) * option.beats);
+  const beats = snapBeats(host.snap);
+  if (beats <= 0) return MIN_DRAG_MS;
+  return Math.max(20, beatMs(host.chart, time) * beats);
 }
 
 function removeNote(host: EditorHost, note: Note): void {
