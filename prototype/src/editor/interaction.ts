@@ -24,6 +24,7 @@ import {
   snapBeats,
   snapGroundX,
   snapHeightLevel,
+  snapNoteX,
   snapSpatialY,
   snapTime,
   type Selection,
@@ -109,7 +110,7 @@ type Drag =
       originLane: number;
       anchorTime: number;
       anchorX: number;
-      anchorArc: boolean;
+      anchorNote: Note;
     }
   | {
       kind: 'notes-height';
@@ -316,7 +317,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
           originLane: lane,
           anchorTime: note.time,
           anchorX: note.type === 'arc' ? note.points[0]?.x ?? 0 : noteX(note),
-          anchorArc: note.type === 'arc',
+          anchorNote: note,
         };
         return;
       }
@@ -632,7 +633,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
     if (drag.kind === 'note-move') {
       const dt = time - drag.originTime;
       const dx = lane - drag.originLane;
-      const x = snapGroundX(drag.baseX + dx, host.gridSnap, event.ctrlKey || event.metaKey);
+      const x = snapNoteX(drag.baseX + dx, drag.note, host.gridSnap, event.ctrlKey || event.metaKey);
       drag.note.time = snapTimeMaybe(host, drag.baseTime + dt, event.ctrlKey || event.metaKey);
       drag.note.x = x;
       drag.note.lane = clampLane(Math.round(x));
@@ -647,9 +648,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       // 整组拖动保留相对间距：只吸附「抓住的那一颗」的增量，其余加同一个 delta。
       const timeDelta =
         snapTimeMaybe(host, drag.anchorTime + dt, free) - drag.anchorTime;
-      const anchorTarget = drag.anchorArc
-        ? snapArcX(drag.anchorX + dx, host.gridSnap, free)
-        : snapGroundX(drag.anchorX + dx, host.gridSnap, free);
+      const anchorTarget = snapNoteX(drag.anchorX + dx, drag.anchorNote, host.gridSnap, free);
       const xDelta = anchorTarget - drag.anchorX;
       for (const entry of drag.entries) {
         const note = entry.note;

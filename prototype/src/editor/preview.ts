@@ -340,11 +340,11 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     return null;
   }
 
-  function snapX(x: number, shift: boolean, free: boolean, arc: boolean): number {
+  function snapX(x: number, shift: boolean, free: boolean, fine: boolean): number {
     const clamped = Math.min(5.5, Math.max(-0.5, x));
     if (shift) return Math.round(clamped);
     const enabled = editHooks?.gridSnap() ?? true;
-    return arc ? snapArcX(clamped, enabled, free) : snapGroundX(clamped, enabled, free);
+    return fine ? snapArcX(clamped, enabled, free) : snapGroundX(clamped, enabled, free);
   }
 
   function snapY(y: number, shift: boolean, free = false): number {
@@ -392,9 +392,10 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
       return;
     }
     const free = event.ctrlKey || event.metaKey;
-    const x = snapX(rawX, event.shiftKey, free, tool === 'arc');
     let z = snapY(Math.max(0, rawZ), event.shiftKey, free);
     if (tool === 'hold') z = NOTE_HEIGHT.hold;
+    const fine = tool === 'arc' || (tool !== 'hold' && z > NOTE_HEIGHT.hit + 1e-6);
+    const x = snapX(rawX, event.shiftKey, free, fine);
     hoverMarker.position.set(toWorldX(x), toWorldY(z), bandZ);
     hoverMarker.visible = true;
   }
@@ -528,10 +529,12 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     }
 
     const free = event.ctrlKey || event.metaKey;
+    const z = snapY(y, event.shiftKey, free);
+    const fine = tool === 'arc' || (tool !== 'hold' && z > NOTE_HEIGHT.hit + 1e-6);
     editHooks.beginGesture();
     const note = editHooks.place(
-      snapX(x, event.shiftKey, free, tool === 'arc'),
-      snapY(y, event.shiftKey, free),
+      snapX(x, event.shiftKey, free, fine),
+      z,
       editHooks.snapTime(Math.max(0, timeMs), free),
     );
     if (!note) {
@@ -591,10 +594,12 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     } else {
       const dx = (world.x - editDrag.startWorld.x) / params.laneWidth;
       const dy = world.y - editDrag.startWorld.y;
+      const z = snapY(editDrag.baseY + dy, event.shiftKey, free);
+      const fine = editDrag.note.type !== 'hold' && z > NOTE_HEIGHT.hit + 1e-6;
       editHooks.move(
         editDrag.note,
-        snapX(editDrag.baseX + dx, event.shiftKey, free, false),
-        snapY(editDrag.baseY + dy, event.shiftKey, free),
+        snapX(editDrag.baseX + dx, event.shiftKey, free, fine),
+        z,
         0,
         0,
       );

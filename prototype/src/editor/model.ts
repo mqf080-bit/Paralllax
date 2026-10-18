@@ -5,6 +5,7 @@ import {
   chartLimits,
   HEIGHT_LEVELS,
   NOTE_HEIGHT,
+  noteHeight,
   arcPointZ,
   type ArcNote,
   type ArcPoint,
@@ -267,6 +268,20 @@ export function snapGroundX(x: number, enabled: boolean, free = false): number {
 export function snapArcX(x: number, enabled: boolean, free = false): number {
   const value = !free && enabled ? Math.round(x / X_GRID) * X_GRID : Math.round(x * 100) / 100;
   return clampX(value);
+}
+
+/** 空中 hit / drag 的判定高度：高于地面键默认高度（0.07m）就不再按整轨吸。 */
+export const AIR_HEIGHT = NOTE_HEIGHT.hit;
+
+export function isAirLaneNote(note: Note): boolean {
+  if (note.type !== 'hit' && note.type !== 'drag') return false;
+  return noteHeight(note) > AIR_HEIGHT + 1e-6;
+}
+
+/** note 的 x 吸附：地面键整轨；空中 hit/drag 与 arc 点一样 1/4 轨。 */
+export function snapNoteX(x: number, note: Note, enabled: boolean, free = false): number {
+  const fine = note.type === 'arc' || isAirLaneNote(note);
+  return fine ? snapArcX(x, enabled, free) : snapGroundX(x, enabled, free);
 }
 
 /** z（高度）吸附：开启时吸到 5cm；关闭 / `free` 时保留到 0.001m。 */
