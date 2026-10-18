@@ -219,6 +219,8 @@ export class Inspector {
 
     if (selection.kind === 'note') {
       this.renderNote(root, selection.note);
+    } else if (selection.kind === 'notes') {
+      this.renderNotesSelection(root, selection.notes);
     } else if (selection.kind === 'arc-point') {
       this.renderArcPoint(root, selection.note, selection.index);
     } else if (selection.kind === 'speed') {
@@ -233,6 +235,43 @@ export class Inspector {
       button('DELETE', () => host.deleteSelection(), 'button button--small button--danger'),
     );
     root.append(actions);
+    this.add(root);
+  }
+
+  private renderNotesSelection(root: HTMLElement, notes: Note[]): void {
+    const counts = { hit: 0, drag: 0, hold: 0, arc: 0 };
+    for (const note of notes) counts[note.type] += 1;
+    root.append(
+      el(
+        'p',
+        'inspector__note',
+        `${notes.length} notes · ${counts.hit} hit / ${counts.drag} drag / ${counts.hold} hold / ${counts.arc} arc`,
+      ),
+    );
+    const list = el('div', 'pointlist');
+    const head = el('div', 'pointlist__row pointlist__row--head pointlist__row--multi');
+    head.append(el('span', 'pointlist__index', '#'), el('span', undefined, 'TYPE'), el('span', undefined, 'TIME'));
+    list.append(head);
+    notes.slice(0, 24).forEach((note, index) => {
+      const row = el('button', 'pointlist__row pointlist__row--multi');
+      row.type = 'button';
+      row.append(
+        el('span', 'pointlist__index', `#${index}`),
+        el('span', undefined, noteTypeLabel(note)),
+        el('span', undefined, formatTime(note.time)),
+      );
+      row.addEventListener('click', () => this.host.select({ kind: 'note', note }));
+      list.append(row);
+    });
+    root.append(list);
+    if (notes.length > 24) root.append(el('p', 'inspector__note', `只列出前 24 个，共 ${notes.length} 个。`));
+    root.append(
+      el(
+        'p',
+        'inspector__note',
+        'Shift + 左键点 note 加减选；拖任意一个已选中的 note，整组一起移动。',
+      ),
+    );
     this.add(root);
   }
 
@@ -905,6 +944,7 @@ export class Inspector {
     const list = el('ul', 'help');
     for (const line of [
       '2D 左键：选中 / 放置 / 拖动（时间 + 连续 x / z）',
+      '2D 多选：Shift+点 note 加减选；拖任意选中 note / 高度点 = 整组移动',
       '2D 右键：删除光标下的对象；Delete：删除选区',
       '3D 左键：空处放置（时间吸附）；拖白点 = x+z，青点 = x，黄铜 = z',
       '3D 点弧身（ARC 工具）= 在该时间加点；点物量珠 = 切 KEY',
@@ -956,6 +996,7 @@ function rangeInput(value: number, onChange: (value: number) => void): HTMLInput
 
 function selectionLabel(selection: Selection): string {
   if (selection.kind === 'note') return noteTypeLabel(selection.note);
+  if (selection.kind === 'notes') return `${selection.notes.length} NOTES`;
   if (selection.kind === 'arc-point') return `ARC · POINT #${selection.index}`;
   if (selection.kind === 'speed') return 'SPEED';
   return 'SHIFT';
@@ -963,6 +1004,7 @@ function selectionLabel(selection: Selection): string {
 
 function selectionTime(selection: Selection): number {
   if (selection.kind === 'note') return selection.note.time;
+  if (selection.kind === 'notes') return Math.min(...selection.notes.map((note) => note.time));
   if (selection.kind === 'arc-point') return selection.note.time + selection.note.points[selection.index]!.time;
   return selection.event.time;
 }

@@ -1,5 +1,6 @@
 import {
   chartLimits,
+  noteHeight,
   noteX,
   type ArcNote,
   type Chart,
@@ -101,6 +102,20 @@ type Drag =
       baseX: number[];
     }
   | { kind: 'arc-height-move'; note: ArcNote; originY: number; baseY: number[] }
+  | {
+      kind: 'notes-move';
+      entries: Array<{ note: Note; baseTime: number; baseX: number; arcX?: number[] }>;
+      originTime: number;
+      originLane: number;
+      anchorTime: number;
+      anchorX: number;
+      anchorArc: boolean;
+    }
+  | {
+      kind: 'notes-height';
+      entries: Array<{ note: Note; baseZ: number[] }>;
+      anchorZ: number;
+    }
   | { kind: 'hold-tail'; note: HoldNote; originTime: number; baseDuration: number }
   | { kind: 'note-height'; note: HitNote | DragNote | HoldNote }
   | {
@@ -137,6 +152,45 @@ function minSpan(host: EditorHost, time: number): number {
   return Math.max(20, beatMs(host.chart, time) * beats);
 }
 
+/** 当前 note 多选（单 note 也归一成一项）。 */
+function multiNotes(selection: Selection | null): Note[] {
+  if (selection?.kind === 'notes') return selection.notes;
+  if (selection?.kind === 'note') return [selection.note];
+  return [];
+}
+
+/**
+ * Shift + 左键：把 note 加进 / 移出当前多选。
+ * 只剩一个时退回单 note，0 个则清空。
+ */
+function toggleNoteSelection(host: EditorHost, note: Note): void {
+  const current = multiNotes(host.selection);
+  const next = current.includes(note)
+    ? current.filter((item) => item !== note)
+    : [...current, note];
+  if (next.length === 0) host.select(null);
+  else if (next.length === 1) host.select({ kind: 'note', note: next[0]! });
+  else host.select({ kind: 'notes', notes: next });
+}
+
+function moveEntry(note: Note): { note: Note; baseTime: number; baseX: number; arcX?: number[] } {
+  if (note.type === 'arc') {
+    return {
+      note,
+      baseTime: note.time,
+      baseX: note.points[0]?.x ?? 0,
+      arcX: note.points.map((point) => point.x),
+    };
+  }
+  return { note, baseTime: note.time, baseX: noteX(note) };
+}
+
+function heightEntry(note: Note): { note: Note; baseZ: number[] } | null {
+  if (note.type === 'hold') return null;
+  if (note.type === 'arc') return { note, baseZ: note.points.map((point) => point.z) };
+  return { note, baseZ: [noteHeight(note)] };
+}
+
 function removeNote(host: EditorHost, note: Note): void {
   const index = host.chart.notes.indexOf(note);
   if (index >= 0) host.chart.notes.splice(index, 1);
@@ -154,6 +208,8 @@ export function deleteSelection(host: EditorHost, recorded = true): void {
   if (recorded) host.beginGesture();
   if (selection.kind === 'note') {
     removeNote(host, selection.note);
+  } else if (selection.kind === 'notes') {
+    for (const note of selection.notes) removeNote(host, note);
   } else if (selection.kind === 'arc-point') {
     if (!removeArcPoint(selection.note, selection.index)) removeNote(host, selection.note);
   } else if (selection.kind === 'speed') {
@@ -240,6 +296,31 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
 
     if (pick && pick.kind === 'note') {
       const note = pick.note;
+      if (additive) {
+        toggleNoteSelection(host, note);
+        return;
+      }
+
+      const selected = multiNotes(host.selection);
+      const multi =
+        selected.length > 1 &&
+        selected.includes(note) &&
+        !(note.type === 'hold' && pick.zone === 'tail') &&
+        !(note.type === 'arc' && host.tool === 'arc' && pick.zone === 'body');
+      if (multi) {
+        host.beginGesture();
+        drag = {
+          kind: 'notes-move',
+          entries: selected.map(moveEntry),
+          originTime: time,
+          originLane: lane,
+          anchorTime: note.time,
+          anchorX: note.type === 'arc' ? note.points[0]?.x ?? 0 : noteX(note),
+          anchorArc: note.type === 'arc',
+        };
+        return;
+      }
+
       host.beginGesture();
       host.select({ kind: 'note', note });
 
@@ -286,6 +367,9 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       };
       return;
     }
+
+    // Shift 点空处 = 保持多选，不放置。
+    if (additive) return;
 
     // 空处：按工具放置
     if (host.tool === 'hit' || host.tool === 'drag') {
@@ -352,7 +436,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
     if (!additive) host.select(null);
   }
 
-  function handleHeightDown(x: number, y: number, free: boolean): void {
+  function handleHeightDown(x: number, y: number, free: boolean, additive: boolean): void {
     const pick = pickHeight(host, x, y);
     const time = xToTime(host.view, x);
     const domain = heightDomain(host.chart);
@@ -365,24 +449,45 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       return;
     }
 
-    if (pick && pick.kind === 'note' && pick.note.type !== 'arc') {
+    if (pick && pick.kind === 'note') {
+      const note = pick.note;
+      if (additive) {
+        toggleNoteSelection(host, note);
+        return;
+      }
+
+      const selected = multiNotes(host.selection);
+      if (selected.length > 1 && selected.includes(note)) {
+        const entries = selected
+          .map(heightEntry)
+          .filter((entry): entry is { note: Note; baseZ: number[] } => entry !== null);
+        if (entries.length > 0) {
+          host.beginGesture();
+          drag = {
+            kind: 'notes-height',
+            entries,
+            anchorZ: note.type === 'arc' ? note.points[0]?.z ?? 0 : noteHeight(note),
+          };
+          return;
+        }
+      }
+
       host.beginGesture();
-      host.select({ kind: 'note', note: pick.note });
-      drag = { kind: 'note-height', note: pick.note };
+      host.select({ kind: 'note', note });
+      if (note.type === 'arc') {
+        drag = {
+          kind: 'arc-height-move',
+          note,
+          originY: y,
+          baseY: note.points.map((point) => point.z),
+        };
+      } else {
+        drag = { kind: 'note-height', note };
+      }
       return;
     }
 
-    if (pick && pick.kind === 'note' && pick.note.type === 'arc') {
-      host.beginGesture();
-      host.select({ kind: 'note', note: pick.note });
-      drag = {
-        kind: 'arc-height-move',
-        note: pick.note,
-        originY: y,
-        baseY: pick.note.points.map((point) => point.z),
-      };
-      return;
-    }
+    if (additive) return;
 
     if (host.tool === 'arc') {
       // 在已有的弧上插入一个点：时间吸附、x 取弧上的位置、y 取鼠标高度。
@@ -403,7 +508,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       }
     }
 
-    host.select(null);
+    if (!additive) host.select(null);
   }
 
   function handleSvDown(x: number, y: number, free: boolean): void {
@@ -490,7 +595,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
     }
 
     if (band === 'height') {
-      handleHeightDown(x, y, event.ctrlKey || event.metaKey);
+      handleHeightDown(x, y, event.ctrlKey || event.metaKey, event.shiftKey);
       return;
     }
 
@@ -531,6 +636,65 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       drag.note.time = snapTimeMaybe(host, drag.baseTime + dt, event.ctrlKey || event.metaKey);
       drag.note.x = x;
       drag.note.lane = clampLane(Math.round(x));
+      host.commit();
+      return;
+    }
+
+    if (drag.kind === 'notes-move') {
+      const dt = time - drag.originTime;
+      const dx = lane - drag.originLane;
+      const free = event.ctrlKey || event.metaKey;
+      // 整组拖动保留相对间距：只吸附「抓住的那一颗」的增量，其余加同一个 delta。
+      const timeDelta =
+        snapTimeMaybe(host, drag.anchorTime + dt, free) - drag.anchorTime;
+      const anchorTarget = drag.anchorArc
+        ? snapArcX(drag.anchorX + dx, host.gridSnap, free)
+        : snapGroundX(drag.anchorX + dx, host.gridSnap, free);
+      const xDelta = anchorTarget - drag.anchorX;
+      for (const entry of drag.entries) {
+        const note = entry.note;
+        note.time = Math.max(0, Math.round(entry.baseTime + timeDelta));
+        if (note.type === 'arc') {
+          note.points.forEach((point, index) => {
+            point.x = clampX((entry.arcX?.[index] ?? entry.baseX) + xDelta);
+          });
+        } else {
+          const x = clampX(entry.baseX + xDelta);
+          note.x = x;
+          note.lane = clampLane(Math.round(x));
+        }
+      }
+      host.commit();
+      return;
+    }
+
+    if (drag.kind === 'notes-height') {
+      const domain = heightDomain(host.chart);
+      const raw = yToHeight(host.layout, domain, y);
+      const target = event.shiftKey
+        ? snapHeightLevel(host.chart, raw)
+        : snapSpatialY(raw, host.gridSnap, event.ctrlKey || event.metaKey);
+      const dy = target - drag.anchorZ;
+      let min = Number.POSITIVE_INFINITY;
+      let max = Number.NEGATIVE_INFINITY;
+      for (const entry of drag.entries) {
+        for (const value of entry.baseZ) {
+          min = Math.min(min, value);
+          max = Math.max(max, value);
+        }
+      }
+      if (!Number.isFinite(min) || !Number.isFinite(max)) return;
+      const clamped = Math.min(maxHeight - max, Math.max(-min, dy));
+      for (const entry of drag.entries) {
+        const note = entry.note;
+        if (note.type === 'arc') {
+          note.points.forEach((point, index) => {
+            point.z = Math.round(((entry.baseZ[index] ?? 0) + clamped) * 1000) / 1000;
+          });
+        } else {
+          note.z = Math.round(((entry.baseZ[0] ?? 0) + clamped) * 1000) / 1000;
+        }
+      }
       host.commit();
       return;
     }

@@ -576,6 +576,10 @@ select {
   text-align: right;
 }
 
+.pointlist__row--multi {
+  grid-template-columns: 26px 1fr 1fr;
+}
+
 .pointlist__row--tick {
   grid-template-columns: 1fr 34px 24px;
 }

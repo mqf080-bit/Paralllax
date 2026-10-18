@@ -247,6 +247,7 @@ function roundRect(
 function isSelected(state: TimelineState, note: Note): boolean {
   const selection = state.selection;
   if (!selection) return false;
+  if (selection.kind === 'notes') return selection.notes.includes(note);
   return (selection.kind === 'note' || selection.kind === 'arc-point') && selection.note === note;
 }
 
@@ -1103,23 +1104,28 @@ export class TimelineRenderer {
   private drawSelectionGuide(state: TimelineState): void {
     const selection = state.selection;
     if (!selection) return;
-    let time: number | null = null;
-    if (selection.kind === 'note') time = selection.note.time;
-    else if (selection.kind === 'arc-point') time = selection.note.time + selection.note.points[selection.index]!.time;
-    else if (selection.kind === 'speed') time = selection.event.time;
-    else if (selection.kind === 'shift') time = selection.event.time;
-    if (time === null) return;
+    const times: number[] = [];
+    if (selection.kind === 'note') times.push(selection.note.time);
+    else if (selection.kind === 'notes') {
+      for (const note of selection.notes.slice(0, 64)) times.push(note.time);
+    } else if (selection.kind === 'arc-point') {
+      times.push(selection.note.time + selection.note.points[selection.index]!.time);
+    } else if (selection.kind === 'speed') times.push(selection.event.time);
+    else if (selection.kind === 'shift') times.push(selection.event.time);
+    if (times.length === 0) return;
     const ctx = this.staticCtx;
     const { layout } = state;
-    const x = timeToX(state.view, time);
-    if (x < GUTTER || x > layout.width) return;
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
     ctx.setLineDash([2, 5]);
-    ctx.beginPath();
-    ctx.moveTo(x + 0.5, layout.rulerTop);
-    ctx.lineTo(x + 0.5, layout.waveTop + layout.waveH);
-    ctx.stroke();
+    for (const time of times) {
+      const x = timeToX(state.view, time);
+      if (x < GUTTER || x > layout.width) continue;
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, layout.rulerTop);
+      ctx.lineTo(x + 0.5, layout.waveTop + layout.waveH);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 

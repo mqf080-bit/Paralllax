@@ -324,10 +324,13 @@ export class EditorController implements EditorHost, InspectorHost {
     this.selection = selection;
     this.renderer.setState(this.renderState());
     this.uiDirty = true;
-    this.preview.setSelection(
-      selection && (selection.kind === 'note' || selection.kind === 'arc-point') ? selection.note : null,
-      selection?.kind === 'arc-point' ? selection.index : null,
-    );
+    const primary =
+      selection?.kind === 'note' || selection?.kind === 'arc-point'
+        ? selection.note
+        : selection?.kind === 'notes'
+          ? selection.notes[0] ?? null
+          : null;
+    this.preview.setSelection(primary, selection?.kind === 'arc-point' ? selection.index : null);
     this.inspector.render();
   }
 

@@ -28,9 +28,20 @@ export type ToolId = 'select' | 'hit' | 'drag' | 'hold' | 'arc';
 /** 当前选中的对象。 */
 export type Selection =
   | { kind: 'note'; note: Note }
+  /** 2D 多选：地图上的 note 集合（arc 顶点仍是单点编辑）。 */
+  | { kind: 'notes'; notes: Note[] }
   | { kind: 'arc-point'; note: ArcNote; index: number }
   | { kind: 'speed'; event: SpeedEvent }
   | { kind: 'shift'; event: ShiftEvent };
+
+/** 当前选区里的所有 note（单 note / 多选 / arc 顶点都归一到 note 列表）。 */
+export function selectionNotes(selection: Selection | null): Note[] {
+  if (!selection) return [];
+  if (selection.kind === 'note') return [selection.note];
+  if (selection.kind === 'notes') return selection.notes;
+  if (selection.kind === 'arc-point') return [selection.note];
+  return [];
+}
 
 /**
  * 时间吸附参数。
