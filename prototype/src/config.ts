@@ -44,7 +44,7 @@ export const DEFAULT_PARAMS: TableParams = {
   plateThickness: 0.012,
   showLaneNumbers: false,
   showBand: true,
-  visibleRange: 7,
+  visibleRange: 6.5,
 };
 
 /** 一切尺寸的派生量集中在这里，避免各处各算一遍。 */
