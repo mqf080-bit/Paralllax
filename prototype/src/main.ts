@@ -8,6 +8,7 @@ import { DEFAULT_PARAMS, type TableParams } from './config';
 import { createHands, type HandSample } from './game/hands';
 import { DEMO_CHART } from './chart/demo';
 import { TEST_CHART } from './chart/test';
+import type { Chart } from './chart/schema';
 import { createPlayer, type Player, type PlayerSettings } from './game/player';
 import { createEnvironment } from './materials/environment';
 import { createMaterialLibrary } from './materials/library';
@@ -23,10 +24,10 @@ import { probeXr } from './xr/xr-support';
 import './ui/style.css';
 
 /**
- * Parallax — Step 1
+ * Parallax — 游戏页
  *
- * 腰高台面、6 条铣出的导轨槽、默认可见 4 轨、深色材质与剖切边。
- * 没有键型 / 判定 / shift 动画 / 谱面 —— 那些是 Step 2 之后。
+ * 6 轨物理场 + 4 轨滑动窗口、四种键型、时间判定、SV、音频时钟、计分 / 结算。
+ * 制谱器是独立页面 `editor.html`（`src/editor/`）。
  */
 
 const container = document.getElementById('app');
@@ -34,8 +35,34 @@ if (!container) throw new Error('#app container is missing');
 
 const params: TableParams = { ...DEFAULT_PARAMS };
 
-// 默认跑 42 秒的验收谱；`?chart=demo` 切回 12 秒的格式示例。
-const activeChart = new URLSearchParams(window.location.search).get('chart') === 'demo' ? DEMO_CHART : TEST_CHART;
+// 默认跑 42 秒的验收谱。
+// `?chart=demo` 切回 12 秒示例；`?chart=/charts/xxx.json` 载入制谱器导出的谱面。
+const bootQuery = new URLSearchParams(window.location.search);
+const chartParam = bootQuery.get('chart');
+let activeChart: Chart = TEST_CHART;
+if (chartParam === 'demo') {
+  activeChart = DEMO_CHART;
+} else if (chartParam && chartParam !== 'test') {
+  const url = chartParam.includes('/') || chartParam.endsWith('.json') ? chartParam : `/charts/${chartParam}.json`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const loaded = (await response.json()) as Chart;
+    if (!loaded || typeof loaded !== 'object' || !loaded.meta || !Array.isArray(loaded.notes)) {
+      throw new Error('不是有效的谱面 JSON');
+    }
+    // 老谱面可能缺轨道数组；补成空轨，别让播放器在运行时崩。
+    loaded.timing = Array.isArray(loaded.timing) && loaded.timing.length > 0
+      ? loaded.timing
+      : [{ time: 0, bpm: 150, beats: 4 }];
+    loaded.speed = Array.isArray(loaded.speed) ? loaded.speed : [];
+    loaded.shift = Array.isArray(loaded.shift) ? loaded.shift : [];
+    activeChart = loaded;
+    console.info(`[chart] loaded ${url} · ${activeChart.notes.length} notes`);
+  } catch (cause) {
+    console.warn(`[chart] 载入 ${url} 失败，回退测试谱`, cause);
+  }
+}
 
 // 键型预览与打击练习的开关；也接受 ?preview=1 / ?auto=1。
 const previewState = { visible: false };

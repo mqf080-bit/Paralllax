@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "title": "EXAMPLE LOOP",
+    "artist": "",
+    "charter": "",
+    "difficulty": "IN 2",
+    "offset": 0
+  },
+  "timing": [{ "time": 0, "bpm": 150, "beats": 4 }],
+  "sections": [],
+  "speed": [
+    { "time": 0, "multiplier": 1 },
+    { "time": 4000, "multiplier": 0.5, "duration": 200 }
+  ],
+  "shift": [
+    { "time": 5000, "target": "left", "duration": 350 },
+    { "time": 7000, "target": "normal", "duration": 350 }
+  ],
+  "notes": [
+    { "type": "hit", "time": 800, "lane": 1 },
+    { "type": "hit", "time": 1200, "lane": 2, "hand": "right" },
+    { "type": "drag", "time": 1600, "lane": 3 },
+    { "type": "hold", "time": 2000, "lane": 2, "duration": 800, "objects": 4 },
+    { "type": "hit", "time": 3200, "lane": 1 },
+    {
+      "type": "arc",
+      "time": 3600,
+      "hand": "right",
+      "points": [
+        { "time": 0, "x": 2, "y": 0.33, "easing": "linear" },
+        { "time": 1200, "x": 3, "y": 0.61, "easing": "sine" },
+        { "time": 2400, "x": 2, "y": 0.33, "easing": "cosine" }
+      ],
+      "keyObjects": [600],
+      "notesPerSecond": 4
+    },
+    { "type": "hit", "time": 6000, "lane": 1 },
+    { "type": "drag", "time": 6400, "lane": 3 },
+    { "type": "hit", "time": 8000, "lane": 2 }
+  ]
+}

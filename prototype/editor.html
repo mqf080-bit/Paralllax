@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Parallax — Chart Editor</title>
+  </head>
+  <body>
+    <div id="editor">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand__mark">PARALLAX</span>
+          <span class="brand__sub">CHART EDITOR</span>
+        </div>
+
+        <div class="topbar__group">
+          <span class="topbar__label">TOOL</span>
+          <div id="tools" class="tools"></div>
+        </div>
+
+        <label class="topbar__group">
+          <span class="topbar__label">SNAP</span>
+          <select id="snap" class="input"></select>
+        </label>
+
+        <div class="topbar__group topbar__group--grow">
+          <span class="topbar__label">TIMELINE</span>
+          <button id="zoom-out" class="button button--small" type="button">−</button>
+          <button id="zoom-in" class="button button--small" type="button">＋</button>
+          <button id="fit" class="button button--small" type="button">FIT</button>
+        </div>
+
+        <div class="topbar__actions">
+          <span id="issue-readout" class="save-state">OK</span>
+          <button id="new" class="button button--small" type="button">NEW</button>
+          <button id="import" class="button button--small" type="button">IMPORT</button>
+          <button id="export" class="button button--small" type="button">EXPORT</button>
+          <span id="save-state" class="save-state">DRAFT —</span>
+        </div>
+      </header>
+
+      <main class="work">
+        <section class="preview">
+          <div id="preview" class="preview__viewport"></div>
+          <div class="transport">
+            <div class="transport__row">
+              <button id="play" class="button transport__play" type="button">▶ PLAY</button>
+              <button id="stop" class="button button--small" type="button">⏮</button>
+              <span id="time-readout" class="transport__time">−0:01.000 / 0:00.000</span>
+              <span id="audio-readout" class="transport__audio">SILENT</span>
+            </div>
+            <div class="transport__row">
+              <label class="transport__field">
+                <span class="topbar__label">RATE</span>
+                <select id="rate" class="input">
+                  <option value="0.25">0.25×</option>
+                  <option value="0.5">0.5×</option>
+                  <option value="0.75">0.75×</option>
+                  <option value="1" selected>1×</option>
+                  <option value="1.5">1.5×</option>
+                  <option value="2">2×</option>
+                </select>
+              </label>
+              <button id="reverse" class="button button--small" type="button">REV</button>
+              <label class="check"><input id="auto" type="checkbox" checked /><span>AUTO</span></label>
+              <label class="check"><input id="follow" type="checkbox" checked /><span>FOLLOW</span></label>
+            </div>
+          </div>
+        </section>
+
+        <section class="timeline">
+          <div class="timeline__canvas">
+            <canvas id="timeline"></canvas>
+          </div>
+          <div class="timeline__status">
+            <span id="status-text">1 SELECT · 2 HIT · 3 DRAG · 4 HOLD · 5 ARC · 左键放置 / 拖动 · 右键删除</span>
+            <span class="timeline__keys">SPACE 播放 · ←/→ 微移 · CTRL+滚轮 缩放 · CTRL+Z 撤销</span>
+          </div>
+        </section>
+
+        <aside id="inspector" class="inspector" aria-label="检查器"></aside>
+      </main>
+    </div>
+
+    <div id="toast" class="toast" aria-live="polite"></div>
+    <input id="chart-file" type="file" accept=".json,application/json" hidden />
+    <script type="module" src="/src/editor/main.ts"></script>
+  </body>
+</html>

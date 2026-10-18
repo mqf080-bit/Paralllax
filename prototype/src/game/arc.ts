@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 
+import { easeValue } from '../chart/easing';
 import type { ArcPoint } from '../chart/schema';
 import { applyDistanceFade } from '../materials/distanceFade';
 import { createFresnelGlowMaterial } from '../materials/glow';
@@ -76,20 +77,6 @@ const BAND_ZONE = 0.42;
 /** 构建管几何时的采样数。 */
 const SEGMENTS = 160;
 const CURVE_SEGMENTS = 128;
-
-function easeValue(easing: ArcPoint['easing'], u: number): number {
-  const t = Math.min(1, Math.max(0, u));
-  switch (easing) {
-    case 'linear':
-      return t;
-    case 'sine':
-      return Math.sin((t * Math.PI) / 2);
-    case 'cosine':
-      return 1 - Math.cos((t * Math.PI) / 2);
-    case 'bezier':
-      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-  }
-}
 
 export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   const colors = spec.hand === 'left' ? HAND_LEFT : HAND_RIGHT;

@@ -1,3 +1,4 @@
+import { easeValue } from './easing';
 import { CHART_DEFAULTS, chartLimits, type Chart, type Easing, type Section } from './schema';
 
 /**
@@ -44,21 +45,6 @@ export interface Timeline {
   /** 谱面最后一颗 note 的结束时间。 */
   readonly duration: number;
   readonly sections: Section[];
-}
-
-function easeValue(easing: Easing, u: number): number {
-  const t = Math.min(1, Math.max(0, u));
-  switch (easing) {
-    case 'linear':
-      return t;
-    case 'sine':
-      return Math.sin((t * Math.PI) / 2);
-    case 'cosine':
-      return 1 - Math.cos((t * Math.PI) / 2);
-    case 'bezier':
-      // 近似 cubic ease-in-out。
-      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-  }
 }
 
 function segmentSpeed(segment: SpeedSegment, u: number): number {

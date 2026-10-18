@@ -1,7 +1,8 @@
 # Parallax 谱面格式 v0
 
 > 目标：能写**极端 SV**、能写 **shift**、能把 **arc 的直角 / 钝角 / 曲线**记下来，同时尽量贴 Arcaea 的 AFF 概念，少造轮子。
-> 代码：`src/chart/schema.ts`（类型）、`src/chart/timeline.ts`（时间轴 / 校验）、`src/chart/demo.ts`（示例）。
+> 代码：`src/chart/schema.ts`（类型）、`src/chart/timeline.ts`（时间轴 / 校验）、`src/chart/easing.ts`（缓动）、`src/chart/demo.ts`（示例）。
+> 制谱器：[`EDITOR.md`](EDITOR.md)；入口 `http://127.0.0.1:5173/editor.html`。
 
 ---
 
@@ -19,6 +20,7 @@
 ```jsonc
 {
   "meta":    { "title": "…", "offset": 0, "difficulty": "IN 7", … },
+  "audio":   "track.mp3",                                  // 只记录文件名
   "timing":  [ { "time": 0, "bpm": 150, "beats": 4 } ],
   "sections":[ { "time": 0, "label": "A" }, … ],           // 制谱器对齐用
   "speed":   [ { "time": 0, "multiplier": 1 }, … ],         // SV
@@ -29,11 +31,14 @@
 
 | 段 | 作用 | 备注 |
 | --- | --- | --- |
+| `meta` | 标题 / 难度 / offset | `offset` 正 = 谱面比音频提前 |
+| `audio` | 音轨文件名 | 只记录；播放时用 `?audio=/track.mp3` |
 | `timing` | BPM + 每小节拍数 | 画小节 / 对齐；**也是合成音轨的拍点**；不参与滚动速度 |
 | `sections` | 段落标记 | 纯制谱器信息 |
 | `speed` | 视觉流速（SV） | 支持 0 / 负数 / 极端值 |
 | `shift` | 4 轨窗口滑动 | `duration` = shift 的速度 |
 | `notes` | 键与物量 | 见下 |
+| `limits` | 覆盖高度上限 | `{ "maxHeight": 0.81 }`，一般不用写 |
 
 ## 3. Notes
 
@@ -125,7 +130,7 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
 
 ## 8. 高度基准线与上限
 
-台面是 0.95m。玩家站着，身体给出三条**高度基准线**（相对台面，`config.ts` 的 `HEIGHT_GUIDES`）：
+台面是 0.95m。玩家站着，身体给出三条**高度基准线**（相对台面，`src/chart/schema.ts` 的 `HEIGHT_LEVELS`）：
 
 | 线 | 相对台面 | 世界高度（台面 0.95 时） | 用途 |
 | --- | --- | --- | --- |
@@ -178,10 +183,22 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
 ## 12. 状态
 
 - ✅ **播放器**：`src/game/player.ts` 已按本格式读谱面（hit / drag / hold / arc、SV 积分、shift 窗口）。
-- ✅ **高度上限**：`limits.maxHeight`（默认 0.6m），超限的 note 不生成，校验器报错。
+- ✅ **高度上限**：`limits.maxHeight`（默认 **0.81m = 头顶线**），超限的 note 不生成，校验器报错。
 - ✅ **30–60s 测试谱**：`src/chart/test.ts`，41.6s、两次 shift。
 - ✅ **音频时钟**：以 `AudioContext` 为准，带 lead-in、暂停 / 恢复、offset 校准、可选真实音轨。
-- ✅ **视距淡出**：note 只在台面最后 2.4m 里显形，远端不再 pop-in。
-- ⬜ **制谱器辅助**：小节 / 拍线、SV 曲线预览、shift 时间轴、arc 点编辑。
+- ✅ **视距淡出**：note 只在台面最后 4m 里渐显，远端不再 pop-in。
+- ✅ **制谱器（Step 5）**：6 轨主视图 / 高度轨 / SV 轨 / 波形、吸附、arc 点编辑、shift / SV 编辑、
+  3D 播放器预览（自动打 / 暂停 / 慢放 / 倒放）、JSON 导入导出、localStorage 草稿。见 [`EDITOR.md`](EDITOR.md)。
+- ✅ **游戏读取导出的谱**：`?chart=/charts/文件名.json`（示例 `public/charts/example.json`）。
 - ⬜ **极端 SV 的可读性**：负 SV 时键往后退，需要确认不会和「漏键」的视觉混淆。
+
+## 13. 编辑器的数据约定
+
+- **时间吸附**按拍计算（1/16 … 1/1），网格来自 `timing`；`1/8` = 半个拍。
+- **高度**只出现在 arc 的 `points[].y`；地面键永远贴台面。
+- **arc 的 x 是轨号**：`x = 2` 是 2 号轨的中心，`x = 2.5` 是 2 / 3 轨之间；
+  编辑器里限制在 `0–5`，校验器允许 `−0.5–5.5`。
+- **缓动**归「这一段终点的点」所有：`points[i].easing` 描述从 `i−1` 走到 `i` 的插值。
+- `meta.audio` / `audio` 只记文件名，音频文件不进 JSON。
+- 编辑器导出的谱面可以直接被 `?chart=` 读取；`?audio=` 负责音轨。
 

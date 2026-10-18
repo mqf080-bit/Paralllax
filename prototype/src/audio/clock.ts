@@ -55,8 +55,10 @@ export interface AudioClock {
   update(): void;
   /** 需要用户手势：解锁 / 恢复 AudioContext。 */
   unlock(): void;
-  /** 载入真实音轨（从谱面时间 0 开始对齐）。 */
-  loadTrack(url: string): Promise<boolean>;
+  /** 载入真实音轨（从谱面时间 0 开始对齐）。`name` 只用于显示。 */
+  loadTrack(url: string, name?: string): Promise<boolean>;
+  /** 卸掉音轨，退回合成鼓组。 */
+  clearTrack(): void;
   /** 设置 timing（决定节拍网格）。 */
   setTiming(timing: TimingPoint[]): void;
   dispose(): void;
@@ -305,7 +307,7 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
       // 真正的时间源切换在 update() 的 syncSource 里做（resume 是异步的）。
     },
 
-    async loadTrack(url: string): Promise<boolean> {
+    async loadTrack(url: string, name?: string): Promise<boolean> {
       ensureContext();
       if (!ctx) return false;
       try {
@@ -313,7 +315,7 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.arrayBuffer();
         trackBuffer = await ctx.decodeAudioData(data);
-        trackName = url.split('/').pop()?.split('?')[0] ?? url;
+        trackName = name ?? url.split('/').pop()?.split('?')[0] ?? url;
         if (state === 'playing' && isLive()) startTrack(rawNow());
         error = null;
         return true;
@@ -321,6 +323,13 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
         error = cause instanceof Error ? cause.message : '音轨载入失败';
         return false;
       }
+    },
+
+    clearTrack(): void {
+      stopTrack();
+      trackBuffer = null;
+      trackName = 'DRUMS';
+      error = null;
     },
 
     setTiming(next: TimingPoint[]): void {

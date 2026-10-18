@@ -161,6 +161,8 @@ export interface ChartLimits {
 
 export interface Chart {
   meta: ChartMeta;
+  /** 音轨文件名 / 路径（制谱器用来记住导入了哪首；运行时可用 `?audio=` 覆盖）。 */
+  audio?: string;
   timing: TimingPoint[];
   sections?: Section[];
   speed: SpeedEvent[];

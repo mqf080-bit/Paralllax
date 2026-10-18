@@ -3,7 +3,7 @@
 VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处沿 6 条轨道滑来，用手接住；
 台面只点亮其中 4 条轨，**窗口会随谱面整体左移 / 右移一轨**（shift）。
 
-> 设计真相：[`parallax-idea.md`](parallax-idea.md) ｜ 施工协议：[`agent.md`](agent.md) ｜ 迭代记录：[`prototype/STATUS.md`](prototype/STATUS.md) ｜ 谱面格式：[`prototype/CHART.md`](prototype/CHART.md)
+> 设计真相：[`parallax-idea.md`](parallax-idea.md) ｜ 施工协议：[`agent.md`](agent.md) ｜ 迭代记录：[`prototype/STATUS.md`](prototype/STATUS.md) ｜ 谱面格式：[`prototype/CHART.md`](prototype/CHART.md) ｜ 制谱器：[`prototype/EDITOR.md`](prototype/EDITOR.md)
 
 ---
 
@@ -16,9 +16,10 @@ VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处�
 | 2 | 四种键型 + 判定 | ✅ |
 | 3 | shift（4 轨窗口整体滑动） | ✅ |
 | 4 | 谱面播放 / 流速 / 渲染裁剪 / 音频 / UI | ✅ 只剩「72fps 实测」未记录 |
-| 5 | **简易制谱器** | ⬜ **下一步** |
+| 5 | 简易制谱器 | ✅ 独立页面 `/editor.html`，待验收 |
 
-已经能完整打一首 41.6 秒的谱（两次 shift、四种键型、SV 变速），有计分、血条、结算、暂停和设置。
+已经能完整打一首 41.6 秒的谱（两次 shift、四种键型、SV 变速），有计分、血条、结算、暂停和设置；
+也能在桌面制谱器里写谱、导入音频对 offset、用同一个播放器预览并导出 JSON。
 
 ---
 
@@ -51,6 +52,8 @@ drag / arc / hold 没有 GOOD：接上物量就算完美，接不上就是漏。
 - arc 用点列 + 每段缓动记录形状（连续 linear 段 = 直角 / 钝角，sine / cosine = 曲线），可带关键物量。
 - 默认测试谱 `src/chart/test.ts`：**41.6s / 79 notes**，12s 左 shift、30s 右 shift，两处 SV（慢速 / 200ms 停表）。
 - 格式示例 `src/chart/demo.ts`：12s，`?chart=demo` 切回。
+- 制谱器导出的 JSON 放到 `prototype/public/charts/`，用 `?chart=/charts/xxx.json` 读取
+  （示例：`/charts/example.json`）。
 
 ### 音频时钟
 
@@ -75,6 +78,22 @@ drag / arc / hold 没有 GOOD：接上物量就算完美，接不上就是漏。
 
 ---
 
+## 制谱器（Step 5）
+
+入口：<http://127.0.0.1:5173/editor.html>（桌面独立页面，不进 VR）。
+
+- **主视图**：横轴时间、纵轴 6 轨；shift 用背景色带高亮当时的 4 轨窗口。
+- **高度轨**：arc 的 y 单独一条带，胸 / 面 / 头顶三条基准线就是横格线。
+- **SV 轨**：点击加变速点、拖动改倍率，检查器改过渡时长 / 缓动。
+- **编辑**：点击加 hit / drag，拖出 hold / arc；选中后拖时间 / 轨号 / 高度；
+  arc 点列可插点、删点、每段选缓动；右键删除；时间吸附 1/16…1/1。
+- **预览**：直接跑游戏播放器（音频时钟 + 判定 + 自动打），支持暂停 / 0.25×–2× / 倒放。
+- **音频**：导入本地音轨、波形显示、offset ±1/±10 微调。
+- **存取**：`EXPORT` 下载 `<title>.parallax.json`；草稿自动存 localStorage；`IMPORT` 读回。
+- 快捷键和逐项操作见 [`prototype/EDITOR.md`](prototype/EDITOR.md)。
+
+---
+
 ## 跑起来
 
 ```bash
@@ -84,6 +103,7 @@ npm run dev
 ```
 
 浏览器打开 <http://127.0.0.1:5173>（桌面 fallback 也能玩：鼠标 = 手，左键 / 空格 = 扳机）。
+制谱器是 <http://127.0.0.1:5173/editor.html>。
 
 ### Quest 3
 
@@ -115,6 +135,7 @@ cd prototype && npm run dev
 | 参数 | 作用 |
 | --- | --- |
 | `?chart=demo` | 切回 12s 示例谱 |
+| `?chart=/charts/example.json` | 载入制谱器导出的谱面 |
 | `?auto=1` | 自动演示（只是贴着目标点，不保证全接） |
 | `?warp=12.4&freeze=1` | 快进到第 12.4 秒并冻结（截图 / 检查用） |
 | `?flow=4` | 基准流速 m/s |
@@ -140,7 +161,11 @@ prototype/
     scene/           台面、浮空显示、材质实验台、控制器
     materials/       材质库、配色、程序化贴图、视距淡出
     ui/              3D 面板、游戏内 UI、调试面板、诊断
+    editor/          制谱器（时间轴 / 交互 / 预览 / 检查器 / 波形 / 存取）
+  editor.html        制谱器独立入口
+  public/charts/     导出的谱面放这里（示例 example.json）
   CHART.md           谱面格式说明
+  EDITOR.md          制谱器操作与设计说明
   STATUS.md          迭代记录（每轮改了什么、为什么、踩了什么坑）
   README.md          原型自己的运行 / 链路说明
 ```
@@ -152,8 +177,10 @@ prototype/
   偏早 / 偏晚用设置里的 `AUDIO OFFSET` 微调。
 - 自动演示会漏键（它只是贴着目标点），手动打不受影响。
 - 暂停时长按扳机再松手，可能顺带触发一次 UI 点击（面板和判定共用「按下」）。
+- 制谱器：音频文件不持久化（刷新后重新导入）；没有多选 / 复制粘贴 / 自动 BPM 检测；
+  慢放和倒放是静音的（AudioContext 不能倒退）。
 
-## 下一步：Step 5 制谱器
+## 下一步
 
-按 `agent.md`：桌面 2D 编辑器 —— 放 / 删 / 移 note、设 shift 与 SV、用真实播放器预览、
-存读 JSON。高度基准线（胸 0.33 / 面 0.61 / 头顶 0.81）会作为编辑视图里的辅助线出现，游戏里不画。
+Step 5 已完成，等你用制谱器做一段谱并验收。之后按 `agent.md` §12 讨论 Phase 2
+（Unity + Chart Editor Web UI），不在 Phase 1 里提前做。
