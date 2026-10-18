@@ -76,9 +76,16 @@ interface TimedNote {
   time: number;
 }
 
-interface LaneNote extends TimedNote {
-  /** 绝对轨号 0–5。谱面必须保证它落在当时的窗口里。 */
+export interface LaneNote extends TimedNote {
+  /** 绝对轨号 0–5（整数，兼容旧谱面）。 */
   lane: number;
+  /**
+   * 连续横向位置（轨号单位）：`0` = 0 号轨中心，`2.5` = 台面中心。
+   * 省略时等于 `lane`。允许 0.5 / 1.25 这种不在轨道中心的位置。
+   */
+  x?: number;
+  /** note 中心离台面的高度（米）。省略时按类型默认：hit/drag 0.07、hold 0.004。 */
+  y?: number;
   /** 手别；省略 = 中性（任意手）。 */
   hand?: Hand;
 }
@@ -118,11 +125,23 @@ export interface ArcPoint {
   easing: Easing;
 }
 
+export interface ArcTickSpec {
+  /** 相对弧起点的时间（毫秒）。 */
+  time: number;
+  /** true = 关键物量（黄铜珠，80ms 窗口，不能断连补）。 */
+  key?: boolean;
+}
+
 export interface ArcNote extends TimedNote {
   type: 'arc';
   hand: Hand;
   /** 至少两个点；第一个点的 time 必须是 0。 */
   points: ArcPoint[];
+  /**
+   * 显式物量表：写给「直角蛇」这类只需要在某些时刻结算的弧。
+   * 存在时**完全替代** notesPerSecond / keyObjects 的自动生成。
+   */
+  ticks?: ArcTickSpec[];
   /** 关键物量：相对起点的时间（毫秒）。必须被体积判定接住，断开重连补不回来。 */
   keyObjects?: number[];
   /** 普通物量密度（个 / 秒），默认 4；均匀分布。 */
@@ -183,9 +202,42 @@ export function chartLimits(chart: Chart): ChartLimits {
   return { ...CHART_LIMITS, ...chart.limits };
 }
 
+/** 地面键的默认中心高度（相对台面，米）。 */
+export const NOTE_HEIGHT = {
+  hit: 0.07,
+  drag: 0.07,
+  hold: 0.004,
+} as const;
+
+/** 有效横向位置（轨号单位）。旧谱面没有 `x` 时退回整数 `lane`。 */
+export function noteX(note: LaneNote): number {
+  return note.x ?? note.lane;
+}
+
+/** 地面键的有效中心高度（相对台面，米）。 */
+export function noteHeight(note: HitNote | DragNote | HoldNote): number {
+  return note.y ?? NOTE_HEIGHT[note.type];
+}
+
 /** 默认值集中在这里，制谱器和运行时都用同一套。 */
 export const CHART_DEFAULTS = {
   shiftDuration: 350,
   holdNotesPerSecond: 5,
   arcNotesPerSecond: 4,
 } as const;
+
+/** 弧的总时长（毫秒）= 最后一个点的时间。 */
+export function arcDurationMs(note: ArcNote): number {
+  return note.points[note.points.length - 1]?.time ?? 0;
+}
+
+/** 弧的物量总数：显式 ticks 优先，否则「均匀普通物量 + 关键物量」。 */
+export function arcObjectCount(note: ArcNote): number {
+  if (note.ticks) return note.ticks.length;
+  const duration = arcDurationMs(note);
+  const normal = Math.max(
+    2,
+    Math.round((duration / 1000) * (note.notesPerSecond ?? CHART_DEFAULTS.arcNotesPerSecond)),
+  );
+  return normal + (note.keyObjects?.length ?? 0);
+}

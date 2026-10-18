@@ -1,6 +1,6 @@
 import type { ArcNote, Note } from '../chart/schema';
 import { sampleArcPoint, type Selection } from './model';
-import type { Chart } from '../chart/schema';
+import { noteHeight, noteX, type Chart } from '../chart/schema';
 import {
   GUTTER,
   heightDomain,
@@ -39,10 +39,10 @@ export type Band = 'ruler' | 'wave' | 'lanes' | 'height' | 'sv' | 'gutter';
 export function bandAt(layout: Layout, x: number, y: number): Band {
   if (x < GUTTER) return 'gutter';
   if (y >= layout.rulerTop && y < layout.rulerTop + layout.rulerH) return 'ruler';
-  if (y >= layout.waveTop && y < layout.waveTop + layout.waveH) return 'wave';
   if (y >= layout.lanesTop && y < layout.lanesTop + layout.lanesH) return 'lanes';
   if (y >= layout.heightTop && y < layout.heightTop + layout.heightH) return 'height';
   if (y >= layout.svTop && y < layout.svTop + layout.svH) return 'sv';
+  if (y >= layout.waveTop && y < layout.waveTop + layout.waveH) return 'wave';
   return 'ruler';
 }
 
@@ -84,7 +84,7 @@ export function pickLane(state: PickState, x: number, y: number): Pick | null {
   for (const note of chart.notes) {
     if (note.type === 'arc') continue;
     const headX = timeToX(view, note.time);
-    const laneY = laneToY(layout, note.lane);
+    const laneY = laneToY(layout, noteX(note));
     if (Math.abs(laneY - y) > layout.rowH * 0.46) continue;
     if (note.type === 'hold') {
       const tailX = timeToX(view, note.time + note.duration);
@@ -147,6 +147,21 @@ export function pickHeight(state: PickState, x: number, y: number): Pick | null 
       const py = heightToY(layout, domain, point.y);
       if (Math.hypot(px - x, py - y) <= 8) return { kind: 'arc-point', note, index };
     }
+  }
+
+  // 地面键 / hold 的高度点
+  for (const note of chart.notes) {
+    if (note.type === 'arc') continue;
+    const headX = timeToX(view, note.time);
+    const py = heightToY(layout, domain, noteHeight(note));
+    if (note.type === 'hold') {
+      const tailX = timeToX(view, note.time + note.duration);
+      if (x >= headX - 5 && x <= tailX + 5 && Math.abs(py - y) <= 6) {
+        return { kind: 'note', note, zone: 'body' };
+      }
+      continue;
+    }
+    if (Math.hypot(headX - x, py - y) <= 8) return { kind: 'note', note, zone: 'head' };
   }
 
   for (const note of chart.notes) {

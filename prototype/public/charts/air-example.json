@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "title": "AIR / TICKS",
+    "artist": "demo",
+    "charter": "demo",
+    "difficulty": "IN 5",
+    "offset": 0
+  },
+  "timing": [{ "time": 0, "bpm": 150, "beats": 4 }],
+  "sections": [],
+  "speed": [{ "time": 0, "multiplier": 1 }],
+  "shift": [
+    { "time": 5000, "target": "left", "duration": 350 },
+    { "time": 7000, "target": "normal", "duration": 350 }
+  ],
+  "notes": [
+    { "type": "hit", "time": 800, "lane": 2, "x": 2.5, "y": 0.33 },
+    { "type": "hit", "time": 1200, "lane": 1, "x": 1.25, "y": 0.61 },
+    { "type": "drag", "time": 1600, "lane": 4, "x": 3.75, "y": 0.45 },
+    { "type": "hold", "time": 2000, "lane": 2, "x": 2.5, "y": 0.15, "duration": 800, "objects": 4 },
+    {
+      "type": "arc",
+      "time": 3200,
+      "hand": "right",
+      "points": [
+        { "time": 0, "x": 1, "y": 0.33, "easing": "linear" },
+        { "time": 800, "x": 1, "y": 0.61, "easing": "linear" },
+        { "time": 1600, "x": 4, "y": 0.61, "easing": "linear" },
+        { "time": 2400, "x": 4, "y": 0.08, "easing": "linear" }
+      ],
+      "ticks": [
+        { "time": 200, "key": false },
+        { "time": 800, "key": true },
+        { "time": 1200, "key": false },
+        { "time": 1600, "key": true },
+        { "time": 2200, "key": false }
+      ]
+    },
+    { "type": "hit", "time": 6000, "lane": 1, "x": 0.75, "y": 0.33 },
+    { "type": "drag", "time": 6400, "lane": 3, "x": 3.25, "y": 0.61 }
+  ]
+}

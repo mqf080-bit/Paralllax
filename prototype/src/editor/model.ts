@@ -1,8 +1,10 @@
 import { easeValue } from '../chart/easing';
 import {
+  arcObjectCount,
   CHART_DEFAULTS,
   chartLimits,
   HEIGHT_LEVELS,
+  NOTE_HEIGHT,
   type ArcNote,
   type ArcPoint,
   type Chart,
@@ -181,8 +183,36 @@ export function collectGridLines(chart: Chart, from: number, to: number, subBeat
 /** 轨道编号 → 显示名（0–5）。 */
 export const LANE_COUNT = 6;
 
+/** 连续 x 的合法范围（轨号单位，0 = 0 号轨中心）。 */
+export const X_MIN = -0.5;
+export const X_MAX = 5.5;
+/** 3D / 2D 空间吸附步长：x = 1/4 轨，y = 5cm。 */
+export const X_GRID = 0.25;
+export const Y_GRID = 0.05;
+
 export function clampLane(lane: number): number {
   return Math.min(LANE_COUNT - 1, Math.max(0, Math.round(lane)));
+}
+
+export function clampX(x: number): number {
+  return Math.min(X_MAX, Math.max(X_MIN, x));
+}
+
+/** x 吸附：开启时吸到 1/4 轨网格；关闭时保留到 0.01 轨。 */
+export function snapSpatialX(x: number, enabled: boolean): number {
+  const value = enabled ? Math.round(x / X_GRID) * X_GRID : Math.round(x * 100) / 100;
+  return clampX(value);
+}
+
+/** y 吸附：开启时吸到 5cm；关闭时保留到 0.001m。 */
+export function snapSpatialY(y: number, enabled: boolean): number {
+  const value = enabled ? Math.round(y / Y_GRID) * Y_GRID : Math.round(y * 1000) / 1000;
+  return Math.max(0, value);
+}
+
+/** 地面键的默认高度（用于提示 / 初始化）。 */
+export function defaultNoteY(type: 'hit' | 'drag' | 'hold'): number {
+  return NOTE_HEIGHT[type];
 }
 
 export function clampHeight(chart: Chart, y: number): number {
@@ -256,6 +286,28 @@ export function removeArcPoint(note: ArcNote, index: number): boolean {
   return true;
 }
 
+export interface ArcTickView {
+  time: number;
+  key: boolean;
+}
+
+/** 编辑器显示用的弧物量表：显式 ticks，或按运行时规则自动生成。 */
+export function arcTicks(note: ArcNote): ArcTickView[] {
+  if (note.ticks) {
+    return note.ticks
+      .map((tick) => ({ time: tick.time, key: tick.key === true }))
+      .sort((a, b) => a.time - b.time);
+  }
+  const duration = arcDuration(note);
+  const count = Math.max(2, Math.round((duration / 1000) * (note.notesPerSecond ?? CHART_DEFAULTS.arcNotesPerSecond)));
+  const ticks: ArcTickView[] = [];
+  for (let i = 0; i < count; i += 1) ticks.push({ time: ((i + 0.5) / count) * duration, key: false });
+  for (const key of note.keyObjects ?? []) {
+    if (key >= 0 && key <= duration) ticks.push({ time: key, key: true });
+  }
+  return ticks.sort((a, b) => a.time - b.time);
+}
+
 /** 运行时物量统计（和 player.ts 的口径一致）。 */
 export function countObjects(chart: Chart): number {
   let total = 0;
@@ -267,9 +319,7 @@ export function countObjects(chart: Chart): number {
       );
       total += objects;
     } else if (note.type === 'arc') {
-      const duration = arcDuration(note);
-      const normal = Math.max(2, Math.round((duration / 1000) * (note.notesPerSecond ?? CHART_DEFAULTS.arcNotesPerSecond)));
-      total += normal + (note.keyObjects?.length ?? 0);
+      total += arcObjectCount(note);
     } else {
       total += 1;
     }
@@ -353,11 +403,18 @@ function normalizeNote(raw: unknown): Note {
   const lane = clampLane(finite(note.lane, 0));
   const hand = note.hand === 'left' || note.hand === 'right' ? note.hand : undefined;
 
+  const x = typeof note.x === 'number' && Number.isFinite(note.x)
+    ? Math.min(5.5, Math.max(-0.5, note.x))
+    : undefined;
+  const y = typeof note.y === 'number' && Number.isFinite(note.y) ? Math.max(0, note.y) : undefined;
+
   if (note.type === 'hold') {
     return {
       type: 'hold',
       time,
       lane,
+      x,
+      y,
       hand,
       duration: Math.max(1, finite(note.duration, 500)),
       objects: typeof note.objects === 'number' ? Math.max(1, Math.round(note.objects)) : undefined,
@@ -381,11 +438,21 @@ function normalizeNote(raw: unknown): Note {
     }
     normalized[0]!.time = 0;
     normalized.sort((a, b) => a.time - b.time);
+    const duration = normalized[normalized.length - 1]?.time ?? 0;
+    const ticks = Array.isArray(note.ticks)
+      ? note.ticks
+          .map((tick) => ({
+            time: Math.min(duration, Math.max(0, finite(tick.time, 0))),
+            key: tick.key === true,
+          }))
+          .sort((a, b) => a.time - b.time)
+      : undefined;
     return {
       type: 'arc',
       time,
       hand: hand ?? 'right',
       points: normalized,
+      ticks,
       keyObjects: Array.isArray(note.keyObjects)
         ? note.keyObjects.map((key) => Math.max(0, finite(key, 0))).sort((a, b) => a - b)
         : [],
@@ -395,7 +462,7 @@ function normalizeNote(raw: unknown): Note {
   }
 
   const type = note.type === 'drag' ? 'drag' : 'hit';
-  return { type, time, lane, hand };
+  return { type, time, lane, x, y, hand };
 }
 
 function finite(value: unknown, fallback: number): number {

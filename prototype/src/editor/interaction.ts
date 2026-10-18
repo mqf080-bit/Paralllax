@@ -1,7 +1,10 @@
 import {
   chartLimits,
+  noteX,
   type ArcNote,
   type Chart,
+  type DragNote,
+  type HitNote,
   type HoldNote,
   type Note,
   type ShiftEvent,
@@ -12,11 +15,14 @@ import {
   beatMs,
   clampHeight,
   clampLane,
+  clampX,
   insertArcPoint,
   removeArcPoint,
   sampleArcPoint,
   snapHeightLevel,
   snapOption,
+  snapSpatialX,
+  snapSpatialY,
   snapTime,
   type Selection,
   type ToolId,
@@ -58,6 +64,8 @@ export interface EditorHost {
   readonly selection: Selection | null;
   readonly tool: ToolId;
   readonly snap: string;
+  /** 空间吸附（x/y 网格）开关。 */
+  readonly gridSnap: boolean;
   readonly svDomain: SvDomain;
   /** 当前播放头时间（拖动时用来判断）。 */
   readonly playhead: number;
@@ -80,7 +88,7 @@ type Drag =
       originTime: number;
       originLane: number;
       baseTime: number;
-      baseLane: number;
+      baseX: number;
     }
   | {
       kind: 'arc-lane-move';
@@ -92,6 +100,7 @@ type Drag =
     }
   | { kind: 'arc-height-move'; note: ArcNote; originY: number; baseY: number[] }
   | { kind: 'hold-tail'; note: HoldNote; originTime: number; baseDuration: number }
+  | { kind: 'note-height'; note: HitNote | DragNote | HoldNote }
   | {
       kind: 'arc-point-lane';
       note: ArcNote;
@@ -119,10 +128,6 @@ function minSpan(host: EditorHost, time: number): number {
   const option = snapOption(host.snap);
   if (option.beats <= 0) return MIN_DRAG_MS;
   return Math.max(20, beatMs(host.chart, time) * option.beats);
-}
-
-function clampLaneX(x: number): number {
-  return Math.min(5, Math.max(0, x));
 }
 
 function removeNote(host: EditorHost, note: Note): void {
@@ -207,6 +212,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
     const pick = pickLane(host, x, y);
     const time = xToTime(host.view, x);
     const lane = yToLane(host.layout, y);
+    const snappedX = snapSpatialX(lane, host.gridSnap);
     const snapped = snapTime(host.chart, time, host.snap);
 
     if (pick && pick.kind === 'arc-point') {
@@ -268,7 +274,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
         originTime: time,
         originLane: lane,
         baseTime: note.time,
-        baseLane: note.lane,
+        baseX: noteX(note),
       };
       return;
     }
@@ -289,7 +295,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
         originTime: time,
         originLane: lane,
         baseTime: note.time,
-        baseLane: note.lane,
+        baseX: noteX(note),
       };
       return;
     }
@@ -301,7 +307,8 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       const note: HoldNote = {
         type: 'hold',
         time: start,
-        lane: clampLane(lane),
+        lane: clampLane(Math.round(snappedX)),
+        x: snappedX,
         duration,
         objects: 4,
       };
@@ -314,7 +321,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
 
     if (host.tool === 'arc') {
       const start = snapped;
-      const x0 = clampLaneX(lane);
+      const x0 = snappedX;
       const duration = minSpan(host, start);
       host.beginGesture();
       const note: ArcNote = {
@@ -347,6 +354,13 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       host.beginGesture();
       host.select(toSelection(pick));
       drag = { kind: 'arc-point-height', note: pick.note, index: pick.index };
+      return;
+    }
+
+    if (pick && pick.kind === 'note' && pick.note.type !== 'arc') {
+      host.beginGesture();
+      host.select({ kind: 'note', note: pick.note });
+      drag = { kind: 'note-height', note: pick.note };
       return;
     }
 
@@ -504,9 +518,13 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
 
     if (drag.kind === 'note-move') {
       const dt = time - drag.originTime;
-      const dLane = Math.round(lane - drag.originLane);
+      const dx = lane - drag.originLane;
+      const x = event.shiftKey
+        ? clampX(Math.round(drag.baseX + dx))
+        : snapSpatialX(drag.baseX + dx, host.gridSnap);
       drag.note.time = Math.max(0, snapTime(host.chart, drag.baseTime + dt, host.snap));
-      drag.note.lane = clampLane(drag.baseLane + dLane);
+      drag.note.x = x;
+      drag.note.lane = clampLane(Math.round(x));
       host.commit();
       return;
     }
@@ -518,13 +536,26 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       return;
     }
 
+    if (drag.kind === 'note-height') {
+      const domain = heightDomain(host.chart);
+      const raw = yToHeight(host.layout, domain, y);
+      const value = event.shiftKey ? snapHeightLevel(host.chart, raw) : snapSpatialY(raw, host.gridSnap);
+      drag.note.y = Math.min(maxHeight, value);
+      host.commit();
+      return;
+    }
+
     if (drag.kind === 'arc-lane-move') {
       const state = drag;
       const dt = time - state.originTime;
-      const dLane = Math.round(lane - state.originLane);
+      const base = state.baseX[0] ?? 0;
+      const target = event.shiftKey
+        ? clampX(Math.round(base + (lane - state.originLane)))
+        : snapSpatialX(base + (lane - state.originLane), host.gridSnap);
+      const delta = target - base;
       state.note.time = Math.max(0, snapTime(host.chart, state.baseTime + dt, host.snap));
       state.note.points.forEach((point, index) => {
-        point.x = clampLaneX((state.baseX[index] ?? 0) + dLane);
+        point.x = clampX((state.baseX[index] ?? 0) + delta);
       });
       host.commit();
       return;
@@ -559,8 +590,9 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
         const upper = next ? next.time - 1 : Number.POSITIVE_INFINITY;
         point.time = Math.min(upper, Math.max(lower, abs - drag.note.time));
       }
-      const dLane = Math.round(lane - drag.originLane);
-      point.x = clampLaneX(drag.baseX + dLane);
+      point.x = event.shiftKey
+        ? clampX(Math.round(drag.baseX + (lane - drag.originLane)))
+        : snapSpatialX(drag.baseX + (lane - drag.originLane), host.gridSnap);
       host.commit();
       return;
     }
@@ -570,7 +602,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       if (!point) return;
       const domain = heightDomain(host.chart);
       let value = yToHeight(host.layout, domain, y);
-      value = event.shiftKey ? snapHeightLevel(host.chart, value) : Math.round(value * 100) / 100;
+      value = event.shiftKey ? snapHeightLevel(host.chart, value) : snapSpatialY(value, host.gridSnap);
       point.y = clampHeight(host.chart, value);
       host.commit();
       return;
@@ -588,7 +620,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       if (!point) return;
       const snapped = snapTime(host.chart, time, host.snap);
       point.time = Math.max(minSpan(host, drag.startTime), snapped - drag.startTime);
-      point.x = clampLaneX(lane);
+      point.x = snapSpatialX(lane, host.gridSnap);
       host.commit();
       return;
     }

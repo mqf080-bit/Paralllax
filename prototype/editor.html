@@ -24,7 +24,10 @@
         </label>
 
         <div class="topbar__group topbar__group--grow">
-          <span class="topbar__label">TIMELINE</span>
+          <span class="topbar__label">VIEW</span>
+          <label class="check"><input id="grid" type="checkbox" checked /><span>SNAP XY</span></label>
+          <button id="edit3d" class="button button--small is-active" type="button">3D EDIT</button>
+          <button id="toggle-2d" class="button button--small is-active" type="button">2D</button>
           <button id="zoom-out" class="button button--small" type="button">−</button>
           <button id="zoom-in" class="button button--small" type="button">＋</button>
           <button id="fit" class="button button--small" type="button">FIT</button>
@@ -41,6 +44,7 @@
 
       <main class="work">
         <section class="preview">
+          <div id="preview-hint" class="preview__hint">3D EDIT · 左键放置 / 拖动 · 右键拖拽视角</div>
           <div id="preview" class="preview__viewport"></div>
           <div class="transport">
             <div class="transport__row">
@@ -68,12 +72,14 @@
           </div>
         </section>
 
+        <div id="splitter" class="splitter" role="separator" aria-orientation="vertical"></div>
+
         <section class="timeline">
           <div class="timeline__canvas">
             <canvas id="timeline"></canvas>
           </div>
           <div class="timeline__status">
-            <span id="status-text">1 SELECT · 2 HIT · 3 DRAG · 4 HOLD · 5 ARC · 左键放置 / 拖动 · 右键删除</span>
+            <span id="status-text">1 SELECT · 2 HIT · 3 DRAG · 4 HOLD · 5 ARC · 2D 左键放置/拖动 · 右键删除</span>
             <span class="timeline__keys">SPACE 播放 · ←/→ 微移 · CTRL+滚轮 缩放 · CTRL+Z 撤销</span>
           </div>
         </section>

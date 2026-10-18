@@ -1,6 +1,6 @@
 # agent.md — Parallax Phase 1 协作协议
 
-> 状态：**Step 0–5 已完成；等待你验收 Step 5（制谱器）**。
+> 状态：**Step 0–5 已完成；Step 5 第二轮反馈已实现，等待你验收**。
 > 阶段：Phase 1 — Prototyping in WebXR
 > 设计真相：`parallax-idea.md`
 > 空间 / 材质参考：`references/`
@@ -82,7 +82,7 @@
 | 2 | ✅ | 四种键型 + 判定 + hold/arc 物量 |
 | 3 | ✅ | 4 轨窗口整体滑动 |
 | 4 | ✅ | 谱面 / SV / shift / 计分 / 音频时钟 / 视距淡出 / VR UI / 高度上限 / 41.6s 测试谱都已完成；只剩「72fps 在头显里实测」没记录 |
-| 5 | ✅ | **待验收**：桌面 2D 制谱器（`/editor.html`）；放置 / 拖动 / arc 点列 / SV / shift / 音频波形与 offset / 播放器预览 / JSON 存取 |
+| 5 | ✅ | **待验收（第二轮）**：制谱器支持任意 x/y / 空中 note、3D 直接编辑 + 虚拟网格、显式 arc 物量、波形置底、2D 可开关 |
 
 ---
 
@@ -415,7 +415,14 @@ adb reverse tcp:5173 tcp:5173
 - **文档**：[`prototype/EDITOR.md`](prototype/EDITOR.md)。
 - **验证**：`npm run typecheck` / `npm run build`；Chromium CDP 脚本覆盖放置 / 拖动 / 删除 / 撤销 /
   SV / shift / 音频导入 / 播放 / 慢放 / 倒放 / JSON 导入；游戏页载入示例谱校验通过。
-- **没做**：多选 / 复制粘贴 / 自动 BPM 检测 / 波形频谱 / section 编辑 / VR 制谱。
+- **第二轮反馈（2026-10-18）**：
+  - 地面键新增连续 `x` / 高度 `y`，hit/drag/hold 都可以在轨间 / 空中；
+  - 3D 视图直接放置 / 拖动 x/y，虚拟网格 + `SNAP XY`（可关），右键转视角；
+  - 2D 俯视图可关闭、预览 / 2D 之间有分隔条；波形移到最底下；
+  - arc 管改折线（linear 是真正直线），`ticks[]` 显式物量，拐角可以不放 tick；
+  - 高度轨显示所有 note，`MAKE EXPLICIT` / `STRAIGHTEN` 等检查器操作。
+- **没做**：多选 / 复制粘贴 / 自动 BPM 检测 / 波形频谱 / section 编辑 / VR 制谱；
+  3D 里 arc 只能整条平移 x/y；3D 放置时间固定为播放头。
 
 ### 需要你反馈
 

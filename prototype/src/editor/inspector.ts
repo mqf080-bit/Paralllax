@@ -1,13 +1,29 @@
 import { EASING_LABELS, EASING_OPTIONS } from '../chart/easing';
-import type { ArcNote, Chart, Easing, Hand, Note, ShiftEvent, SpeedEvent } from '../chart/schema';
+import {
+  chartLimits,
+  noteHeight,
+  noteX,
+  type ArcNote,
+  type Chart,
+  type Easing,
+  type Hand,
+  type Note,
+  type ShiftEvent,
+  type SpeedEvent,
+} from '../chart/schema';
 import {
   arcDuration,
   chartEnd,
+  clampLane,
+  clampX,
   countObjects,
+  defaultNoteY,
   formatTime,
   insertArcPoint,
   noteTypeLabel,
   sampleArcPoint,
+  X_MAX,
+  X_MIN,
   type Selection,
 } from './model';
 
@@ -234,14 +250,29 @@ export class Inspector {
     if (note.type !== 'arc') {
       root.append(
         field(
-          'LANE',
+          'X (lane)',
           numberInput(
-            note.lane,
+            noteX(note),
             (value) =>
               edit(host, () => {
-                note.lane = Math.min(5, Math.max(0, Math.round(value)));
+                const x = clampX(value);
+                note.x = Math.round(x * 100) / 100;
+                note.lane = clampLane(Math.round(x));
               }),
-            { min: 0, max: 5 },
+            { min: X_MIN, max: X_MAX, step: 0.01 },
+          ),
+        ),
+      );
+      root.append(
+        field(
+          'Y (m)',
+          numberInput(
+            noteHeight(note),
+            (value) =>
+              edit(host, () => {
+                note.y = Math.min(chartLimits(host.chart).maxHeight, Math.max(0, Math.round(value * 1000) / 1000));
+              }),
+            { min: 0, step: 0.01 },
           ),
         ),
       );
@@ -256,6 +287,22 @@ export class Inspector {
           ),
         ),
       );
+      root.append(
+        el(
+          'p',
+          'inspector__note',
+          `X 连续（0–5，2.5 = 台面中心）；Y = 中心离台面高度（默认 ${defaultNoteY(note.type).toFixed(3)}m）。`,
+        ),
+      );
+      const reset = el('div', 'inspector__actions');
+      reset.append(
+        button('RESET Y', () =>
+          edit(host, () => {
+            delete note.y;
+          }),
+        ),
+      );
+      root.append(reset);
     }
 
     if (note.type === 'hold') {
@@ -319,30 +366,92 @@ export class Inspector {
         ),
       ),
     );
-    root.append(
-      field(
-        'OBJECTS/S',
-        numberInput(note.notesPerSecond ?? 4, (value) =>
-          edit(host, () => {
-            note.notesPerSecond = Math.max(0.1, value);
+    if (note.ticks) {
+      root.append(
+        el('p', 'inspector__note', `显式物量 ${note.ticks.length} 个：只有这些时刻会结算。`),
+      );
+      const tickList = el('div', 'pointlist');
+      const tickHead = el('div', 'pointlist__row pointlist__row--head pointlist__row--tick');
+      tickHead.append(el('span', undefined, 'TIME'), el('span', undefined, 'KEY'), el('span'));
+      tickList.append(tickHead);
+      note.ticks.forEach((tick, index) => {
+        const row = el('div', 'pointlist__row pointlist__row--tick');
+        row.append(
+          numberInput(
+            tick.time,
+            (value) =>
+              edit(host, () => {
+                tick.time = Math.max(0, Math.min(arcDuration(note), Math.round(value)));
+                note.ticks!.sort((a, b) => a.time - b.time);
+              }),
+            { min: 0, step: 1 },
+          ),
+          checkInput(tick.key === true, (value) =>
+            edit(host, () => {
+              tick.key = value;
+            }),
+          ),
+          button('×', () => {
+            host.beginGesture();
+            note.ticks!.splice(index, 1);
+            host.commit();
+            host.endGesture();
+          }, 'button button--tiny button--danger'),
+        );
+        tickList.append(row);
+      });
+      root.append(tickList);
+      const tickActions = el('div', 'inspector__actions');
+      tickActions.append(
+        button('+ TICK', () => addArcTick(host, note, false)),
+        button('+ KEY', () => addArcTick(host, note, true)),
+        button('AUTO', () => {
+          host.beginGesture();
+          delete note.ticks;
+          host.commit();
+          host.endGesture();
+        }),
+      );
+      root.append(tickActions);
+    } else {
+      root.append(
+        field(
+          'OBJECTS/S',
+          numberInput(note.notesPerSecond ?? 4, (value) =>
+            edit(host, () => {
+              note.notesPerSecond = Math.max(0.1, value);
+            }),
+          ),
+        ),
+      );
+      root.append(
+        field(
+          'KEY OBJECTS (ms)',
+          textInput((note.keyObjects ?? []).join(', '), (value) => {
+            const keys = value
+              .split(/[,\s]+/)
+              .map(Number)
+              .filter((key) => Number.isFinite(key) && key >= 0 && key <= arcDuration(note));
+            edit(host, () => {
+              note.keyObjects = keys.sort((a, b) => a - b);
+            });
           }),
         ),
-      ),
-    );
-    root.append(
-      field(
-        'KEY OBJECTS (ms)',
-        textInput((note.keyObjects ?? []).join(', '), (value) => {
-          const keys = value
-            .split(/[,\s]+/)
-            .map(Number)
-            .filter((key) => Number.isFinite(key) && key >= 0 && key <= arcDuration(note));
-          edit(host, () => {
-            note.keyObjects = keys.sort((a, b) => a - b);
-          });
+      );
+      const tickActions = el('div', 'inspector__actions');
+      tickActions.append(
+        button('MAKE EXPLICIT', () => {
+          host.beginGesture();
+          note.ticks = buildAutoTicks(note);
+          host.commit();
+          host.endGesture();
         }),
-      ),
-    );
+      );
+      root.append(
+        el('p', 'inspector__note', 'AUTO：普通物量按 OBJECTS/S 均匀生成，另加 KEY OBJECTS。'),
+      );
+      root.append(tickActions);
+    }
 
     const list = el('div', 'pointlist');
     const head = el('div', 'pointlist__row pointlist__row--head');
@@ -374,6 +483,13 @@ export class Inspector {
 
     const actions = el('div', 'inspector__actions');
     actions.append(
+      button('STRAIGHTEN', () =>
+        edit(host, () => {
+          note.points.forEach((point) => {
+            point.easing = 'linear';
+          });
+        }),
+      ),
       button('ADD POINT', () => {
         const relative = Math.min(arcDuration(note), Math.max(0, host.playhead - note.time));
         const sample = sampleArcPoint(note.points, relative);
@@ -725,15 +841,21 @@ export class Inspector {
     const summary = el('summary', undefined, '操作说明');
     const list = el('ul', 'help');
     for (const line of [
-      '左键：选中 / 放置 / 拖动（时间 + 轨号）',
-      '右键：删除光标下的对象；Delete：删除选区',
-      '中键 / Alt+左键：平移；滚轮：平移；Ctrl+滚轮：缩放',
+      '2D 左键：选中 / 放置 / 拖动（时间 + 连续 x / y）',
+      '2D 右键：删除光标下的对象；Delete：删除选区',
+      '3D 左键：拾取 note 并拖 x/y；空处 = 在播放头时间放置',
+      '3D 右键拖拽：转视角（3D EDIT 开启时）；滚轮缩放',
+      '中键 / Alt+左键：平移 2D；滚轮：平移；Ctrl+滚轮：缩放',
+      'SNAP（时间）和 SNAP XY（x/y 网格）互相独立；G 切空间吸附',
       '1–5：SELECT / HIT / DRAG / HOLD / ARC',
       'Space：播放 / 暂停；R：倒放；F：适配窗口',
       '← / →：按吸附步长移动播放头；Shift 加速 10×',
       'Ctrl+Z / Ctrl+Shift+Z：撤销 / 重做；Ctrl+S：导出',
       'ARC：空处拖 = 新建；点弧身 = 插点；高度轨上下拖 = 改 y',
-      'Shift 拖高度点：吸附到胸 / 面 / 头顶',
+      '高度轨：hit/drag 是点，hold 是横线，arc 是曲线；所有 y 都可拖',
+      'Shift 拖高度：吸附到 0 / 胸 / 面 / 头顶；Shift 拖 x：整轨',
+      '弧物量 MAKE EXPLICIT 后可增删；没加 tick 的时间不结算',
+      '2D 按钮：隐藏俯视图；预览和 2D 之间的分隔条可拖动',
     ]) {
       list.append(el('li', undefined, line));
     }
@@ -779,6 +901,39 @@ function selectionTime(selection: Selection): number {
   if (selection.kind === 'note') return selection.note.time;
   if (selection.kind === 'arc-point') return selection.note.time + selection.note.points[selection.index]!.time;
   return selection.event.time;
+}
+
+function addArcTick(host: InspectorHost, note: ArcNote, key: boolean): void {
+  const relative = Math.max(0, Math.min(arcDuration(note), host.playhead - note.time));
+  if (!note.ticks) return;
+  if (note.ticks.some((tick) => Math.abs(tick.time - relative) <= 1)) return;
+  host.beginGesture();
+  note.ticks.push({ time: Math.round(relative), key });
+  note.ticks.sort((a, b) => a.time - b.time);
+  host.commit();
+  host.endGesture();
+}
+
+function buildAutoTicks(note: ArcNote): Array<{ time: number; key: boolean }> {
+  const duration = arcDuration(note);
+  const count = Math.max(2, Math.round((duration / 1000) * (note.notesPerSecond ?? 4)));
+  const ticks: Array<{ time: number; key: boolean }> = [];
+  for (let i = 0; i < count; i += 1) {
+    ticks.push({ time: Math.round(((i + 0.5) / count) * duration), key: false });
+  }
+  for (const key of note.keyObjects ?? []) {
+    if (key >= 0 && key <= duration) ticks.push({ time: Math.round(key), key: true });
+  }
+  ticks.sort((a, b) => a.time - b.time);
+  return ticks;
+}
+
+function checkInput(checked: boolean, onChange: (value: boolean) => void): HTMLInputElement {
+  const input = el('input');
+  input.type = 'checkbox';
+  input.checked = checked;
+  input.addEventListener('change', () => onChange(input.checked));
+  return input;
 }
 
 function chartLength(chart: Chart): number {

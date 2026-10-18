@@ -4,6 +4,9 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import {
   CHART_DEFAULTS,
   chartLimits,
+  noteHeight,
+  noteX,
+  NOTE_HEIGHT,
   type ArcNote as ChartArcNote,
   type Chart,
   type DragNote as ChartDragNote,
@@ -97,8 +100,6 @@ const HIT_MIN_SWING = 0.15;
 /** hold 的物量窗口。 */
 const HOLD_MIN_WINDOW = 0.2;
 const HOLD_MAX_WINDOW = 0.6;
-/** 冰条离台面的高度。 */
-const BAR_HEIGHT = 0.07;
 /** 超过这个时间还没判定就记漏。 */
 const MISS_MS = 200;
 /**
@@ -108,11 +109,10 @@ const MISS_MS = 200;
 const FAR_FADE_SPAN = 4.0;
 
 type RuntimeNote =
-  | { kind: 'hit'; chart: ChartHitNote; laneX: number; group: THREE.Group; resolved: boolean }
+  | { kind: 'hit'; chart: ChartHitNote; group: THREE.Group; resolved: boolean }
   | {
       kind: 'drag';
       chart: ChartDragNote;
-      laneX: number;
       group: THREE.Group;
       bar: THREE.Mesh;
       resolved: boolean;
@@ -120,7 +120,6 @@ type RuntimeNote =
   | {
       kind: 'hold';
       chart: ChartHoldNote;
-      laneX: number;
       group: THREE.Group;
       sheet: THREE.Mesh;
       sheetMaterial: THREE.MeshPhysicalMaterial;
@@ -150,8 +149,14 @@ export function createPlayer(
   const limits = chartLimits(chart);
   const group = new THREE.Group();
   group.name = 'player';
-  const barY = params.tableHeight + BAR_HEIGHT;
   const baseSpeed = () => settings.flowSpeed;
+
+  /** 连续横向位置（轨号单位）→ 世界 x。 */
+  const worldX = (x: number): number => (x - 2.5) * geometry.laneWidth;
+  /** 地面键的有效位置：x 连续、y = 台面 + note 高度。 */
+  const xOf = (note: ChartHitNote | ChartDragNote | ChartHoldNote): number => worldX(noteX(note));
+  const yOf = (note: ChartHitNote | ChartDragNote | ChartHoldNote): number =>
+    params.tableHeight + noteHeight(note);
 
   const stats: PlayerStats = { perfect: 0, good: 0, miss: 0, lastGrade: null, lastOffsetMs: null };
   let score: ScoreState = createScore(1);
@@ -219,8 +224,6 @@ export function createPlayer(
     return geometry.bandZ - ((timeline.scrollDistance(timeMs) - timeline.scrollDistance(nowMs)) * baseSpeed()) / 1000;
   }
 
-  const laneX = (lane: number): number => geometry.laneX6[lane] ?? 0;
-
   function disposeNote(note: RuntimeNote): void {
     if (note.kind === 'arc') {
       group.remove(note.arc.group);
@@ -258,6 +261,7 @@ export function createPlayer(
           hand: note.hand,
           keyObjects: note.keyObjects ?? [],
           notesPerSecond: note.notesPerSecond ?? CHART_DEFAULTS.arcNotesPerSecond,
+          ticks: note.ticks,
           laneWidth: geometry.laneWidth,
           tableHeight: params.tableHeight,
           bandZ: geometry.bandZ,
@@ -269,14 +273,33 @@ export function createPlayer(
         },
         lib,
       );
+      arc.group.userData.chartNote = note;
+      arc.group.traverse((object) => {
+        object.userData.chartNote = note;
+      });
       group.add(arc.group);
       runtime.push({ kind: 'arc', chart: note, arc, resolved: false });
       continue;
     }
 
-    const x = laneX(note.lane);
+    // 高度上限对四种键型一视同仁：超限的 note 不生成。
+    if (noteHeight(note) > limits.maxHeight) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[chart] ${note.type}@${note.time} 高度 ${noteHeight(note).toFixed(2)}m 超过上限 ${limits.maxHeight}m，跳过`,
+        );
+      }
+      continue;
+    }
+
     const noteGroup = new THREE.Group();
+    noteGroup.userData.chartNote = note;
     group.add(noteGroup);
+    const tagChildren = (): void => {
+      noteGroup.traverse((object) => {
+        object.userData.chartNote = note;
+      });
+    };
 
     if (note.type === 'hit') {
       const material =
@@ -286,11 +309,13 @@ export function createPlayer(
       bar.frustumCulled = false;
       // 不投影：影子不会跟着淡出，远处会变成一条黑杠（比 note 本身还显眼）。
       noteGroup.add(bar);
-      runtime.push({ kind: 'hit', chart: note, laneX: x, group: noteGroup, resolved: false });
+      tagChildren();
+      runtime.push({ kind: 'hit', chart: note, group: noteGroup, resolved: false });
     } else if (note.type === 'drag') {
       const bar = new THREE.Mesh(dragGeometry, dragBarMaterial);
       bar.renderOrder = ORDER_BODY;
       bar.frustumCulled = false;
+      bar.userData.chartNote = note;
       noteGroup.add(bar);
       const glow = new THREE.Mesh(dragGlowGeometry, dragGlowMaterial);
       glow.rotation.x = -Math.PI / 2;
@@ -298,7 +323,8 @@ export function createPlayer(
       glow.renderOrder = ORDER_GLOW;
       glow.frustumCulled = false;
       noteGroup.add(glow);
-      runtime.push({ kind: 'drag', chart: note, laneX: x, group: noteGroup, bar, resolved: false });
+      tagChildren();
+      runtime.push({ kind: 'drag', chart: note, group: noteGroup, bar, resolved: false });
     } else {
       // 片子和亮边用同一个淡入长度：远处整条一起渐显，不会「只有头、身体后出现」。
       const holdSpan = fadeSpan;
@@ -360,10 +386,10 @@ export function createPlayer(
       }));
       const tickWindow = THREE.MathUtils.clamp(spacing / 1000, HOLD_MIN_WINDOW, HOLD_MAX_WINDOW);
 
+      tagChildren();
       runtime.push({
         kind: 'hold',
         chart: note,
-        laneX: x,
         group: noteGroup,
         sheet,
         sheetMaterial,
@@ -421,10 +447,12 @@ export function createPlayer(
   }
 
   function judgeHit(note: Extract<RuntimeNote, { kind: 'hit' }>, hands: HandSample[]): void {
+    const x = xOf(note.chart);
+    const y = yOf(note.chart);
     const offsetMs = clockMs - note.chart.time;
     if (offsetMs > HIT_GOOD_MS) {
       note.resolved = true;
-      noteMiss(new THREE.Vector3(note.laneX, barY, geometry.bandZ));
+      noteMiss(new THREE.Vector3(x, y, geometry.bandZ));
       note.group.visible = false;
       return;
     }
@@ -433,8 +461,8 @@ export function createPlayer(
     for (const hand of hands) {
       if (!hand.active) continue;
       if (note.chart.hand && hand.side !== note.chart.hand) continue;
-      if (Math.abs(hand.position.x - note.laneX) > HIT_HALF_X) continue;
-      if (Math.abs(hand.position.y - barY) > HIT_HALF_Y) continue;
+      if (Math.abs(hand.position.x - x) > HIT_HALF_X) continue;
+      if (Math.abs(hand.position.y - y) > HIT_HALF_Y) continue;
       if (Math.abs(hand.position.z - geometry.bandZ) > HAND_ZONE) continue;
       if (hand.velocity.length() < HIT_GOOD_SPEED) continue;
       if (hand.swing < HIT_MIN_SWING) continue;
@@ -447,46 +475,50 @@ export function createPlayer(
       score.judge(grade);
       if (grade === 'perfect') stats.perfect += 1;
       else stats.good += 1;
-      popup.spawn(grade, popupPosition.set(note.laneX, barY + 0.1, geometry.bandZ));
+      popup.spawn(grade, popupPosition.set(x, y + 0.1, geometry.bandZ));
       shatterDirection.copy(hand.velocity);
-      shatter.spawn(new THREE.Vector3(note.laneX, barY, geometry.bandZ), shatterDirection, 0xdfefff, 14);
+      shatter.spawn(new THREE.Vector3(x, y, geometry.bandZ), shatterDirection, 0xdfefff, 14);
       hooks.onJudge?.(hand.side, grade, offsetMs);
       return;
     }
   }
 
   function judgeDrag(note: Extract<RuntimeNote, { kind: 'drag' }>, hands: HandSample[]): void {
+    const x = xOf(note.chart);
+    const y = yOf(note.chart);
     const offsetMs = clockMs - note.chart.time;
     if (offsetMs > DRAG_WINDOW_MS) {
       note.resolved = true;
       note.group.visible = false;
-      noteMiss(new THREE.Vector3(note.laneX, barY, geometry.bandZ));
+      noteMiss(new THREE.Vector3(x, y, geometry.bandZ));
       return;
     }
     if (offsetMs < -DRAG_WINDOW_MS) return;
 
     for (const hand of hands) {
       if (!hand.active || hand.velocity.length() < MIN_SWEEP_SPEED) continue;
-      if (Math.abs(hand.position.x - note.laneX) > HIT_HALF_X) continue;
-      if (Math.abs(hand.position.y - barY) > HIT_HALF_Y) continue;
+      if (Math.abs(hand.position.x - x) > HIT_HALF_X) continue;
+      if (Math.abs(hand.position.y - y) > HIT_HALF_Y) continue;
       if (Math.abs(hand.position.z - geometry.bandZ) > HAND_ZONE) continue;
 
       note.resolved = true;
       note.group.visible = false;
-      notePerfect(hand.side, offsetMs, new THREE.Vector3(note.laneX, barY, geometry.bandZ));
+      notePerfect(hand.side, offsetMs, new THREE.Vector3(x, y, geometry.bandZ));
       shatterDirection.copy(hand.velocity);
-      shatter.spawn(new THREE.Vector3(note.laneX, barY, geometry.bandZ), shatterDirection, 0xcfefff, 12);
+      shatter.spawn(new THREE.Vector3(x, y, geometry.bandZ), shatterDirection, 0xcfefff, 12);
       return;
     }
   }
 
   function updateHold(note: Extract<RuntimeNote, { kind: 'hold' }>, dt: number, hands: HandSample[]): void {
+    const x = xOf(note.chart);
+    const y = yOf(note.chart);
     const headZ = zAt(note.chart.time, clockMs);
     const tailZ = zAt(note.chart.time + note.chart.duration, clockMs);
     const far = Math.min(headZ, tailZ);
     const near = Math.max(headZ, tailZ);
 
-    note.group.position.set(note.laneX, params.tableHeight + 0.004, far);
+    note.group.position.set(x, y, far);
     note.group.rotation.z = 0;
 
     // 片子：从 far 到 near。
@@ -517,8 +549,8 @@ export function createPlayer(
       (hand) =>
         hand.pressed &&
         hand.active &&
-        Math.abs(hand.position.x - note.laneX) <= 0.13 &&
-        Math.abs(hand.position.y - barY) <= 0.26 &&
+        Math.abs(hand.position.x - x) <= 0.13 &&
+        Math.abs(hand.position.y - y) <= 0.26 &&
         hand.position.z >= far - 0.05 &&
         hand.position.z <= near + 0.05,
     );
@@ -542,13 +574,13 @@ export function createPlayer(
       if (Math.abs(offsetMs) <= windowMs / 2) {
         if (!tick.held && contact) {
           tick.held = true;
-          notePerfect(contact.side, 0, new THREE.Vector3(note.laneX, barY, geometry.bandZ), 1);
+          notePerfect(contact.side, 0, new THREE.Vector3(x, y, geometry.bandZ), 1);
           shatterDirection.set(0, 1, 0);
-          shatter.spawn(new THREE.Vector3(note.laneX, params.tableHeight + 0.03, geometry.bandZ), shatterDirection, 0xbfe9ff, 4);
+          shatter.spawn(new THREE.Vector3(x, y + 0.026, geometry.bandZ), shatterDirection, 0xbfe9ff, 4);
         }
       } else if (offsetMs > windowMs / 2) {
         tick.resolved = true;
-        if (!tick.held) noteMiss(new THREE.Vector3(note.laneX, barY - 0.02, geometry.bandZ));
+        if (!tick.held) noteMiss(new THREE.Vector3(x, y - 0.02, geometry.bandZ));
       }
     }
 
@@ -583,7 +615,7 @@ export function createPlayer(
     }
 
     const z = zAt(note.chart.time, clockMs);
-    note.group.position.set(note.laneX, barY, z);
+    note.group.position.set(xOf(note.chart), yOf(note.chart), z);
 
     // 淡出是 shader 逐片元做的；这里只裁掉「整颗物件已经在台面外」的情况。
     // 流速越快，note 过线后还要多留一会儿（good 窗口按时间算，不按距离）。
@@ -604,7 +636,7 @@ export function createPlayer(
   );
   ghost.visible = false;
   group.add(ghost);
-  const ghostPosition = new THREE.Vector3(0, barY, geometry.bandZ);
+  const ghostPosition = new THREE.Vector3(0, params.tableHeight + NOTE_HEIGHT.hit, geometry.bandZ);
   const ghostPrev = new THREE.Vector3().copy(ghostPosition);
   const ghostVelocity = new THREE.Vector3();
   const autoSample: HandSample = {
@@ -645,10 +677,10 @@ export function createPlayer(
         target = best.arc.pointAt(clockMs);
         side = best.chart.hand;
       } else if (best.kind === 'hold') {
-        target = new THREE.Vector3(best.laneX, barY, geometry.bandZ);
+        target = new THREE.Vector3(xOf(best.chart), yOf(best.chart), geometry.bandZ);
         side = 'none';
       } else {
-        target = new THREE.Vector3(best.laneX, barY, geometry.bandZ);
+        target = new THREE.Vector3(xOf(best.chart), yOf(best.chart), geometry.bandZ);
         side = best.chart.hand ?? 'none';
       }
     }
@@ -661,7 +693,7 @@ export function createPlayer(
 
     // dev 演示：到点的一瞬间补一下挥击速度（自动演示不是判定测试）。
     if (best && best.kind !== 'arc' && Math.abs(best.chart.time - clockMs) <= 120) {
-      const dx = Math.abs(ghostPosition.x - best.laneX);
+      const dx = Math.abs(ghostPosition.x - xOf(best.chart));
       if (dx < 0.1) {
         ghostVelocity.set(0, best.kind === 'hit' ? -3 : 0, best.kind === 'hit' ? 0 : -1.4);
       }

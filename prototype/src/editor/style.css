@@ -245,16 +245,57 @@ select {
 
 .work {
   display: grid;
-  grid-template-columns: minmax(300px, 27vw) minmax(0, 1fr) 330px;
+  grid-template-columns: var(--preview-width, 32vw) 6px minmax(0, 1fr) 330px;
   min-height: 0;
 }
 
+.work.is-2d-hidden {
+  grid-template-columns: minmax(0, 1fr) 330px;
+}
+
+.work.is-2d-hidden .splitter,
+.work.is-2d-hidden .timeline {
+  display: none;
+}
+
+.splitter {
+  position: relative;
+  z-index: 5;
+  cursor: col-resize;
+  background: var(--hairline-soft);
+  border-left: 1px solid var(--hairline);
+  border-right: 1px solid var(--hairline);
+}
+
+.splitter:hover {
+  background: rgba(176, 141, 87, 0.2);
+}
+
+.splitter:active {
+  background: rgba(176, 141, 87, 0.35);
+}
+
 .preview {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
   border-right: 1px solid var(--hairline);
   background: var(--bg);
+}
+
+.preview__hint {
+  position: absolute;
+  z-index: 4;
+  top: 10px;
+  left: 12px;
+  padding: 4px 7px;
+  border: 1px solid var(--hairline-soft);
+  background: rgba(6, 7, 12, 0.55);
+  color: var(--ink-faint);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
 }
 
 .preview__viewport {
@@ -518,6 +559,14 @@ select {
 .pointlist__easing {
   color: var(--ink-faint);
   text-align: right;
+}
+
+.pointlist__row--tick {
+  grid-template-columns: 1fr 34px 24px;
+}
+
+.pointlist__row--tick .input {
+  width: 100%;
 }
 
 .pointlist__row--head {

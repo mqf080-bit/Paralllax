@@ -1,6 +1,17 @@
 import type { Timeline } from '../chart/timeline';
-import { chartLimits, type ArcNote, type Chart, type DragNote, type HitNote, type HoldNote, type Note } from '../chart/schema';
 import {
+  chartLimits,
+  noteHeight,
+  noteX,
+  type ArcNote,
+  type Chart,
+  type DragNote,
+  type HitNote,
+  type HoldNote,
+  type Note,
+} from '../chart/schema';
+import {
+  arcTicks,
   collectGridLines,
   formatTime,
   LANE_COUNT,
@@ -114,7 +125,8 @@ export function computeLayout(width: number, height: number): Layout {
   const rulerH = 26;
   const waveH = 56;
   const gap = 5;
-  const available = Math.max(240, height - rulerH - waveH - gap * 3);
+  // 四条带：标尺 / 主视图 / 高度 / SV，波形放在最底下。
+  const available = Math.max(240, height - rulerH - waveH - gap * 4);
   let heightH = clamp(available * 0.24, 88, 132);
   let svH = clamp(available * 0.24, 88, 132);
   let lanesH = available - heightH - svH;
@@ -127,10 +139,10 @@ export function computeLayout(width: number, height: number): Layout {
     lanesH = available - heightH - svH;
   }
   const rulerTop = 0;
-  const waveTop = rulerTop + rulerH;
-  const lanesTop = waveTop + waveH + gap;
+  const lanesTop = rulerTop + rulerH;
   const heightTop = lanesTop + lanesH + gap;
   const svTop = heightTop + heightH + gap;
+  const waveTop = svTop + svH + gap;
   return {
     width,
     height,
@@ -247,7 +259,8 @@ type GroundNote = HitNote | DragNote | HoldNote;
 
 function laneOutOfWindow(note: GroundNote, timeline: Timeline): boolean {
   const window = Math.round(timeline.windowAt(note.time));
-  return note.lane < 1 + window || note.lane > 4 + window;
+  const x = noteX(note);
+  return x < 0.5 + window || x > 4.5 + window;
 }
 
 export class TimelineRenderer {
@@ -334,10 +347,10 @@ export class TimelineRenderer {
     const grid = collectGridLines(state.chart, from, to, gridStep);
 
     this.drawRuler(state, timeline, grid);
-    this.drawWave(state, grid);
     this.drawLanes(state, timeline, grid);
     this.drawHeight(state, grid);
     this.drawSv(state, timeline, grid);
+    this.drawWave(state, grid);
     this.drawShiftLines(state);
     this.drawSelectionGuide(state);
     this.drawGutterLabels(state);
@@ -604,7 +617,7 @@ export class TimelineRenderer {
     const { layout, view } = state;
     const x = timeToX(view, note.time);
     if (x < GUTTER - 40 || x > layout.width + 40) return;
-    const y = laneToY(layout, note.lane);
+    const y = laneToY(layout, noteX(note));
     if (y < layout.lanesTop || y > layout.lanesTop + layout.lanesH) return;
     const selected = isSelected(state, note);
     const out = laneOutOfWindow(note, timeline);
@@ -667,6 +680,20 @@ export class TimelineRenderer {
         ctx.stroke();
       }
     }
+
+    // 空中 note：在主视图上留一个「浮起」的小标记，具体高度看高度轨 / 检查器。
+    const height = noteHeight(note);
+    if (height > 0.08) {
+      ctx.fillStyle = handColor(note.hand);
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 10);
+      ctx.lineTo(x - 3.5, y - 16);
+      ctx.lineTo(x + 3.5, y - 16);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     ctx.restore();
   }
 
@@ -712,22 +739,29 @@ export class TimelineRenderer {
     }
     ctx.stroke();
 
-    // 关键物量
-    if (note.keyObjects && note.keyObjects.length > 0) {
-      for (const key of note.keyObjects) {
-        const time = note.time + key;
-        const x = timeToX(view, time);
-        if (x < GUTTER || x > layout.width) continue;
-        const point = sampleArcPoint(note.points, key);
-        const y = laneToY(layout, point.x);
+    // 弧物量：普通是小点，关键物量是黄铜菱形。
+    for (const tick of arcTicks(note)) {
+      const time = note.time + tick.time;
+      const x = timeToX(view, time);
+      if (x < GUTTER || x > layout.width) continue;
+      const point = sampleArcPoint(note.points, tick.time);
+      const y = laneToY(layout, point.x);
+      if (tick.key) {
         ctx.fillStyle = COLORS.key;
         ctx.beginPath();
-        ctx.moveTo(x, y - 3);
-        ctx.lineTo(x + 3, y);
-        ctx.lineTo(x, y + 3);
-        ctx.lineTo(x - 3, y);
+        ctx.moveTo(x, y - 3.5);
+        ctx.lineTo(x + 3.5, y);
+        ctx.lineTo(x, y + 3.5);
+        ctx.lineTo(x - 3.5, y);
         ctx.closePath();
         ctx.fill();
+      } else {
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath();
+        ctx.arc(x, y, 1.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
       }
     }
 
@@ -809,6 +843,73 @@ export class TimelineRenderer {
       if (note.type !== 'arc') continue;
       this.drawArcHeight(state, note);
     }
+
+    // 地面键 / hold 的高度：hit/drag 是一个点，hold 是一条横线。
+    for (const note of state.chart.notes) {
+      if (note.type === 'arc') continue;
+      this.drawGroundHeight(state, note);
+    }
+    ctx.restore();
+  }
+
+  private drawGroundHeight(state: TimelineState, note: GroundNote): void {
+    const ctx = this.staticCtx;
+    const { layout, view } = state;
+    const domain = heightDomain(state.chart);
+    const height = noteHeight(note);
+    const y = heightToY(layout, domain, height);
+    if (y < layout.heightTop - 4 || y > layout.heightTop + layout.heightH + 4) return;
+    const x = timeToX(view, note.time);
+    if (x < GUTTER - 20 || x > layout.width + 20) return;
+
+    const selected = isSelected(state, note);
+    const color = handColor(note.hand);
+    ctx.save();
+    if (note.type === 'hold') {
+      const tailX = timeToX(view, note.time + note.duration);
+      const left = Math.max(GUTTER, x);
+      const right = Math.min(layout.width, tailX);
+      if (right < GUTTER - 10 || left > layout.width + 10) {
+        ctx.restore();
+        return;
+      }
+      ctx.strokeStyle = selected ? '#ffffff' : color;
+      ctx.globalAlpha = selected ? 0.95 : 0.55;
+      ctx.lineWidth = selected ? 2.5 : 2;
+      ctx.beginPath();
+      ctx.moveTo(left, y);
+      ctx.lineTo(right, y);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = selected ? '#ffffff' : color;
+      ctx.beginPath();
+      ctx.arc(Math.min(Math.max(x, GUTTER), layout.width), y, selected ? 4.5 : 3, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = selected ? '#ffffff' : color;
+      ctx.lineWidth = selected ? 2 : 1.5;
+      ctx.globalAlpha = selected ? 1 : 0.8;
+      if (note.type === 'drag') {
+        ctx.beginPath();
+        ctx.moveTo(x, y - 4);
+        ctx.lineTo(x + 4, y);
+        ctx.lineTo(x, y + 4);
+        ctx.lineTo(x - 4, y);
+        ctx.closePath();
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(x - 3, y - 3, 6, 6);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    if (selected) {
+      ctx.fillStyle = COLORS.select;
+      ctx.font = `9px ${MONO}`;
+      ctx.textAlign = x > layout.width - 60 ? 'right' : 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`${height.toFixed(2)}m`, x + (x > layout.width - 60 ? -8 : 8), y - 5);
+    }
     ctx.restore();
   }
 
@@ -847,20 +948,27 @@ export class TimelineRenderer {
     }
     ctx.stroke();
 
-    if (note.keyObjects && note.keyObjects.length > 0) {
-      for (const key of note.keyObjects) {
-        const x = timeToX(view, note.time + key);
-        if (x < GUTTER || x > layout.width) continue;
-        const point = sampleArcPoint(note.points, key);
-        const y = heightToY(layout, domain, point.y);
+    for (const tick of arcTicks(note)) {
+      const x = timeToX(view, note.time + tick.time);
+      if (x < GUTTER || x > layout.width) continue;
+      const point = sampleArcPoint(note.points, tick.time);
+      const y = heightToY(layout, domain, point.y);
+      if (tick.key) {
         ctx.fillStyle = COLORS.key;
         ctx.beginPath();
-        ctx.moveTo(x, y - 3);
-        ctx.lineTo(x + 3, y);
-        ctx.lineTo(x, y + 3);
-        ctx.lineTo(x - 3, y);
+        ctx.moveTo(x, y - 3.5);
+        ctx.lineTo(x + 3.5, y);
+        ctx.lineTo(x, y + 3.5);
+        ctx.lineTo(x - 3.5, y);
         ctx.closePath();
         ctx.fill();
+      } else {
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
       }
     }
 
@@ -1009,7 +1117,7 @@ export class TimelineRenderer {
     ctx.setLineDash([2, 5]);
     ctx.beginPath();
     ctx.moveTo(x + 0.5, layout.rulerTop);
-    ctx.lineTo(x + 0.5, layout.svTop + layout.svH);
+    ctx.lineTo(x + 0.5, layout.waveTop + layout.waveH);
     ctx.stroke();
     ctx.restore();
   }
@@ -1066,7 +1174,7 @@ export class TimelineRenderer {
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(x + 0.5, layout.rulerTop + 2);
-    ctx.lineTo(x + 0.5, layout.svTop + layout.svH);
+    ctx.lineTo(x + 0.5, layout.waveTop + layout.waveH);
     ctx.stroke();
 
     ctx.globalAlpha = 1;

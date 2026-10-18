@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 import { easeValue } from '../chart/easing';
-import type { ArcPoint } from '../chart/schema';
+import type { ArcPoint, ArcTickSpec } from '../chart/schema';
 import { applyDistanceFade } from '../materials/distanceFade';
 import { createFresnelGlowMaterial } from '../materials/glow';
 import type { MaterialLibrary } from '../materials/library';
@@ -42,6 +42,8 @@ export interface ArcSpec {
   hand: HandSide;
   keyObjects: number[];
   notesPerSecond: number;
+  /** 显式物量：存在时忽略关键物量 / 均匀生成的普通物量。 */
+  ticks?: ArcTickSpec[];
   laneWidth: number;
   tableHeight: number;
   bandZ: number;
@@ -77,6 +79,28 @@ const BAND_ZONE = 0.42;
 /** 构建管几何时的采样数。 */
 const SEGMENTS = 160;
 const CURVE_SEGMENTS = 128;
+
+/**
+ * 折线curve：按样本点线性插值，**不会把直角磨圆**。
+ * 旧版用 CatmullRomCurve3，即使谱面写的是 linear，拐角也会被平滑成圆弧。
+ */
+class PolylineCurve3 extends THREE.Curve<THREE.Vector3> {
+  constructor(private readonly points: THREE.Vector3[]) {
+    super();
+  }
+
+  getPoint(t: number, target = new THREE.Vector3()): THREE.Vector3 {
+    const count = this.points.length;
+    if (count === 0) return target.set(0, 0, 0);
+    if (count === 1) return target.copy(this.points[0]!);
+    const scaled = Math.min(1, Math.max(0, t)) * (count - 1);
+    const index = Math.floor(scaled);
+    const fraction = scaled - index;
+    const a = this.points[Math.min(index, count - 1)]!;
+    const b = this.points[Math.min(index + 1, count - 1)]!;
+    return target.copy(a).lerp(b, fraction);
+  }
+}
 
 export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   const colors = spec.hand === 'left' ? HAND_LEFT : HAND_RIGHT;
@@ -121,7 +145,7 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   // —— 几何：按时间等分采样，z 跟着速度积分走 ——
   const samples: THREE.Vector3[] = [];
   for (let i = 0; i <= SEGMENTS; i += 1) samples.push(localAt((i / SEGMENTS) * duration));
-  const curve = new THREE.CatmullRomCurve3(samples);
+  const curve = new PolylineCurve3(samples);
 
   const clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 0, -1), spec.clipZ)];
   // arc 比 note 长得多：淡入拉长一点，整条管子才是「慢慢长出来」而不是一闪。
@@ -194,7 +218,10 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
     arcFade,
   );
   beadMaterial.clippingPlanes = clippingPlanes;
-  for (const key of spec.keyObjects) {
+  const keyTimes = spec.ticks
+    ? spec.ticks.filter((tick) => tick.key === true).map((tick) => tick.time)
+    : spec.keyObjects;
+  for (const key of keyTimes) {
     const bead = new THREE.Mesh(beadGeometry, beadMaterial);
     bead.renderOrder = ORDER_BODY;
     bead.position.copy(localAt(key));
@@ -203,12 +230,19 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
 
   // —— 物量 ——
   const ticks: ArcTick[] = [];
-  const normalCount = Math.max(2, Math.round((duration / 1000) * spec.notesPerSecond));
-  for (let i = 0; i < normalCount; i += 1) {
-    ticks.push({ time: start + ((i + 0.5) / normalCount) * duration, key: false, held: false, resolved: false });
-  }
-  for (const key of spec.keyObjects) {
-    if (key >= 0 && key <= duration) ticks.push({ time: start + key, key: true, held: false, resolved: false });
+  if (spec.ticks) {
+    for (const tick of spec.ticks) {
+      if (tick.time < 0 || tick.time > duration) continue;
+      ticks.push({ time: start + tick.time, key: tick.key === true, held: false, resolved: false });
+    }
+  } else {
+    const normalCount = Math.max(2, Math.round((duration / 1000) * spec.notesPerSecond));
+    for (let i = 0; i < normalCount; i += 1) {
+      ticks.push({ time: start + ((i + 0.5) / normalCount) * duration, key: false, held: false, resolved: false });
+    }
+    for (const key of spec.keyObjects) {
+      if (key >= 0 && key <= duration) ticks.push({ time: start + key, key: true, held: false, resolved: false });
+    }
   }
   ticks.sort((a, b) => a.time - b.time);
 

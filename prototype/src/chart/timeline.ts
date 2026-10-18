@@ -1,5 +1,13 @@
 import { easeValue } from './easing';
-import { CHART_DEFAULTS, chartLimits, type Chart, type Easing, type Section } from './schema';
+import {
+  CHART_DEFAULTS,
+  chartLimits,
+  noteHeight,
+  noteX,
+  type Chart,
+  type Easing,
+  type Section,
+} from './schema';
 
 /**
  * 谱面时间轴：把「时间」翻译成运行时要用的量。
@@ -264,17 +272,37 @@ export function validateChart(chart: Chart): string[] {
         const last = points[points.length - 1];
         if (last && (key < 0 || key > last.time)) issues.push(`arc@${note.time}: 关键物量 ${key} 超出弧长`);
       }
+      const end = points[points.length - 1]?.time ?? 0;
+      if (note.ticks) {
+        let previous = -1;
+        for (const tick of note.ticks) {
+          if (!Number.isFinite(tick.time) || tick.time < 0 || tick.time > end) {
+            issues.push(`arc@${note.time}: 物量 ${tick.time} 超出弧长 0–${end}`);
+          }
+          if (tick.time <= previous) issues.push(`arc@${note.time}: 物量必须按时间递增且不重复`);
+          previous = tick.time;
+        }
+      }
       continue;
     }
 
     if (!Number.isInteger(note.lane)) issues.push(`note@${note.time}: 地面键的 lane 必须是整数`);
     if (note.lane < 0 || note.lane > 5) issues.push(`note@${note.time}: lane 超出 0–5`);
 
+    const x = noteX(note);
+    const y = noteHeight(note);
+    if (!Number.isFinite(x) || x < -0.5 || x > 5.5) issues.push(`note@${note.time}: x ${x} 超出 −0.5–5.5`);
+    if (!Number.isFinite(y) || y < 0) issues.push(`note@${note.time}: y 不能为负`);
+    if (y > limits.maxHeight) {
+      issues.push(`note@${note.time}: 高度 ${y}m 超过上限 ${limits.maxHeight}m（不会生成）`);
+    }
+
+    // 4 轨窗口的**连续**范围：常态 [0.5, 4.5]，左移 [−0.5, 3.5]，右移 [1.5, 5.5]。
     const windowValue = Math.round(timeline.windowAt(note.time));
-    const low = 1 + windowValue;
-    const high = 4 + windowValue;
-    if (note.lane < low || note.lane > high) {
-      issues.push(`note@${note.time}: lane ${note.lane} 不在当时的窗口 ${low}–${high}`);
+    const low = 0.5 + windowValue;
+    const high = 4.5 + windowValue;
+    if (x < low || x > high) {
+      issues.push(`note@${note.time}: x ${x} 不在当时的窗口 ${low}–${high}`);
     }
 
     if (note.type === 'hold' && note.duration <= 0) issues.push(`hold@${note.time}: duration 必须 > 0`);

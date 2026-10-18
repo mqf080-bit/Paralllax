@@ -1,4 +1,4 @@
-import { CHART_DEFAULTS, type Chart, type ShiftEvent } from '../chart/schema';
+import { CHART_DEFAULTS, chartLimits, type Chart, type Note, type ShiftEvent } from '../chart/schema';
 import { DEMO_CHART } from '../chart/demo';
 import { TEST_CHART } from '../chart/test';
 import { createTimeline, validateChart, type Timeline } from '../chart/timeline';
@@ -9,6 +9,8 @@ import * as persistence from './persistence';
 import {
   beatMs,
   chartEnd,
+  clampLane,
+  clampX,
   chartSpan,
   countObjects,
   createDefaultChart,
@@ -52,6 +54,12 @@ export interface EditorElements {
   reverse: HTMLButtonElement;
   auto: HTMLInputElement;
   follow: HTMLInputElement;
+  grid: HTMLInputElement;
+  edit3d: HTMLButtonElement;
+  toggle2d: HTMLButtonElement;
+  previewHint: HTMLElement;
+  work: HTMLElement;
+  splitter: HTMLElement;
   time: HTMLElement;
   audio: HTMLElement;
   saveState: HTMLElement;
@@ -87,6 +95,7 @@ export class EditorController implements EditorHost, InspectorHost {
   selection: Selection | null = null;
   tool: ToolId = 'select';
   snap = '1/8';
+  gridSnap = true;
   view: Viewport = { start: -500, pxPerMs: 0.04 };
   layout: Layout;
   svDomain: SvDomain;
@@ -94,6 +103,7 @@ export class EditorController implements EditorHost, InspectorHost {
   draftSavedAt: number | null = null;
   metronome = false;
   volume = 0.8;
+  edit3d = true;
 
   private readonly elements: EditorElements;
   private readonly renderer: TimelineRenderer;
@@ -137,6 +147,16 @@ export class EditorController implements EditorHost, InspectorHost {
     this.preview.setOffset(this.chart.meta.offset);
     this.preview.setVolume(this.volume);
     this.preview.setAuto(elements.auto.checked);
+    this.preview.setEditHooks({
+      tool: () => this.tool,
+      gridSnap: () => this.gridSnap,
+      select: (note) => this.select(note ? { kind: 'note', note } : null),
+      place: (x, y, time) => this.placeAt(x, y, time),
+      move: (note, x, y, dx, dy) => this.moveNote(note, x, y, dx, dy),
+      beginGesture: () => this.beginGesture(),
+      endGesture: () => this.endGesture(),
+      commit: () => this.commit({ preview: true }),
+    });
 
     this.renderer = new TimelineRenderer(elements.canvas);
     this.layout = this.renderer.resize(
@@ -197,6 +217,10 @@ export class EditorController implements EditorHost, InspectorHost {
     this.elements.follow.addEventListener('change', () => {
       this.follow = this.elements.follow.checked;
     });
+    this.elements.grid.addEventListener('change', () => this.setGridSnap(this.elements.grid.checked));
+    this.elements.edit3d.addEventListener('click', () => this.setEdit3d(!this.edit3d));
+    this.elements.toggle2d.addEventListener('click', () => this.toggle2d());
+    this.setupSplitter();
     this.elements.fit.addEventListener('click', () => this.fitView());
     this.elements.zoomIn.addEventListener('click', () => this.zoomBy(1.35));
     this.elements.zoomOut.addEventListener('click', () => this.zoomBy(1 / 1.35));
@@ -214,6 +238,7 @@ export class EditorController implements EditorHost, InspectorHost {
     this.resizeObserver.observe(this.elements.canvasHost);
     this.resize();
     this.fitView();
+    this.setEdit3d(this.edit3d);
     this.updateToolButtons();
     this.updateUi();
     this.inspector.render();
@@ -244,6 +269,7 @@ export class EditorController implements EditorHost, InspectorHost {
   select(selection: Selection | null): void {
     this.selection = selection;
     this.renderer.setState(this.renderState());
+    this.preview.setSelection(selection && (selection.kind === 'note' || selection.kind === 'arc-point') ? selection.note : null);
     this.inspector.render();
   }
 
@@ -356,6 +382,116 @@ export class EditorController implements EditorHost, InspectorHost {
     deleteSelectionImpl(this);
   }
 
+  /** 3D 视图放置：在播放头时间、给定的 x/y 生成当前工具的 note。 */
+  private placeAt(x: number, y: number, time: number): Note | null {
+    const maxHeight = chartLimits(this.chart).maxHeight;
+    const px = clampX(x);
+    const py = Math.min(maxHeight, Math.max(0, y));
+    const t = Math.max(0, Math.round(time));
+    const lane = clampLane(Math.round(px));
+    let note: Note;
+    switch (this.tool) {
+      case 'hit':
+        note = { type: 'hit', time: t, lane, x: Math.round(px * 100) / 100, y: Math.round(py * 1000) / 1000 };
+        break;
+      case 'drag':
+        note = { type: 'drag', time: t, lane, x: Math.round(px * 100) / 100, y: Math.round(py * 1000) / 1000 };
+        break;
+      case 'hold':
+        note = {
+          type: 'hold',
+          time: t,
+          lane,
+          x: Math.round(px * 100) / 100,
+          y: Math.round(py * 1000) / 1000,
+          duration: 500,
+          objects: 4,
+        };
+        break;
+      case 'arc': {
+        const point = { time: 0, x: Math.round(px * 100) / 100, y: Math.round(py * 1000) / 1000, easing: 'linear' as const };
+        note = {
+          type: 'arc',
+          time: t,
+          hand: 'right',
+          points: [point, { ...point, time: 500 }],
+        };
+        break;
+      }
+      case 'select':
+        return null;
+    }
+    this.chart.notes.push(note);
+    this.commit({ preview: true });
+    return note;
+  }
+
+  /** 3D 拖动：地面键用绝对 x/y；arc 用 delta。 */
+  private moveNote(note: Note, x: number, y: number, dx: number, dy: number): void {
+    const maxHeight = chartLimits(this.chart).maxHeight;
+    if (note.type === 'arc') {
+      const xs = note.points.map((point) => point.x);
+      const ys = note.points.map((point) => point.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const shiftX = Math.min(5.5 - maxX, Math.max(-0.5 - minX, dx));
+      const shiftY = Math.min(maxHeight - maxY, Math.max(-minY, dy));
+      note.points.forEach((point) => {
+        point.x = Math.round((point.x + shiftX) * 100) / 100;
+        point.y = Math.round((point.y + shiftY) * 1000) / 1000;
+      });
+      return;
+    }
+    note.x = Math.round(clampX(x) * 100) / 100;
+    note.lane = clampLane(Math.round(note.x));
+    note.y = Math.round(Math.min(maxHeight, Math.max(0, y)) * 1000) / 1000;
+  }
+
+  setGridSnap(enabled: boolean): void {
+    this.gridSnap = enabled;
+    this.elements.grid.checked = enabled;
+    this.renderer.setState(this.renderState());
+  }
+
+  setEdit3d(enabled: boolean): void {
+    this.edit3d = enabled;
+    this.elements.edit3d.classList.toggle('is-active', enabled);
+    this.elements.previewHint.hidden = !enabled;
+    this.preview.setEditMode(enabled);
+  }
+
+  private toggle2d(): void {
+    const hidden = this.elements.work.classList.toggle('is-2d-hidden');
+    this.elements.toggle2d.classList.toggle('is-active', !hidden);
+    requestAnimationFrame(() => this.resize());
+  }
+
+  private setupSplitter(): void {
+    const splitter = this.elements.splitter;
+    let dragging = false;
+    const onMove = (event: PointerEvent): void => {
+      if (!dragging) return;
+      const left = this.elements.work.getBoundingClientRect().left;
+      const width = Math.min(window.innerWidth * 0.62, Math.max(260, event.clientX - left));
+      this.elements.work.style.setProperty('--preview-width', `${width}px`);
+    };
+    const onUp = (): void => {
+      dragging = false;
+      splitter.classList.remove('is-dragging');
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    splitter.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      dragging = true;
+      splitter.classList.add('is-dragging');
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+  }
+
   setSnap(id: string): void {
     const option = snapOption(id);
     if (option.id !== id) return;
@@ -449,6 +585,7 @@ export class EditorController implements EditorHost, InspectorHost {
     }
     this.chart = chart;
     this.selection = null;
+    this.preview.setSelection(null);
     this.undoStack.length = 0;
     this.redoStack.length = 0;
     this.timeline = createTimeline(chart);
@@ -472,6 +609,7 @@ export class EditorController implements EditorHost, InspectorHost {
     }
     this.chart = chart;
     this.selection = null;
+    this.preview.setSelection(null);
     this.timeline = createTimeline(chart);
     this.issues = validateChart(chart);
     this.svDomain = svDomainFor(chart);
@@ -501,8 +639,9 @@ export class EditorController implements EditorHost, InspectorHost {
   }
 
   private resize(): void {
-    const width = Math.max(1, this.elements.canvasHost.clientWidth);
-    const height = Math.max(1, this.elements.canvasHost.clientHeight);
+    const width = this.elements.canvasHost.clientWidth;
+    const height = this.elements.canvasHost.clientHeight;
+    if (width < 10 || height < 10) return;
     this.layout = this.renderer.resize(width, height);
     this.renderer.setState(this.renderState());
   }
@@ -708,6 +847,9 @@ export class EditorController implements EditorHost, InspectorHost {
         break;
       case 'KeyF':
         this.fitView();
+        break;
+      case 'KeyG':
+        this.setGridSnap(!this.gridSnap);
         break;
       case 'KeyR':
         this.preview.setReverse(!this.preview.state.reverse);

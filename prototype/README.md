@@ -27,8 +27,12 @@ npm run dev
 单独一页，桌面 2D。时间轴分「标尺 / 波形 / 6 轨主视图 / 高度 / SV」五条带；
 3D 预览直接跑游戏播放器。
 
-- 放置 / 拖动 / 删除四种键；arc 点列可插点、删点、每段选缓动；
-- shift 用背景色带表示当时的 4 轨窗口；SV 点击加点、拖动改倍率；
+- 3D 视图可直接放置 / 拖动 note 的 x / y；虚拟网格 + `SNAP XY` 吸附，可整体关闭；
+- 2D 俯视图可关闭，预览 / 2D 之间有可拖分隔条；
+- 放置 / 拖动 / 删除四种键；x 连续（可在轨间 / 空中），y 在高度轨直接拖；
+- arc 点列可插点、删点、每段选缓动；`linear` 是直线、直角是硬角；`STRAIGHTEN` 一键拉直；
+- arc 的 `ticks[]` 可以只保留需要结算的物量（直角蛇拐角不放 tick）；
+- shift 用背景色带表示当时的 4 轨窗口；SV 点击加点、拖动改倍率；波形放在最底下；
 - 导入本地音频、看波形、调 `meta.offset`；
 - 预览支持自动打、暂停、0.25×–2×、倒放、FOLLOW；
 - 导出 `<title>.parallax.json`，草稿自动存 localStorage。
@@ -36,7 +40,7 @@ npm run dev
 操作细节、快捷键、字段约定见 [`EDITOR.md`](EDITOR.md)。
 
 导出的谱面放进 `public/charts/`，游戏页用 `?chart=/charts/文件名.json` 读取
-（仓库自带 `public/charts/example.json`）。
+（仓库自带 `example.json` 和 `air-example.json`：后者演示空中 note 与显式 arc 物量）。
 
 ## 在 Quest 3 上打开
 
@@ -104,6 +108,8 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 - **6 条轨的物理场**（单轨宽 0.23m、进深 10m），但只有 **4 轨窗口**会点亮；
   窗口随 shift 整体左 / 右滑一轨，隐藏轨在几何上真的不渲染。
 - **台面是一层平面**：没有凹槽、没有边框、没有底座；轨间只有细分割线。
+- **note 不一定在轨上**：hit / drag / hold 有连续 `x` 和 `y`，可以浮空 / 落在轨间；
+  arc 的每个点本来就有 x / y。判定用实际位置，不用轨号。
 - **判定带**：台面上一条冷白亮带（柔光 + 芯线），静态。
 - **浮空显示**：曲名 / 难度 / 物量 / 分数 / COMBO / 血条，绑定窗口右缘，跟着 shift 走。
 - **背景**：暗房 + 1m 网格地面 + 雾，无 shader 演出。
@@ -111,7 +117,8 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 
 ## 游戏 dev 参数
 
-`?chart=demo` 12s 示例 · `?chart=/charts/example.json` 外部谱面 · `?auto=1` 自动演示 ·
+`?chart=demo` 12s 示例 · `?chart=/charts/example.json` 外部谱面 ·
+`?chart=/charts/air-example.json` 空中 note / 显式 arc 物量 · `?auto=1` 自动演示 ·
 `?freeze=1` 冻结 · `?warp=2.4` 快进 · `?flow=4` 流速 · `?shift=left|right` ·
 `?panel=settings|result` 摊开面板 · `?clock=0` 关掉音频时钟 ·
 `?offset=20&volume=0.6&lead=2000` 音频参数 · `?audio=/track.mp3` 真实音轨 ·
@@ -133,7 +140,7 @@ npm run preview    # 预览 dist/
 prototype/
 ├── index.html            # 游戏页
 ├── editor.html           # 制谱器页
-├── public/charts/        # 导出的谱面（example.json）
+├── public/charts/        # 导出的谱面（example.json / air-example.json）
 ├── vite.config.ts        # 多页构建入口
 └── src/
     ├── main.ts           # 游戏：渲染器 / 相机 / 会话 / 主循环
@@ -160,6 +167,8 @@ prototype/
 - **音频**：「调度路径」验过，听感需要戴上确认；偏早 / 偏晚用 `AUDIO OFFSET` 微调。
 - 自动演示会漏键（它只是贴着目标点），手动打不受影响。
 - 暂停时长按扳机再松手，可能顺带触发一次 UI 点击（面板和判定共用「按下」）。
-- 制谱器：音频文件不持久化；慢放 / 倒放静音；没有多选 / 复制粘贴 / 自动 BPM 检测。
+- 制谱器：音频文件不持久化；慢放 / 倒放静音；没有多选 / 复制粘贴 / 自动 BPM 检测；
+  3D 里 arc 只能整条平移 x/y（单点仍在 2D / 检查器改）。
+- hold 浮空与设计文档的「hold 只在地面」冲突；当前按最新要求允许所有 note 在空中。
 
 当前状态与更细的坑见 [`STATUS.md`](./STATUS.md)，制谱器细节见 [`EDITOR.md`](./EDITOR.md)。
