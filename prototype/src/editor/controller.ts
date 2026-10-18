@@ -66,6 +66,7 @@ export interface EditorElements {
   reverse: HTMLButtonElement;
   auto: HTMLInputElement;
   follow: HTMLInputElement;
+  drums: HTMLInputElement;
   grid: HTMLInputElement;
   edit3d: HTMLButtonElement;
   toggle2d: HTMLButtonElement;
@@ -166,6 +167,7 @@ export class EditorController implements EditorHost, InspectorHost {
     this.preview.setOffset(this.chart.meta.offset);
     this.preview.setVolume(this.volume);
     this.preview.setAuto(elements.auto.checked);
+    this.preview.setDrums(elements.drums.checked);
     this.preview.setEditHooks({
       tool: () => this.tool,
       gridSnap: () => this.gridSnap,
@@ -266,6 +268,7 @@ export class EditorController implements EditorHost, InspectorHost {
     this.elements.follow.addEventListener('change', () => {
       this.follow = this.elements.follow.checked;
     });
+    this.elements.drums.addEventListener('change', () => this.preview.setDrums(this.elements.drums.checked));
     this.elements.grid.addEventListener('change', () => this.setGridSnap(this.elements.grid.checked));
     this.elements.edit3d.addEventListener('click', () => this.setEdit3d(!this.edit3d));
     this.elements.toggle2d.addEventListener('click', () => this.toggle2d());

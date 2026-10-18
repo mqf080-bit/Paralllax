@@ -301,10 +301,11 @@ export function sampleArcPoint(points: ArcPoint[], tRel: number): { x: number; z
     if (t <= next.time) {
       const span = next.time - previous.time;
       const u = span > 0 ? (t - previous.time) / span : 1;
-      const eased = easeValue(next.easing, u);
+      const easedX = easeValue(next.easing, u);
+      const easedZ = easeValue(next.easingZ ?? next.easing, u);
       return {
-        x: previous.x + (next.x - previous.x) * eased,
-        z: arcPointZ(previous) + (arcPointZ(next) - arcPointZ(previous)) * eased,
+        x: previous.x + (next.x - previous.x) * easedX,
+        z: arcPointZ(previous) + (arcPointZ(next) - arcPointZ(previous)) * easedZ,
       };
     }
     previous = next;
@@ -327,8 +328,10 @@ export function insertArcPoint(note: ArcNote, time: number, x: number, z: number
   // 落在两个点之间：继承「后一个点」的缓动，形状不变，只是多一个可拖的把手。
   let index = note.points.findIndex((point) => point.time > rel);
   if (index < 0) index = note.points.length;
-  const easing = note.points[Math.min(index, note.points.length - 1)]?.easing ?? 'linear';
-  note.points.splice(index, 0, { time: rel, x, z, easing });
+  const source = note.points[Math.min(index, note.points.length - 1)];
+  const easing = source?.easing ?? 'linear';
+  const easingZ = source?.easingZ;
+  note.points.splice(index, 0, { time: rel, x, z, easing, ...(easingZ ? { easingZ } : {}) });
   return index;
 }
 
@@ -480,12 +483,16 @@ function normalizeNote(raw: unknown): Note {
 
   if (note.type === 'arc') {
     const points = Array.isArray(note.points) ? note.points : [];
-    const normalized: ArcPoint[] = points.map((point) => ({
-      time: Math.max(0, finite(point.time, 0)),
-      x: Math.min(5.5, Math.max(-0.5, finite(point.x, 2.5))),
-      z: Math.max(0, finite(point.z ?? point.y, 0)),
-      easing: easingOr(point.easing) ?? 'linear',
-    }));
+    const normalized: ArcPoint[] = points.map((point) => {
+      const easingZ = easingOr(point.easingZ);
+      return {
+        time: Math.max(0, finite(point.time, 0)),
+        x: Math.min(5.5, Math.max(-0.5, finite(point.x, 2.5))),
+        z: Math.max(0, finite(point.z ?? point.y, 0)),
+        easing: easingOr(point.easing) ?? 'linear',
+        ...(easingZ ? { easingZ } : {}),
+      };
+    });
     if (normalized.length < 2) {
       normalized.length = 0;
       normalized.push({ time: 0, x: lane + 0.5, z: 0, easing: 'linear' });

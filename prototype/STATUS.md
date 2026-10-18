@@ -1,7 +1,7 @@
 # prototype / STATUS
 
 > 更新：2026-10-18 22:10 CEST
-> 当前 Step：**5 — 制谱器（第四轮修正已实现），待你验收**
+> 当前 Step：**5 — 制谱器（第五轮修正已实现），待你验收**
 > 设计真相：`../parallax-idea.md`｜施工协议：`../agent.md`
 
 ---
@@ -1156,3 +1156,61 @@ CDP `Performance.getMetrics()` 实测空转 5 秒：`TaskDuration` 从 **0.479s 
 - 2D 高度带像素高度仍不能单独拉。
 - 底部总览视口框只能拖顶部 handle 平移，不能拖边缘缩放。
 - 3D 编辑层的视觉是简化管 + 珠子，不是播放器完整的玻璃 / 辉光材质。
+
+## 39. 制谱器第五轮修正（2026-10-18）
+
+针对「3D 创建 arc 太敏感、X/Z 缓动不能分开、默认鼓点一直响」。
+
+### 39.1 3D 创建 arc：起点钉住，只拖终点
+
+之前 3D 空处拖出 ARC 时，拖动的是整条弧：起点跟着鼠标跑，终点又在 500ms 后的深度，
+看起来就是「一碰就跑、不跟手」。
+
+现在：
+
+- 起点固定在点击位置；
+- 拖拽期间把终点临时放在 1ms，起点/终点都在当前平面里，x/z 映射是 1:1；
+- 松手后终点时间落到 500ms，选中的是终点（`arc-point #1`），可以继续拖青/黄铜轴；
+- 终点时间暂时固定为 500ms；要改 arc 时长仍在 2D / 检查器。
+
+### 39.2 X / Z 缓动分开
+
+`ArcPoint` 新增可选 `easingZ?: Easing`：
+
+- `easing` = x（横向）缓动；
+- `easingZ` = z（高度）缓动；
+- 省略 `easingZ` 时跟随 `easing`，旧谱面行为不变；
+- 例：`easing: 'linear', easingZ: 'sine'` = 横向匀速、高度缓入。
+
+改动覆盖：
+
+- `chart/schema.ts` 类型；
+- `chart` 运行时 `arc.ts` 的 `xyAt`；
+- 编辑器 `sampleArcPoint` / `insertArcPoint` / `normalizeChart`；
+- 检查器：`EASE X (IN)` / `EASE Z (IN)`，Z 有 `SAME AS X`；
+- 点列显示 `X … / Z …`；`STRAIGHTEN` 同时清掉 `easingZ`（回到跟随 X 的直线）。
+
+### 39.3 默认鼓点
+
+编辑器里没有音轨时，音频时钟默认会开合成鼓组（`DRUMS`）。现在：
+
+- `AudioSettings` 新增 `groove?: boolean`；
+- 编辑器默认 `groove: false`；
+- 走带新增 `DRUMS` 勾选，默认不勾；勾上才响；
+- 游戏页不传这个字段，仍然默认 `true`，行为不变；
+- 载入真实音轨后鼓组自动关（原有逻辑）。
+
+### 39.4 验证
+
+- `npm run typecheck` / `npm run build` 通过。
+- CDP 实测：
+  - `sampleArcPoint`：X `linear` + Z `sine`，200ms 处 x = 2.5、z = 0.312（X 线性、Z 缓入）；
+  - 3D 空处拖 ARC：起点 `x2.5 z0.1` 不动，拖拽中终点 `x2.75 z0.15`、时间 1ms，松手后时间变 500ms；
+  - 检查器出现 `EASE X (IN)` / `EASE Z (IN)`，改 Z 后数据写入 `easingZ: 'sine'`；
+  - `DRUMS` 默认 false，勾选后 `preview.state.drums = true`；
+  - 控制台无异常。
+
+### 39.5 还没做
+
+- 3D 创建 arc 的终点时间固定 500ms（要改时长去 2D / 检查器）。
+- 3D 创建 arc 没有拖拽阈值；极短的误拖仍会改终点。

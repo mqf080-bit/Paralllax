@@ -481,7 +481,7 @@ export class Inspector {
       el('span', undefined, 'TIME'),
       el('span', undefined, 'X'),
       el('span', undefined, 'Z'),
-      el('span', 'pointlist__easing', 'EASE'),
+      el('span', 'pointlist__easing', 'EASE X / Z'),
     );
     list.append(head);
     note.points.forEach((point, index) => {
@@ -495,7 +495,13 @@ export class Inspector {
         el('span', undefined, `${point.time}ms`),
         el('span', undefined, `x${point.x.toFixed(2)}`),
         el('span', undefined, `${point.z.toFixed(2)}m`),
-        el('span', 'pointlist__easing', index === 0 ? '—' : EASING_LABELS[point.easing]),
+        el(
+          'span',
+          'pointlist__easing',
+          index === 0
+            ? '—'
+            : `X ${EASING_LABELS[point.easing]} / Z ${EASING_LABELS[point.easingZ ?? point.easing]}`,
+        ),
       );
       row.addEventListener('click', () => host.select({ kind: 'arc-point', note, index }));
       list.append(row);
@@ -508,6 +514,7 @@ export class Inspector {
         edit(host, () => {
           note.points.forEach((point) => {
             point.easing = 'linear';
+            delete point.easingZ;
           });
         }),
       ),
@@ -597,11 +604,25 @@ export class Inspector {
     if (index > 0) {
       root.append(
         field(
-          'EASING (IN)',
+          'EASE X (IN)',
           selectInput<Easing>(point.easing, EASING_SELECT, (value) =>
             edit(host, () => {
               point.easing = value;
             }),
+          ),
+        ),
+      );
+      root.append(
+        field(
+          'EASE Z (IN)',
+          selectInput<Easing | 'same'>(
+            point.easingZ ?? 'same',
+            [{ value: 'same', label: 'SAME AS X' }, ...EASING_SELECT],
+            (value) =>
+              edit(host, () => {
+                if (value === 'same') delete point.easingZ;
+                else point.easingZ = value;
+              }),
           ),
         ),
       );
@@ -610,7 +631,7 @@ export class Inspector {
       el(
         'p',
         'inspector__note',
-        '3D：拖白球同时改 X/Z；拖青球只改 X；拖黄铜球只改 Z。高度轨上下拖改 Z；Shift 吸附胸 / 面 / 头顶。',
+        '3D：拖白球同时改 X/Z；拖青球只改 X；拖黄铜球只改 Z。X / Z 缓动可分开设；高度轨上下拖改 Z。',
       ),
     );
   }

@@ -29,6 +29,8 @@ export interface AudioSettings {
   volume: number;
   /** 有真实音轨时是否额外叠一层节拍器。 */
   metronome: boolean;
+  /** 没有音轨时是否播放合成鼓组。默认 true（游戏）；编辑器默认关。 */
+  groove?: boolean;
   /** 起播前的留白（毫秒）。 */
   leadInMs: number;
 }
@@ -166,7 +168,7 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
     limiter.attack.value = 0.002;
     limiter.release.value = 0.14;
     master.connect(limiter).connect(ctx.destination);
-    drum = createDrumKit({ metronome: false, groove: true, level: 1 });
+    drum = createDrumKit({ metronome: false, groove: settings.groove ?? true, level: 1 });
   }
 
   /** 把一个音轨缓冲区挂到当前谱面时间上。 */
@@ -287,7 +289,7 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
       if (!isLive()) return;
 
       drum.options.metronome = settings.metronome;
-      drum.options.groove = trackBuffer === null;
+      drum.options.groove = (settings.groove ?? true) && trackBuffer === null;
       drum.options.level = 1;
 
       const target = nowMs() + LOOKAHEAD_MS;

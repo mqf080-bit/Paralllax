@@ -77,14 +77,16 @@
 `arc.points` 是**按时间排的点列**，每个点：
 
 ```ts
-{ time: 毫秒（相对弧起点）, x: 轨号 −0.5–5.5（连续，2.5 = 台面中心）, z: 台面上方米数, easing: 'linear'|'sine'|'cosine'|'bezier' }
+{ time: 毫秒（相对弧起点）, x: 轨号 −0.5–5.5（连续，2.5 = 台面中心）, z: 台面上方米数, easing: 缓动, easingZ?: 高度方向缓动 }
 ```
 
-`easing` 描述**从上一个点走到这个点**的插值。于是：
+`easing` 描述 **x（横向）** 从上一个点走到这个点的插值；`easingZ` 描述 **z（高度）**。
+`easingZ` 省略时跟随 `easing`（旧谱面行为），所以可以做到「平面直线、高度缓入」或反过来。于是：
 
 - **直线**：`linear`；运行时的管是折线，所以 `linear` 段是真的直，**不会**被 Catmull-Rom 磨圆；
 - **直角 / 钝角**：连续两个 `linear` 段在同一个点相接（方向突变，管在拐点处是硬角）；
 - **曲线**：`sine` / `cosine` / `bezier` 段；
+- **平面与高度分开**：`easing: 'linear', easingZ: 'sine'` = 横向匀速、高度缓入；
 - **任意形状**：点列本身就是折线 / 曲线混合。
 
 示例（一个直角 + 一段曲线）：
@@ -102,7 +104,7 @@
     { "time": 0,    "x": 1, "z": 0.08, "easing": "linear" },
     { "time": 400,  "x": 1, "z": 0.40, "easing": "linear" },
     { "time": 800,  "x": 3, "z": 0.40, "easing": "linear" },
-    { "time": 1200, "x": 3, "z": 0.08, "easing": "sine"   }
+    { "time": 1200, "x": 3, "z": 0.08, "easing": "sine", "easingZ": "cosine" }
   ]
 }
 ```

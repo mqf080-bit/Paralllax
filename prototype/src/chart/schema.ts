@@ -115,10 +115,12 @@ export interface HoldNote extends LaneNote {
  * - `time`：相对 arc 起点的毫秒；
  * - `x`：轨号（0–5，可带小数，2.5 = 2、3 轨之间）；
  * - `y`：台面上方的高度（米）；
- * - `easing`：从**上一个点**走到这个点用的缓动。
+ * - `easing`：x（横向）从**上一个点**走到这个点用的缓动；
+ * - `easingZ`：z（高度）的缓动；省略时跟随 `easing`。
  *
  * 直角 / 钝角：连续两个 `linear` 段在同一个点相接，就会得到硬角；
- * 曲线：用 `sine` / `cosine` / `bezier` 段。
+ * 曲线：用 `sine` / `cosine` / `bezier` 段。x / z 可以各用各的缓动
+ * （例如高度用 sine、平面用 linear）。
  */
 export interface ArcPoint {
   time: number;
@@ -127,7 +129,10 @@ export interface ArcPoint {
   z: number;
   /** @deprecated 旧字段，等同于 `z`。 */
   y?: number;
+  /** x（横向）缓动。 */
   easing: Easing;
+  /** z（高度）缓动；省略 = 跟随 `easing`。 */
+  easingZ?: Easing;
 }
 
 export interface ArcTickSpec {

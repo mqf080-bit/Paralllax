@@ -123,10 +123,11 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
       if (t <= next.time) {
         const span = next.time - previous.time;
         const u = span > 0 ? (t - previous.time) / span : 1;
-        const eased = easeValue(next.easing, u);
+        const easedX = easeValue(next.easing, u);
+        const easedZ = easeValue(next.easingZ ?? next.easing, u);
         return {
-          x: toWorldX(previous.x + (next.x - previous.x) * eased),
-          y: toWorldY(arcPointZ(previous) + (arcPointZ(next) - arcPointZ(previous)) * eased),
+          x: toWorldX(previous.x + (next.x - previous.x) * easedX),
+          y: toWorldY(arcPointZ(previous) + (arcPointZ(next) - arcPointZ(previous)) * easedZ),
         };
       }
       previous = next;

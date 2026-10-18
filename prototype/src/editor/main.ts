@@ -68,6 +68,7 @@ const elements: EditorElements = {
   reverse: byId('reverse'),
   auto: byId<HTMLInputElement>('auto'),
   follow: byId<HTMLInputElement>('follow'),
+  drums: byId<HTMLInputElement>('drums'),
   grid: byId<HTMLInputElement>('grid'),
   edit3d: byId('edit3d'),
   toggle2d: byId('toggle-2d'),

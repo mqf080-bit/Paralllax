@@ -544,7 +544,7 @@ select {
 
 .pointlist__row {
   display: grid;
-  grid-template-columns: 26px 1fr 1fr 1fr 1fr;
+  grid-template-columns: 26px 0.8fr 0.8fr 0.8fr 1.6fr;
   gap: 6px;
   align-items: center;
   padding: 3px 4px;

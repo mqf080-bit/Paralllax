@@ -30,6 +30,8 @@ export interface PreviewState {
   audioDriven: boolean;
   audioLive: boolean;
   trackName: string;
+  /** 没有音轨时是否在播合成鼓组。 */
+  drums: boolean;
   error: string | null;
 }
 
@@ -69,6 +71,7 @@ export interface Preview {
   setAuto(auto: boolean): void;
   setVolume(volume: number): void;
   setMetronome(enabled: boolean): void;
+  setDrums(enabled: boolean): void;
   setOffset(offsetMs: number): void;
   setChart(chart: Chart): void;
   setEditMode(enabled: boolean): void;
@@ -156,6 +159,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     offsetMs: activeChart.meta.offset,
     volume: 0.8,
     metronome: false,
+    groove: false,
     leadInMs: LEAD_IN_MS,
   });
   audio.setTiming(activeChart.timing);
@@ -187,7 +191,8 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
         baseY: number;
       }
     | { kind: 'arc'; note: ArcNote; plane: THREE.Plane; startWorld: THREE.Vector3 }
-    | { kind: 'arc-point'; note: ArcNote; index: number; axis: ArcAxis; plane: THREE.Plane };
+    | { kind: 'arc-point'; note: ArcNote; index: number; axis: ArcAxis; plane: THREE.Plane }
+    | { kind: 'arc-create'; note: ArcNote; plane: THREE.Plane };
   let editDrag: PreviewDrag | null = null;
   let timeline: Timeline = createTimeline(activeChart);
 
@@ -400,9 +405,12 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     shift: boolean,
     pointIndex?: number,
     axis: ArcAxis = 'free',
+    create = false,
   ): void {
     const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -point.z);
-    if (note.type === 'arc' && pointIndex !== undefined) {
+    if (note.type === 'arc' && pointIndex !== undefined && create) {
+      editDrag = { kind: 'arc-create', note, plane };
+    } else if (note.type === 'arc' && pointIndex !== undefined) {
       editDrag = { kind: 'arc-point', note, index: pointIndex, axis, plane };
     } else if (note.type === 'arc') {
       editDrag = { kind: 'arc', note, plane, startWorld: point.clone() };
@@ -530,8 +538,18 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
       editHooks.endGesture();
       return;
     }
-    beginDrag(note, point, event.shiftKey);
-    editHooks.select(note);
+    if (note.type === 'arc') {
+      // 3D 新建弧：先把终点临时放到 1ms，让起点/终点都在当前平面里；
+      // 这样拖拽是 1:1 的（起点钉住，终点跟鼠标）。松手时再把终点时间设回 500ms。
+      const end = note.points[1];
+      if (end) end.time = 1;
+      const pointOnPlane = arcOverlay.worldAt(note, 1, timeMs);
+      editHooks.selectArcPoint(note, 1);
+      beginDrag(note, pointOnPlane, event.shiftKey, 1, 'free', true);
+    } else {
+      beginDrag(note, point, event.shiftKey);
+      editHooks.select(note);
+    }
     capture(event);
   }
 
@@ -546,18 +564,21 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     if (!raycaster.ray.intersectPlane(editDrag.plane, world)) return;
     const free = event.ctrlKey || event.metaKey;
 
-    if (editDrag.kind === 'arc-point') {
-      const point = editDrag.note.points[editDrag.index];
+    if (editDrag.kind === 'arc-point' || editDrag.kind === 'arc-create') {
+      const drag = editDrag;
+      const index = drag.kind === 'arc-create' ? 1 : drag.index;
+      const axis = drag.kind === 'arc-create' ? 'free' : drag.axis;
+      const point = drag.note.points[index];
       if (!point) return;
       let x = point.x;
       let z = point.z;
-      if (editDrag.axis !== 'z') {
+      if (axis !== 'z') {
         x = snapX(fromWorldX(world.x), event.shiftKey, free, true);
       }
-      if (editDrag.axis !== 'x') {
+      if (axis !== 'x') {
         z = snapY(Math.max(0, fromWorldY(world.y)), event.shiftKey, free);
       }
-      editHooks.moveArcPoint(editDrag.note, editDrag.index, x, z, editDrag.axis);
+      editHooks.moveArcPoint(drag.note, index, x, z, axis);
       selectionMarker.visible = false;
     } else if (editDrag.kind === 'arc') {
       const dx = (world.x - editDrag.startWorld.x) / params.laneWidth;
@@ -588,6 +609,11 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
 
   function onEditPointerUp(event: PointerEvent): void {
     if (!editDrag) return;
+    if (editDrag.kind === 'arc-create') {
+      const end = editDrag.note.points[1];
+      if (end) end.time = 500;
+      editHooks?.commit();
+    }
     editDrag = null;
     gridGroup.position.z = 0;
     applyGridVisibility();
@@ -870,6 +896,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
         audioDriven,
         audioLive: audio.live,
         trackName: audio.trackName,
+        drums: audio.settings.groove === true,
         error: audio.error,
       };
     },
@@ -892,6 +919,9 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     },
     setMetronome(enabled: boolean): void {
       audio.settings.metronome = enabled;
+    },
+    setDrums(enabled: boolean): void {
+      audio.settings.groove = enabled;
     },
     setOffset(offsetMs: number): void {
       audio.settings.offsetMs = offsetMs;
