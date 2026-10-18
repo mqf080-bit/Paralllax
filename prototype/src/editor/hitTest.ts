@@ -144,7 +144,7 @@ export function pickHeight(state: PickState, x: number, y: number): Pick | null 
     for (let index = 0; index < note.points.length; index += 1) {
       const point = note.points[index]!;
       const px = timeToX(view, note.time + point.time);
-      const py = heightToY(layout, domain, point.y);
+      const py = heightToY(layout, domain, point.z);
       if (Math.hypot(px - x, py - y) <= 8) return { kind: 'arc-point', note, index };
     }
   }
@@ -154,13 +154,8 @@ export function pickHeight(state: PickState, x: number, y: number): Pick | null 
     if (note.type === 'arc') continue;
     const headX = timeToX(view, note.time);
     const py = heightToY(layout, domain, noteHeight(note));
-    if (note.type === 'hold') {
-      const tailX = timeToX(view, note.time + note.duration);
-      if (x >= headX - 5 && x <= tailX + 5 && Math.abs(py - y) <= 6) {
-        return { kind: 'note', note, zone: 'body' };
-      }
-      continue;
-    }
+    // hold 固定贴地，不能在高度轨里拖动。
+    if (note.type === 'hold') continue;
     if (Math.hypot(headX - x, py - y) <= 8) return { kind: 'note', note, zone: 'head' };
   }
 
@@ -171,12 +166,12 @@ export function pickHeight(state: PickState, x: number, y: number): Pick | null 
     const tailX = timeToX(view, note.time + duration);
     if (x < headX - 6 || x > tailX + 6) continue;
     let previousX = headX;
-    let previousY = heightToY(layout, domain, sampleArcPoint(note.points, 0).y);
+    let previousY = heightToY(layout, domain, sampleArcPoint(note.points, 0).z);
     const steps = Math.max(2, Math.min(64, Math.round((tailX - headX) / 8) + 2));
     for (let i = 1; i <= steps; i += 1) {
       const sx = headX + ((tailX - headX) * i) / steps;
       const st = xToTime(view, sx) - note.time;
-      const sy = heightToY(layout, domain, sampleArcPoint(note.points, st).y);
+      const sy = heightToY(layout, domain, sampleArcPoint(note.points, st).z);
       if (distanceToSegment(x, y, previousX, previousY, sx, sy) <= 6) {
         return { kind: 'note', note, zone: 'body' };
       }

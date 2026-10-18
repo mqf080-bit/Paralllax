@@ -84,6 +84,9 @@ const elements: EditorElements = {
   importButton: byId('import'),
   exportButton: byId('export'),
   chartFile: byId<HTMLInputElement>('chart-file'),
+  overviewCanvas: byId<HTMLCanvasElement>('overview-canvas'),
+  overviewPlay: byId('overview-play'),
+  overviewTime: byId('overview-time'),
 };
 
 const controller = new EditorController(elements);

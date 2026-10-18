@@ -5,6 +5,7 @@ import {
   chartLimits,
   HEIGHT_LEVELS,
   NOTE_HEIGHT,
+  arcPointZ,
   type ArcNote,
   type ArcPoint,
   type Chart,
@@ -40,14 +41,22 @@ export interface SnapOption {
 
 /** 吸附粒度按「拍」算，和 Arcaea 编辑器的 1/16 … 1/1 一致。 */
 export const SNAP_OPTIONS: SnapOption[] = [
-  { id: 'off', label: 'OFF', beats: 0 },
+  { id: 'off', label: 'OFF（自由）', beats: 0 },
+  { id: '1/32', label: '1/32', beats: 0.125 },
+  { id: '1/24', label: '1/24', beats: 1 / 6 },
+  { id: '1/20', label: '1/20 · 5连', beats: 0.2 },
   { id: '1/16', label: '1/16', beats: 0.25 },
-  { id: '1/12', label: '1/12', beats: 1 / 3 },
+  { id: '1/12', label: '1/12 · 3连', beats: 1 / 3 },
+  { id: '1/10', label: '1/10 · 5连', beats: 0.4 },
   { id: '1/8', label: '1/8', beats: 0.5 },
-  { id: '1/6', label: '1/6', beats: 2 / 3 },
+  { id: '1/6', label: '1/6 · 3连', beats: 2 / 3 },
+  { id: '3/16', label: '附点 1/8', beats: 0.75 },
+  { id: '1/5', label: '1/5 · 5连', beats: 0.8 },
   { id: '1/4', label: '1/4', beats: 1 },
-  { id: '1/3', label: '1/3', beats: 4 / 3 },
+  { id: '1/3', label: '1/3 · 3连', beats: 4 / 3 },
+  { id: '3/8', label: '附点 1/4', beats: 1.5 },
   { id: '1/2', label: '1/2', beats: 2 },
+  { id: '3/4', label: '附点 1/2', beats: 3 },
   { id: '1/1', label: '1/1', beats: 4 },
 ];
 
@@ -186,7 +195,7 @@ export const LANE_COUNT = 6;
 /** 连续 x 的合法范围（轨号单位，0 = 0 号轨中心）。 */
 export const X_MIN = -0.5;
 export const X_MAX = 5.5;
-/** 3D / 2D 空间吸附步长：x = 1/4 轨，y = 5cm。 */
+/** 空间吸附步长：地面键默认整轨；arc 可以 1/4 轨；高度 5cm。 */
 export const X_GRID = 0.25;
 export const Y_GRID = 0.05;
 
@@ -198,20 +207,29 @@ export function clampX(x: number): number {
   return Math.min(X_MAX, Math.max(X_MIN, x));
 }
 
-/** x 吸附：开启时吸到 1/4 轨网格；关闭时保留到 0.01 轨。 */
-export function snapSpatialX(x: number, enabled: boolean): number {
-  const value = enabled ? Math.round(x / X_GRID) * X_GRID : Math.round(x * 100) / 100;
+/**
+ * 地面键的 x：默认吸整轨（写谱规矩）。
+ * `free`（Alt 或 SNAP XY 关闭）才允许轨间位置。
+ */
+export function snapGroundX(x: number, enabled: boolean, free = false): number {
+  const value = !free && enabled ? Math.round(x) : Math.round(x * 100) / 100;
   return clampX(value);
 }
 
-/** y 吸附：开启时吸到 5cm；关闭时保留到 0.001m。 */
-export function snapSpatialY(y: number, enabled: boolean): number {
-  const value = enabled ? Math.round(y / Y_GRID) * Y_GRID : Math.round(y * 1000) / 1000;
+/** arc 的 x：弧是自由曲线，默认 1/4 轨；关闭吸附后 0.01。 */
+export function snapArcX(x: number, enabled: boolean, free = false): number {
+  const value = !free && enabled ? Math.round(x / X_GRID) * X_GRID : Math.round(x * 100) / 100;
+  return clampX(value);
+}
+
+/** z（高度）吸附：开启时吸到 5cm；关闭 / `free` 时保留到 0.001m。 */
+export function snapSpatialY(z: number, enabled: boolean, free = false): number {
+  const value = !free && enabled ? Math.round(z / Y_GRID) * Y_GRID : Math.round(z * 1000) / 1000;
   return Math.max(0, value);
 }
 
 /** 地面键的默认高度（用于提示 / 初始化）。 */
-export function defaultNoteY(type: 'hit' | 'drag' | 'hold'): number {
+export function defaultNoteZ(type: 'hit' | 'drag' | 'hold'): number {
   return NOTE_HEIGHT[type];
 }
 
@@ -223,7 +241,7 @@ export function clampHeight(chart: Chart, y: number): number {
 export function snapHeightLevel(chart: Chart, y: number): number {
   let best = 0;
   let bestDistance = Infinity;
-  const levels = [0, ...HEIGHT_LEVELS.map((level) => level.y), chartLimits(chart).maxHeight];
+  const levels = [0, ...HEIGHT_LEVELS.map((level) => level.z), chartLimits(chart).maxHeight];
   for (const level of levels) {
     const distance = Math.abs(level - y);
     if (distance < bestDistance) {
@@ -234,11 +252,11 @@ export function snapHeightLevel(chart: Chart, y: number): number {
   return best;
 }
 
-/** 圆弧上某个相对时间的 (x, y)。和运行时 `arc.ts` / `timeline.ts` 用同一个缓动。 */
-export function sampleArcPoint(points: ArcPoint[], tRel: number): { x: number; y: number } {
+/** 圆弧上某个相对时间的 (x, z)。和运行时 `arc.ts` / `timeline.ts` 用同一个缓动。 */
+export function sampleArcPoint(points: ArcPoint[], tRel: number): { x: number; z: number } {
   const sorted = points;
   const first = sorted[0];
-  if (!first) return { x: 0, y: 0 };
+  if (!first) return { x: 0, z: 0 };
   const duration = sorted[sorted.length - 1]?.time ?? 0;
   const t = Math.min(Math.max(tRel, 0), duration);
   let previous = first;
@@ -250,12 +268,12 @@ export function sampleArcPoint(points: ArcPoint[], tRel: number): { x: number; y
       const eased = easeValue(next.easing, u);
       return {
         x: previous.x + (next.x - previous.x) * eased,
-        y: previous.y + (next.y - previous.y) * eased,
+        z: arcPointZ(previous) + (arcPointZ(next) - arcPointZ(previous)) * eased,
       };
     }
     previous = next;
   }
-  return { x: previous.x, y: previous.y };
+  return { x: previous.x, z: arcPointZ(previous) };
 }
 
 /** 圆弧总时长（毫秒）。 */
@@ -265,7 +283,7 @@ export function arcDuration(note: ArcNote): number {
 }
 
 /** 在圆弧的某个绝对时间处插一个点（Arcaea 里「在弧上加点」）。 */
-export function insertArcPoint(note: ArcNote, time: number, x: number, y: number): number {
+export function insertArcPoint(note: ArcNote, time: number, x: number, z: number): number {
   const rel = Math.round(Math.min(arcDuration(note), Math.max(0, time - note.time)));
   for (let i = 0; i < note.points.length; i += 1) {
     if (Math.abs(note.points[i]!.time - rel) <= 1) return i;
@@ -274,7 +292,7 @@ export function insertArcPoint(note: ArcNote, time: number, x: number, y: number
   let index = note.points.findIndex((point) => point.time > rel);
   if (index < 0) index = note.points.length;
   const easing = note.points[Math.min(index, note.points.length - 1)]?.easing ?? 'linear';
-  note.points.splice(index, 0, { time: rel, x, y, easing });
+  note.points.splice(index, 0, { time: rel, x, z, easing });
   return index;
 }
 
@@ -406,7 +424,8 @@ function normalizeNote(raw: unknown): Note {
   const x = typeof note.x === 'number' && Number.isFinite(note.x)
     ? Math.min(5.5, Math.max(-0.5, note.x))
     : undefined;
-  const y = typeof note.y === 'number' && Number.isFinite(note.y) ? Math.max(0, note.y) : undefined;
+  const rawZ = typeof note.z === 'number' ? note.z : note.y;
+  const z = typeof rawZ === 'number' && Number.isFinite(rawZ) ? Math.max(0, rawZ) : undefined;
 
   if (note.type === 'hold') {
     return {
@@ -414,7 +433,7 @@ function normalizeNote(raw: unknown): Note {
       time,
       lane,
       x,
-      y,
+      z,
       hand,
       duration: Math.max(1, finite(note.duration, 500)),
       objects: typeof note.objects === 'number' ? Math.max(1, Math.round(note.objects)) : undefined,
@@ -428,13 +447,13 @@ function normalizeNote(raw: unknown): Note {
     const normalized: ArcPoint[] = points.map((point) => ({
       time: Math.max(0, finite(point.time, 0)),
       x: Math.min(5.5, Math.max(-0.5, finite(point.x, 2.5))),
-      y: Math.max(0, finite(point.y, 0)),
+      z: Math.max(0, finite(point.z ?? point.y, 0)),
       easing: easingOr(point.easing) ?? 'linear',
     }));
     if (normalized.length < 2) {
       normalized.length = 0;
-      normalized.push({ time: 0, x: lane + 0.5, y: 0, easing: 'linear' });
-      normalized.push({ time: 500, x: lane + 0.5, y: 0, easing: 'linear' });
+      normalized.push({ time: 0, x: lane + 0.5, z: 0, easing: 'linear' });
+      normalized.push({ time: 500, x: lane + 0.5, z: 0, easing: 'linear' });
     }
     normalized[0]!.time = 0;
     normalized.sort((a, b) => a.time - b.time);
@@ -462,7 +481,7 @@ function normalizeNote(raw: unknown): Note {
   }
 
   const type = note.type === 'drag' ? 'drag' : 'hit';
-  return { type, time, lane, x, y, hand };
+  return { type, time, lane, x, z, hand };
 }
 
 function finite(value: unknown, fallback: number): number {

@@ -42,40 +42,42 @@
 
 ## 3. Notes
 
+**坐标约定**：`x` = 横向（轨号单位），`y` = 时间（字段是 `time`，毫秒），`z` = 高度（米）。
+（Three.js 预览内部是 y-up；**谱面坐标**始终用 x / z，y 不表示高度。）
+
 公共字段：`time`（毫秒）、`lane`（**整数轨号 0–5，兼容旧谱面**）、
-`x?`（**连续横向位置**）、`y?`（**中心离台面高度，米**）、`hand`（`left` / `right`，省略 = 中性）。
+`x?`（**横向位置**）、`z?`（**中心离台面高度，米**）、`hand`（`left` / `right`，省略 = 中性）。
 
 | type | 额外字段 | 说明 |
 | --- | --- | --- |
-| `hit` | `x?`、`y?` | 需要一次挥击；有 PERFECT / GOOD；可在地面或空中 |
-| `drag` | `x?`、`y?` | 扫过；只有 PERFECT / MISS；可在地面或空中 |
-| `hold` | `x?`、`y?`、`duration`、`objects?`、`notesPerSecond?` | 平片；物量均匀分布；**现在也允许浮空** |
+| `hit` | `x?`、`z?` | 需要一次挥击；有 PERFECT / GOOD；可在地面或空中 |
+| `drag` | `x?`、`z?` | 扫过；只有 PERFECT / MISS；可在地面或空中 |
+| `hold` | `x?`、`duration`、`objects?`、`notesPerSecond?` | 平片；物量均匀分布；**只能贴地（z 固定 0.004m）** |
 | `arc` | `hand`、`points`、`ticks?`、`keyObjects?`、`notesPerSecond?` | 跟随；见下一节 |
 
-**横向位置 `x` 是连续的**：
+**横向位置 `x`：默认对齐轨道，离轨是刻意的例外**
 
 - `0` = 0 号轨中心，`2.5` = 台面中心，`5` = 5 号轨中心；
+- 地面键（hit / drag / hold）**默认写整数 `x`（轨中心）**，这是写谱规矩；
+- 离轨（`1.25`、`3.5` 之类）允许，但必须显式写 `x`，编辑器里也要专门操作
+  （检查器 X、`Ctrl` 临时自由、关闭 `SNAP XZ`）；
 - 省略 `x` 时等于整数 `lane`（旧谱面行为不变）；
-- 允许 `1.25`、`3.5` 这种不在轨中心的位置，范围 `−0.5–5.5`（台面左右边缘）；
-- 4 轨窗口的范围也是连续的：常态 `[0.5, 4.5]`，左移 `[−0.5, 3.5]`，右移 `[1.5, 5.5]`；
+- 4 轨窗口的范围是连续的：常态 `[0.5, 4.5]`，左移 `[−0.5, 3.5]`，右移 `[1.5, 5.5]`；
   超出窗口的 note 校验器会报错。
 
-**高度 `y` 是 note 中心相对台面的米数**：
+**高度 `z` 是 note 中心相对台面的米数**：
 
 - 省略时按类型默认：hit / drag **0.07m**、hold **0.004m**；
-- 所有四种键型都受 `limits.maxHeight`（默认 0.81m）限制；
-- 地面键不是「0 高度」，而是贴着台面浮起一点；要放到胸口就写 `y: 0.33`。
-
-> 与 `parallax-idea.md` 的差异：设计文档里 hold 写的是「只在地面」。
-> 这一轮按你的要求改成**任何 note 都可以在空中 / 任意 x**；如果 hold 要保留地面限制，改回
-> `noteHeight()` 只允许 hold y=0 即可。
+- hit / drag 可以写任意 `z`（受 `limits.maxHeight` 限制）；**hold 不能飞天**，
+  z 会被忽略 / 校验器报错；
+- 地面键不是「0 高度」，而是贴着台面浮起一点；要放到胸口就写 `z: 0.33`。
 
 ## 4. arc 的形状
 
 `arc.points` 是**按时间排的点列**，每个点：
 
 ```ts
-{ time: 毫秒（相对弧起点）, x: 轨号 −0.5–5.5（连续，2.5 = 台面中心）, y: 台面上方米数, easing: 'linear'|'sine'|'cosine'|'bezier' }
+{ time: 毫秒（相对弧起点）, x: 轨号 −0.5–5.5（连续，2.5 = 台面中心）, z: 台面上方米数, easing: 'linear'|'sine'|'cosine'|'bezier' }
 ```
 
 `easing` 描述**从上一个点走到这个点**的插值。于是：
@@ -97,10 +99,10 @@
     { "time": 1200, "key": false }
   ],
   "points": [
-    { "time": 0,    "x": 1, "y": 0.08, "easing": "linear" },
-    { "time": 400,  "x": 1, "y": 0.40, "easing": "linear" },
-    { "time": 800,  "x": 3, "y": 0.40, "easing": "linear" },
-    { "time": 1200, "x": 3, "y": 0.08, "easing": "sine"   }
+    { "time": 0,    "x": 1, "z": 0.08, "easing": "linear" },
+    { "time": 400,  "x": 1, "z": 0.40, "easing": "linear" },
+    { "time": 800,  "x": 3, "z": 0.40, "easing": "linear" },
+    { "time": 1200, "x": 3, "z": 0.08, "easing": "sine"   }
   ]
 }
 ```
@@ -176,8 +178,8 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
   ```
 - **超过上限的 note 不生成**：不参与判定、不计入物量、不参与回收（`player.ts` 构建时跳过）。
 - `validateChart()` 会报错：`note@26000: 高度 0.9m 超过上限 0.81m（不会生成）`。
-- **四种键型都可以带 `y`**：hit / drag 默认 0.07m、hold 默认 0.004m；arc 用每个点的 `y`。
-  编辑器的高度轨会同时显示 arc 曲线、hit/drag 点、hold 横线。
+- **hit / drag 可以带 `z`**（默认 0.07m）；**hold 只能贴地**（0.004m，不能飞天）；arc 用每个点的 `z`。
+  编辑器的高度轨会同时显示 arc 曲线、hit/drag 点；hold 固定在地面。
 
 ## 9. 音频与时钟
 
@@ -199,10 +201,10 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
 `validateChart(chart)` 返回问题列表，已经覆盖：
 
 - timing / speed / shift 的排序与取值范围；
-- **所有 note 的 y 不超过 `limits.maxHeight`**，y 不能为负；
+- **hit / drag / arc 的 z 不超过 `limits.maxHeight`**，z 不能为负；hold 的 z 必须贴地；
 - 地面键的 `lane` 必须是 0–5 的整数；有效 `x` 必须在当时的连续窗口里；
-- `x` / `y` 范围（x 允许 −0.5–5.5）；
-- arc 至少两个点、首个点 time = 0、点时间递增、x / y 范围；
+- `x` / `z` 范围（x 允许 −0.5–5.5，z ≥ 0）；
+- arc 至少两个点、首个点 time = 0、点时间递增、x / z 范围；
 - 显式 `ticks[]` 必须落在弧长内、按时间递增且不重复；旧 `keyObjects` 同样检查。
 
 ## 11. 示例谱
@@ -211,7 +213,7 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
 | --- | --- | --- |
 | `src/chart/test.ts`（默认） | **41.6s** | 79 notes：四种键型、**两次 shift**（12s 左 / 30s 右）、2 处 SV（慢速 / 200ms 停表）、4 条 arc（胸 / 面高度） |
 | `src/chart/demo.ts` | 12s | 格式示例，`?chart=demo` 切回 |
-| `public/charts/air-example.json` | 8s | 空中 hit/drag/hold + 显式 arc ticks，`?chart=/charts/air-example.json` |
+| `public/charts/air-example.json` | 8s | 空中 hit/drag + 地面 hold + 显式 arc ticks，`?chart=/charts/air-example.json` |
 
 ## 12. 状态
 
@@ -223,14 +225,17 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
 - ✅ **制谱器（Step 5）**：6 轨主视图 / 高度轨 / SV 轨 / 波形、吸附、arc 点编辑、shift / SV 编辑、
   3D 播放器预览（自动打 / 暂停 / 慢放 / 倒放）、JSON 导入导出、localStorage 草稿。见 [`EDITOR.md`](EDITOR.md)。
 - ✅ **游戏读取导出的谱**：`?chart=/charts/文件名.json`（示例 `public/charts/example.json`、`air-example.json`）。
-- ✅ **任意 x / y**：hit / drag / hold 可以浮空、离开轨中心；3D 视图可直接放置 / 拖动。
+- ✅ **任意 x / z**：hit / drag 可以浮空、离开轨中心；hold 贴地；3D 视图可直接放置 / 拖动。
+- ✅ **时间吸附**：3 连 / 5 连 / 附点 / 1/32 / 1/24；`Ctrl` 临时自由。
+- ✅ **底部 Blender 式时间线**：概览、scrub、视口框平移。
 - ✅ **显式 arc 物量**：`ticks[]` + 编辑器逐条编辑；线性段是真正直线，直角不会被磨圆。
 - ⬜ **极端 SV 的可读性**：负 SV 时键往后退，需要确认不会和「漏键」的视觉混淆。
 
 ## 13. 编辑器的数据约定
 
-- **时间吸附**按拍计算（1/16 … 1/1），网格来自 `timing`；`1/8` = 半个拍。
-- **所有 note 都可以有 y**：hit / drag / hold 用 `note.y`（中心高度），arc 用 `points[].y`。
+- **时间吸附**按拍计算（1/32 … 1/1，含 3 连 / 5 连 / 附点），网格来自 `timing`；`1/8` = 半个拍。
+- **坐标是 x / z**：hit / drag 用 `note.z`（中心高度），arc 用 `points[].z`；hold 固定贴地。
+- **地面键默认整轨对齐**：离轨要显式改 `x`（编辑器里 Ctrl / 检查器 / 关闭 SNAP XZ）。
 - **x 是连续轨号坐标**：`x = 2` 是 2 号轨的中心，`x = 2.5` 是 2 / 3 轨之间；
   编辑器允许 `−0.5–5.5`，窗口校验用 `[0.5+w, 4.5+w]`。
 - **arc 显示的是折线**：`linear` 段是直线，直角是硬角；`STRAIGHTEN` 把所有段设成 `linear`。

@@ -1,6 +1,7 @@
 import { easeValue } from './easing';
 import {
   CHART_DEFAULTS,
+  arcPointZ,
   chartLimits,
   noteHeight,
   noteX,
@@ -262,9 +263,9 @@ export function validateChart(chart: Chart): string[] {
         const point = points[i]!;
         if (i > 0 && point.time <= points[i - 1]!.time) issues.push(`arc@${note.time}: 点的 time 必须递增`);
         if (point.x < -0.5 || point.x > 5.5) issues.push(`arc@${note.time}: x 超出 0–5`);
-        if (point.y < 0) issues.push(`arc@${note.time}: y 不能为负`);
+        if (arcPointZ(point) < 0) issues.push(`arc@${note.time}: z 不能为负`);
       }
-      const arcHeight = points.reduce((max, point) => Math.max(max, point.y), 0);
+      const arcHeight = points.reduce((max, point) => Math.max(max, arcPointZ(point)), 0);
       if (arcHeight > limits.maxHeight) {
         issues.push(`arc@${note.time}: 最高点 ${arcHeight}m 超过上限 ${limits.maxHeight}m（不会生成）`);
       }
@@ -306,6 +307,9 @@ export function validateChart(chart: Chart): string[] {
     }
 
     if (note.type === 'hold' && note.duration <= 0) issues.push(`hold@${note.time}: duration 必须 > 0`);
+    if (note.type === 'hold' && (note.z ?? note.y ?? 0) > 0.001) {
+      issues.push(`hold@${note.time}: hold 只能在地面（z = 0）`);
+    }
   }
 
   return issues;

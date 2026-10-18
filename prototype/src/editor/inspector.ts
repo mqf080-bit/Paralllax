@@ -17,7 +17,7 @@ import {
   clampLane,
   clampX,
   countObjects,
-  defaultNoteY,
+  defaultNoteZ,
   formatTime,
   insertArcPoint,
   noteTypeLabel,
@@ -263,19 +263,21 @@ export class Inspector {
           ),
         ),
       );
-      root.append(
-        field(
-          'Y (m)',
-          numberInput(
-            noteHeight(note),
-            (value) =>
-              edit(host, () => {
-                note.y = Math.min(chartLimits(host.chart).maxHeight, Math.max(0, Math.round(value * 1000) / 1000));
-              }),
-            { min: 0, step: 0.01 },
+      if (note.type !== 'hold') {
+        root.append(
+          field(
+            'Z (height, m)',
+            numberInput(
+              noteHeight(note),
+              (value) =>
+                edit(host, () => {
+                  note.z = Math.min(chartLimits(host.chart).maxHeight, Math.max(0, Math.round(value * 1000) / 1000));
+                }),
+              { min: 0, step: 0.01 },
+            ),
           ),
-        ),
-      );
+        );
+      }
       root.append(
         field(
           'HAND',
@@ -287,22 +289,39 @@ export class Inspector {
           ),
         ),
       );
-      root.append(
-        el(
-          'p',
-          'inspector__note',
-          `X 连续（0–5，2.5 = 台面中心）；Y = 中心离台面高度（默认 ${defaultNoteY(note.type).toFixed(3)}m）。`,
-        ),
-      );
-      const reset = el('div', 'inspector__actions');
-      reset.append(
-        button('RESET Y', () =>
-          edit(host, () => {
-            delete note.y;
-          }),
-        ),
-      );
-      root.append(reset);
+      if (note.type === 'hold') {
+        root.append(
+          el('p', 'inspector__note', 'HOLD 只能贴地：Z 固定为 0.004m，不能飞天。X 仍可离轨（默认整轨对齐）。'),
+        );
+        const ground = el('div', 'inspector__actions');
+        ground.append(
+          button('GROUND', () =>
+            edit(host, () => {
+              delete note.z;
+              delete note.y;
+            }),
+          ),
+        );
+        root.append(ground);
+      } else {
+        root.append(
+          el(
+            'p',
+            'inspector__note',
+            `X 连续（0–5，2.5 = 台面中心）；Z = 中心离台面高度（默认 ${defaultNoteZ(note.type).toFixed(3)}m）。`,
+          ),
+        );
+        const reset = el('div', 'inspector__actions');
+        reset.append(
+          button('RESET Z', () =>
+            edit(host, () => {
+              delete note.z;
+              delete note.y;
+            }),
+          ),
+        );
+        root.append(reset);
+      }
     }
 
     if (note.type === 'hold') {
@@ -459,7 +478,7 @@ export class Inspector {
       el('span', 'pointlist__index', '#'),
       el('span', undefined, 'TIME'),
       el('span', undefined, 'X'),
-      el('span', undefined, 'Y'),
+      el('span', undefined, 'Z'),
       el('span', 'pointlist__easing', 'EASE'),
     );
     list.append(head);
@@ -473,7 +492,7 @@ export class Inspector {
         el('span', 'pointlist__index', `#${index}`),
         el('span', undefined, `${point.time}ms`),
         el('span', undefined, `x${point.x.toFixed(2)}`),
-        el('span', undefined, `${point.y.toFixed(2)}m`),
+        el('span', undefined, `${point.z.toFixed(2)}m`),
         el('span', 'pointlist__easing', index === 0 ? '—' : EASING_LABELS[point.easing]),
       );
       row.addEventListener('click', () => host.select({ kind: 'arc-point', note, index }));
@@ -494,7 +513,7 @@ export class Inspector {
         const relative = Math.min(arcDuration(note), Math.max(0, host.playhead - note.time));
         const sample = sampleArcPoint(note.points, relative);
         host.beginGesture();
-        const index = insertArcPoint(note, host.playhead, sample.x, sample.y);
+        const index = insertArcPoint(note, host.playhead, sample.x, sample.z);
         host.select({ kind: 'arc-point', note, index });
         host.commit();
         host.endGesture();
@@ -541,20 +560,29 @@ export class Inspector {
     root.append(
       field(
         'X (lane)',
-        numberInput(point.x, (value) =>
-          edit(host, () => {
-            point.x = Math.min(5, Math.max(0, Math.round(value * 100) / 100));
-          }),
+        numberInput(
+          point.x,
+          (value) =>
+            edit(host, () => {
+              point.x = clampX(Math.round(value * 100) / 100);
+            }),
+          { min: X_MIN, max: X_MAX, step: 0.01 },
         ),
       ),
     );
     root.append(
       field(
-        'Y (m)',
-        numberInput(point.y, (value) =>
-          edit(host, () => {
-            point.y = Math.min(5, Math.max(0, Math.round(value * 1000) / 1000));
-          }),
+        'Z (height, m)',
+        numberInput(
+          point.z,
+          (value) =>
+            edit(host, () => {
+              point.z = Math.min(
+                chartLimits(host.chart).maxHeight,
+                Math.max(0, Math.round(value * 1000) / 1000),
+              );
+            }),
+          { min: 0, step: 0.01 },
         ),
       ),
     );
@@ -841,21 +869,21 @@ export class Inspector {
     const summary = el('summary', undefined, '操作说明');
     const list = el('ul', 'help');
     for (const line of [
-      '2D 左键：选中 / 放置 / 拖动（时间 + 连续 x / y）',
+      '2D 左键：选中 / 放置 / 拖动（时间 + 连续 x / z）',
       '2D 右键：删除光标下的对象；Delete：删除选区',
-      '3D 左键：拾取 note 并拖 x/y；空处 = 在播放头时间放置',
+      '3D 左键：拾取 note 并拖 x/z；空处 = 在播放头时间放置',
       '3D 右键拖拽：转视角（3D EDIT 开启时）；滚轮缩放',
       '中键 / Alt+左键：平移 2D；滚轮：平移；Ctrl+滚轮：缩放',
-      'SNAP（时间）和 SNAP XY（x/y 网格）互相独立；G 切空间吸附',
-      '1–5：SELECT / HIT / DRAG / HOLD / ARC',
+      'SNAP（时间）和 SNAP XZ（x/z 网格）互相独立；G 切空间吸附',
+      '1–5：SELECT / HIT / DRAG / HOLD / ARC；地面键默认吸整轨',
       'Space：播放 / 暂停；R：倒放；F：适配窗口',
       '← / →：按吸附步长移动播放头；Shift 加速 10×',
       'Ctrl+Z / Ctrl+Shift+Z：撤销 / 重做；Ctrl+S：导出',
       'ARC：空处拖 = 新建；点弧身 = 插点；高度轨上下拖 = 改 y',
-      '高度轨：hit/drag 是点，hold 是横线，arc 是曲线；所有 y 都可拖',
-      'Shift 拖高度：吸附到 0 / 胸 / 面 / 头顶；Shift 拖 x：整轨',
+      '高度轨：hit/drag 是点，arc 是曲线；hold 固定贴地；Z 可拖',
+      'Ctrl/⌘ 拖：临时关掉时间 / 轨 / Z 吸附（5连、附点、离轨）',
       '弧物量 MAKE EXPLICIT 后可增删；没加 tick 的时间不结算',
-      '2D 按钮：隐藏俯视图；预览和 2D 之间的分隔条可拖动',
+      '底部 Blender 时间线：拖动 scrub；拖视口框顶部 handle 平移',
     ]) {
       list.append(el('li', undefined, line));
     }

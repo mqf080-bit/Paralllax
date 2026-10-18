@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 
 import {
   CHART_DEFAULTS,
+  arcPointZ,
   chartLimits,
   noteHeight,
   noteX,
@@ -244,7 +245,7 @@ export function createPlayer(
   for (const note of chart.notes) {
     if (note.type === 'arc') {
       // 高度上限：超出的 note 不生成（判定、物量、回收都不参与）。
-      const arcHeight = note.points.reduce((max, point) => Math.max(max, point.y), 0);
+      const arcHeight = note.points.reduce((max, point) => Math.max(max, arcPointZ(point)), 0);
       if (arcHeight > limits.maxHeight) {
         if (import.meta.env.DEV) {
           console.warn(

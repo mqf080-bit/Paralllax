@@ -68,10 +68,10 @@ export const DEMO_CHART: Chart = {
       notesPerSecond: 4,
       keyObjects: [400, 800],
       points: [
-        { time: 0, x: 1, y: 0.08, easing: 'linear' },
-        { time: 400, x: 1, y: 0.4, easing: 'sine' },
-        { time: 800, x: 3, y: 0.4, easing: 'linear' },
-        { time: 1200, x: 3, y: 0.08, easing: 'sine' },
+        { time: 0, x: 1, z: 0.08, easing: 'linear' },
+        { time: 400, x: 1, z: 0.4, easing: 'sine' },
+        { time: 800, x: 3, z: 0.4, easing: 'linear' },
+        { time: 1200, x: 3, z: 0.08, easing: 'sine' },
       ],
     },
 

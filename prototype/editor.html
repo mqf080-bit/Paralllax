@@ -25,7 +25,7 @@
 
         <div class="topbar__group topbar__group--grow">
           <span class="topbar__label">VIEW</span>
-          <label class="check"><input id="grid" type="checkbox" checked /><span>SNAP XY</span></label>
+          <label class="check"><input id="grid" type="checkbox" checked /><span>SNAP XZ</span></label>
           <button id="edit3d" class="button button--small is-active" type="button">3D EDIT</button>
           <button id="toggle-2d" class="button button--small is-active" type="button">2D</button>
           <button id="zoom-out" class="button button--small" type="button">−</button>
@@ -44,7 +44,7 @@
 
       <main class="work">
         <section class="preview">
-          <div id="preview-hint" class="preview__hint">3D EDIT · 左键放置 / 拖动 · 右键拖拽视角</div>
+          <div id="preview-hint" class="preview__hint">3D EDIT · 左键放置 / 拖动（x/z） · 右键拖拽视角</div>
           <div id="preview" class="preview__viewport"></div>
           <div class="transport">
             <div class="transport__row">
@@ -86,6 +86,16 @@
 
         <aside id="inspector" class="inspector" aria-label="检查器"></aside>
       </main>
+
+      <footer class="overview">
+        <div class="overview__controls">
+          <button id="overview-play" class="button button--small" type="button">▶</button>
+          <span id="overview-time" class="overview__time">-0:01.000</span>
+        </div>
+        <div class="overview__canvas">
+          <canvas id="overview-canvas"></canvas>
+        </div>
+      </footer>
     </div>
 
     <div id="toast" class="toast" aria-live="polite"></div>

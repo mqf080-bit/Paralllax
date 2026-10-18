@@ -87,10 +87,10 @@ export const TEST_CHART: Chart = {
       notesPerSecond: 4,
       keyObjects: [400, 800],
       points: [
-        { time: 0, x: 1, y: 0.08, easing: 'linear' },
-        { time: 400, x: 1, y: 0.33, easing: 'sine' },
-        { time: 800, x: 3, y: 0.33, easing: 'linear' },
-        { time: 1200, x: 3, y: 0.08, easing: 'sine' },
+        { time: 0, x: 1, z: 0.08, easing: 'linear' },
+        { time: 400, x: 1, z: 0.33, easing: 'sine' },
+        { time: 800, x: 3, z: 0.33, easing: 'linear' },
+        { time: 1200, x: 3, z: 0.08, easing: 'sine' },
       ],
     },
 
@@ -124,10 +124,10 @@ export const TEST_CHART: Chart = {
       notesPerSecond: 4,
       keyObjects: [800],
       points: [
-        { time: 0, x: 0, y: 0.08, easing: 'linear' },
-        { time: 400, x: 0, y: 0.33, easing: 'sine' },
-        { time: 800, x: 2, y: 0.33, easing: 'linear' },
-        { time: 1200, x: 2, y: 0.08, easing: 'sine' },
+        { time: 0, x: 0, z: 0.08, easing: 'linear' },
+        { time: 400, x: 0, z: 0.33, easing: 'sine' },
+        { time: 800, x: 2, z: 0.33, easing: 'linear' },
+        { time: 1200, x: 2, z: 0.08, easing: 'sine' },
       ],
     },
 
@@ -162,10 +162,10 @@ export const TEST_CHART: Chart = {
       notesPerSecond: 4,
       keyObjects: [400, 800],
       points: [
-        { time: 0, x: 1, y: 0.08, easing: 'linear' },
-        { time: 400, x: 1, y: 0.61, easing: 'sine' },
-        { time: 800, x: 4, y: 0.61, easing: 'linear' },
-        { time: 1200, x: 4, y: 0.08, easing: 'sine' },
+        { time: 0, x: 1, z: 0.08, easing: 'linear' },
+        { time: 400, x: 1, z: 0.61, easing: 'sine' },
+        { time: 800, x: 4, z: 0.61, easing: 'linear' },
+        { time: 1200, x: 4, z: 0.08, easing: 'sine' },
       ],
     },
 
@@ -196,10 +196,10 @@ export const TEST_CHART: Chart = {
       notesPerSecond: 4,
       keyObjects: [800],
       points: [
-        { time: 0, x: 2, y: 0.08, easing: 'linear' },
-        { time: 400, x: 2, y: 0.33, easing: 'sine' },
-        { time: 800, x: 5, y: 0.33, easing: 'linear' },
-        { time: 1200, x: 5, y: 0.08, easing: 'sine' },
+        { time: 0, x: 2, z: 0.08, easing: 'linear' },
+        { time: 400, x: 2, z: 0.33, easing: 'sine' },
+        { time: 800, x: 5, z: 0.33, easing: 'linear' },
+        { time: 1200, x: 5, z: 0.08, easing: 'sine' },
       ],
     },
 

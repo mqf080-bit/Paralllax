@@ -4,6 +4,7 @@ import { TEST_CHART } from '../chart/test';
 import { createTimeline, validateChart, type Timeline } from '../chart/timeline';
 import { deleteSelection as deleteSelectionImpl, attachInteraction, type EditorHost } from './interaction';
 import { Inspector, type InspectorHost } from './inspector';
+import { OverviewTimeline } from './overview';
 import { createPreview, type Preview, type PreviewState } from './preview';
 import * as persistence from './persistence';
 import {
@@ -73,6 +74,9 @@ export interface EditorElements {
   importButton: HTMLButtonElement;
   exportButton: HTMLButtonElement;
   chartFile: HTMLInputElement;
+  overviewCanvas: HTMLCanvasElement;
+  overviewPlay: HTMLButtonElement;
+  overviewTime: HTMLElement;
 }
 
 const TOOL_LABELS: Record<ToolId, string> = {
@@ -109,6 +113,7 @@ export class EditorController implements EditorHost, InspectorHost {
   private readonly renderer: TimelineRenderer;
   private readonly preview: Preview;
   private readonly inspector: Inspector;
+  private readonly overview: OverviewTimeline;
   private readonly detachInteraction: () => void;
   private readonly resizeObserver: ResizeObserver;
   private timeline: Timeline;
@@ -164,6 +169,7 @@ export class EditorController implements EditorHost, InspectorHost {
       Math.max(1, elements.canvasHost.clientHeight),
     );
     this.inspector = new Inspector(elements.inspectorHost, this);
+    this.overview = new OverviewTimeline(elements.overviewCanvas, this);
     this.detachInteraction = attachInteraction(elements.canvas, this);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -197,6 +203,11 @@ export class EditorController implements EditorHost, InspectorHost {
     return this.preview.state;
   }
 
+  /** 2D 被隐藏时，底部时间线不画视口框。 */
+  get viewWidth(): number {
+    return this.elements.work.classList.contains('is-2d-hidden') ? 0 : this.layout.width;
+  }
+
   start(): void {
     for (const [tool, button] of this.elements.tools) {
       button.addEventListener('click', () => this.setTool(tool));
@@ -204,6 +215,7 @@ export class EditorController implements EditorHost, InspectorHost {
     this.elements.snap.value = this.snap;
     this.elements.snap.addEventListener('change', () => this.setSnap(this.elements.snap.value));
     this.elements.play.addEventListener('click', () => this.preview.toggle());
+    this.elements.overviewPlay.addEventListener('click', () => this.preview.toggle());
     this.elements.stop.addEventListener('click', () => {
       this.preview.pause();
       this.preview.seek(-1000);
@@ -243,6 +255,7 @@ export class EditorController implements EditorHost, InspectorHost {
     this.updateUi();
     this.inspector.render();
     this.renderer.setState(this.renderState());
+    this.overview.render();
 
     this.lastFrame = performance.now();
     this.raf = requestAnimationFrame(this.frame);
@@ -256,6 +269,7 @@ export class EditorController implements EditorHost, InspectorHost {
     cancelAnimationFrame(this.raf);
     this.resizeObserver.disconnect();
     this.detachInteraction();
+    this.overview.dispose();
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('beforeunload', this.onBeforeUnload);
     if (this.previewTimer !== null) window.clearTimeout(this.previewTimer);
@@ -382,7 +396,7 @@ export class EditorController implements EditorHost, InspectorHost {
     deleteSelectionImpl(this);
   }
 
-  /** 3D 视图放置：在播放头时间、给定的 x/y 生成当前工具的 note。 */
+  /** 3D 视图放置：在播放头时间、给定的 x/z 生成当前工具的 note。 */
   private placeAt(x: number, y: number, time: number): Note | null {
     const maxHeight = chartLimits(this.chart).maxHeight;
     const px = clampX(x);
@@ -392,10 +406,10 @@ export class EditorController implements EditorHost, InspectorHost {
     let note: Note;
     switch (this.tool) {
       case 'hit':
-        note = { type: 'hit', time: t, lane, x: Math.round(px * 100) / 100, y: Math.round(py * 1000) / 1000 };
+        note = { type: 'hit', time: t, lane, x: Math.round(px * 100) / 100, z: Math.round(py * 1000) / 1000 };
         break;
       case 'drag':
-        note = { type: 'drag', time: t, lane, x: Math.round(px * 100) / 100, y: Math.round(py * 1000) / 1000 };
+        note = { type: 'drag', time: t, lane, x: Math.round(px * 100) / 100, z: Math.round(py * 1000) / 1000 };
         break;
       case 'hold':
         note = {
@@ -403,13 +417,12 @@ export class EditorController implements EditorHost, InspectorHost {
           time: t,
           lane,
           x: Math.round(px * 100) / 100,
-          y: Math.round(py * 1000) / 1000,
           duration: 500,
           objects: 4,
         };
         break;
       case 'arc': {
-        const point = { time: 0, x: Math.round(px * 100) / 100, y: Math.round(py * 1000) / 1000, easing: 'linear' as const };
+        const point = { time: 0, x: Math.round(px * 100) / 100, z: Math.round(py * 1000) / 1000, easing: 'linear' as const };
         note = {
           type: 'arc',
           time: t,
@@ -426,12 +439,12 @@ export class EditorController implements EditorHost, InspectorHost {
     return note;
   }
 
-  /** 3D 拖动：地面键用绝对 x/y；arc 用 delta。 */
+  /** 3D 拖动：地面键用绝对 x/z；arc 用 delta。 */
   private moveNote(note: Note, x: number, y: number, dx: number, dy: number): void {
     const maxHeight = chartLimits(this.chart).maxHeight;
     if (note.type === 'arc') {
       const xs = note.points.map((point) => point.x);
-      const ys = note.points.map((point) => point.y);
+      const ys = note.points.map((point) => point.z);
       const minX = Math.min(...xs);
       const maxX = Math.max(...xs);
       const minY = Math.min(...ys);
@@ -440,13 +453,19 @@ export class EditorController implements EditorHost, InspectorHost {
       const shiftY = Math.min(maxHeight - maxY, Math.max(-minY, dy));
       note.points.forEach((point) => {
         point.x = Math.round((point.x + shiftX) * 100) / 100;
-        point.y = Math.round((point.y + shiftY) * 1000) / 1000;
+        point.z = Math.round((point.z + shiftY) * 1000) / 1000;
       });
       return;
     }
     note.x = Math.round(clampX(x) * 100) / 100;
     note.lane = clampLane(Math.round(note.x));
-    note.y = Math.round(Math.min(maxHeight, Math.max(0, y)) * 1000) / 1000;
+    if (note.type === 'hold') {
+      // hold 不能飞天：3D 拖动只改 x。
+      delete note.z;
+      delete note.y;
+      return;
+    }
+    note.z = Math.round(Math.min(maxHeight, Math.max(0, y)) * 1000) / 1000;
   }
 
   setGridSnap(enabled: boolean): void {
@@ -712,7 +731,9 @@ export class EditorController implements EditorHost, InspectorHost {
     if (time !== this.lastUi.time) {
       this.lastUi.time = time;
       this.elements.time.textContent = time;
+      this.elements.overviewTime.textContent = formatTime(state.timeMs);
     }
+    this.elements.overviewPlay.textContent = state.playing ? '❙❙' : '▶';
 
     const audio = state.error
       ? `ERROR · ${state.error}`
@@ -764,6 +785,7 @@ export class EditorController implements EditorHost, InspectorHost {
 
     this.renderer.setPlayhead(state.timeMs);
     this.renderer.render();
+    this.overview.render();
     this.updateTransportUi();
     this.raf = requestAnimationFrame(this.frame);
   };

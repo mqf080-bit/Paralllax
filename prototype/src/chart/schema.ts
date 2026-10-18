@@ -85,6 +85,8 @@ export interface LaneNote extends TimedNote {
    */
   x?: number;
   /** note 中心离台面的高度（米）。省略时按类型默认：hit/drag 0.07、hold 0.004。 */
+  z?: number;
+  /** @deprecated 旧字段，等同于 `z`（height）。导入时会迁移到 `z`。 */
   y?: number;
   /** 手别；省略 = 中性（任意手）。 */
   hand?: Hand;
@@ -121,7 +123,10 @@ export interface HoldNote extends LaneNote {
 export interface ArcPoint {
   time: number;
   x: number;
-  y: number;
+  /** 离台面的高度（米）。z = height；y 在谱面里是时间轴。 */
+  z: number;
+  /** @deprecated 旧字段，等同于 `z`。 */
+  y?: number;
   easing: Easing;
 }
 
@@ -161,9 +166,9 @@ export type Note = HitNote | DragNote | HoldNote | ArcNote;
  * 写谱时高度就按这三条线读，不要写「差不多 0.4」这种数。
  */
 export const HEIGHT_LEVELS = [
-  { id: 'chest', label: 'CHEST', y: 0.33 },
-  { id: 'face', label: 'FACE', y: 0.61 },
-  { id: 'head', label: 'HEAD', y: 0.81 },
+  { id: 'chest', label: 'CHEST', z: 0.33 },
+  { id: 'face', label: 'FACE', z: 0.61 },
+  { id: 'head', label: 'HEAD', z: 0.81 },
 ] as const;
 
 /**
@@ -194,7 +199,7 @@ export interface Chart {
 /** 默认限制。制谱器、校验器、运行时共用。 */
 export const CHART_LIMITS: ChartLimits = {
   // 头顶那条高度基准线。
-  maxHeight: HEIGHT_LEVELS[HEIGHT_LEVELS.length - 1]!.y,
+  maxHeight: HEIGHT_LEVELS[HEIGHT_LEVELS.length - 1]!.z,
 };
 
 /** 谱面实际生效的限制 = 默认值 + 谱面覆盖。 */
@@ -214,9 +219,15 @@ export function noteX(note: LaneNote): number {
   return note.x ?? note.lane;
 }
 
-/** 地面键的有效中心高度（相对台面，米）。 */
+/** arc 点的高度（兼容旧谱面的 y 字段）。 */
+export function arcPointZ(point: ArcPoint): number {
+  return point.z ?? point.y ?? 0;
+}
+
+/** 地面键的有效中心高度（相对台面，米）。z = height；旧谱面的 y 仍兼容。 */
 export function noteHeight(note: HitNote | DragNote | HoldNote): number {
-  return note.y ?? NOTE_HEIGHT[note.type];
+  if (note.type === 'hold') return NOTE_HEIGHT.hold;
+  return note.z ?? note.y ?? NOTE_HEIGHT[note.type];
 }
 
 /** 默认值集中在这里，制谱器和运行时都用同一套。 */

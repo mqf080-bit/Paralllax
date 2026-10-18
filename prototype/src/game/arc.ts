@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 import { easeValue } from '../chart/easing';
-import type { ArcPoint, ArcTickSpec } from '../chart/schema';
+import { arcPointZ, type ArcPoint, type ArcTickSpec } from '../chart/schema';
 import { applyDistanceFade } from '../materials/distanceFade';
 import { createFresnelGlowMaterial } from '../materials/glow';
 import type { MaterialLibrary } from '../materials/library';
@@ -126,12 +126,12 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
         const eased = easeValue(next.easing, u);
         return {
           x: toWorldX(previous.x + (next.x - previous.x) * eased),
-          y: toWorldY(previous.y + (next.y - previous.y) * eased),
+          y: toWorldY(arcPointZ(previous) + (arcPointZ(next) - arcPointZ(previous)) * eased),
         };
       }
       previous = next;
     }
-    return { x: toWorldX(previous.x), y: toWorldY(previous.y) };
+    return { x: toWorldX(previous.x), y: toWorldY(arcPointZ(previous)) };
   }
 
   /** 相对时间 → 局部空间坐标（z 由滚动积分决定）。 */

@@ -2,14 +2,14 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 import { createAudioClock, type AudioClock } from '../audio/clock';
-import { chartLimits, noteHeight, noteX, type Chart, type Note } from '../chart/schema';
+import { chartLimits, noteHeight, noteX, NOTE_HEIGHT, type Chart, type Note } from '../chart/schema';
 import { DEFAULT_PARAMS } from '../config';
 import { createPlayer, type Player } from '../game/player';
 import { createEnvironment } from '../materials/environment';
 import { createMaterialLibrary, type MaterialLibrary } from '../materials/library';
 import { buildBackdrop } from '../scene/backdrop';
 import { buildTable } from '../scene/table';
-import { chartSpan, snapSpatialX, snapSpatialY, X_GRID, Y_GRID, type ToolId } from './model';
+import { chartSpan, snapArcX, snapGroundX, snapSpatialY, X_GRID, Y_GRID, type ToolId } from './model';
 
 /**
  * 3D 预览：直接跑 Step 4 的播放器。
@@ -38,8 +38,8 @@ export interface PreviewEditHooks {
   /** 放置一颗 note；返回创建出来的对象（不存在 = 当前工具不放置）。 */
   place(x: number, y: number, timeMs: number): Note | null;
   /**
-   * 3D 拖动：地面键用绝对 x/y；arc 用 delta（整条弧一起移动）。
-   * x 单位是轨号，y 是台面上方米数。
+   * 3D 拖动：地面键用绝对 x/z；arc 用 delta（整条弧一起移动）。
+   * x 单位是轨号，z 是台面上方米数。
    */
   move(note: Note, x: number, y: number, dx: number, dy: number): void;
   beginGesture(): void;
@@ -181,6 +181,21 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
   selectionMarker.visible = false;
   scene.add(selectionMarker);
 
+  const hoverMarker = new THREE.Mesh(
+    new THREE.RingGeometry(0.016, 0.024, 20),
+    new THREE.MeshBasicMaterial({
+      color: 0x9fe4ff,
+      transparent: true,
+      opacity: 0.9,
+      depthTest: false,
+      toneMapped: false,
+      side: THREE.DoubleSide,
+    }),
+  );
+  hoverMarker.renderOrder = 41;
+  hoverMarker.visible = false;
+  scene.add(hoverMarker);
+
   const toWorldX = (x: number): number => (x - 2.5) * params.laneWidth;
   const toWorldY = (y: number): number => params.tableHeight + y;
   const fromWorldX = (x: number): number => x / params.laneWidth + 2.5;
@@ -207,10 +222,10 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
       target.push(x1, y1, bandZ, x2, y2, bandZ);
     };
 
-    // 竖向：1/4 轨一条细线；整轨 / 轨边界更亮。
+    // 竖向：1/4 轨一条细线；整轨中心更亮（地面键默认吸整轨）。
     for (let x = -0.5; x <= 5.5001; x += 0.25) {
       const xw = toWorldX(x);
-      const isMajor = Math.abs(x / 0.5 - Math.round(x / 0.5)) < 1e-6;
+      const isMajor = Math.abs(x - Math.round(x)) < 1e-6;
       pushLine(isMajor ? major : minor, xw, toWorldY(0), xw, toWorldY(maxHeight));
     }
     // 横向：5cm 一条细线；10cm 与胸 / 面 / 头顶更亮。
@@ -285,13 +300,14 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     return null;
   }
 
-  function snapX(x: number, shift: boolean): number {
+  function snapX(x: number, shift: boolean, free: boolean, arc: boolean): number {
     const clamped = Math.min(5.5, Math.max(-0.5, x));
     if (shift) return Math.round(clamped);
-    return snapSpatialX(clamped, editHooks?.gridSnap() ?? true);
+    const enabled = editHooks?.gridSnap() ?? true;
+    return arc ? snapArcX(clamped, enabled, free) : snapGroundX(clamped, enabled, free);
   }
 
-  function snapY(y: number, shift: boolean): number {
+  function snapY(y: number, shift: boolean, free = false): number {
     const max = chartLimits(activeChart).maxHeight;
     const clamped = Math.min(max, Math.max(0, y));
     if (shift) {
@@ -308,7 +324,38 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
       }
       return best;
     }
-    return Math.min(max, snapSpatialY(clamped, editHooks?.gridSnap() ?? true));
+    return Math.min(max, snapSpatialY(clamped, editHooks?.gridSnap() ?? true, free));
+  }
+
+  function updateHover(event: PointerEvent): void {
+    if (!editMode || !editHooks) {
+      hoverMarker.visible = false;
+      return;
+    }
+    setNdc(event);
+    const point = new THREE.Vector3();
+    if (!raycaster.ray.intersectPlane(placementPlane, point)) {
+      hoverMarker.visible = false;
+      return;
+    }
+    const rawX = fromWorldX(point.x);
+    const rawZ = fromWorldY(point.y);
+    const max = chartLimits(activeChart).maxHeight;
+    if (rawX < -0.5 || rawX > 5.5 || rawZ < -0.05 || rawZ > max + 0.05) {
+      hoverMarker.visible = false;
+      return;
+    }
+    const tool = editHooks.tool();
+    if (tool === 'select') {
+      hoverMarker.visible = false;
+      return;
+    }
+    const free = event.ctrlKey || event.metaKey;
+    const x = snapX(rawX, event.shiftKey, free, tool === 'arc');
+    let z = snapY(Math.max(0, rawZ), event.shiftKey, free);
+    if (tool === 'hold') z = NOTE_HEIGHT.hold;
+    hoverMarker.position.set(toWorldX(x), toWorldY(z), bandZ);
+    hoverMarker.visible = true;
   }
 
   function beginDrag(note: Note, point: THREE.Vector3, shift: boolean): void {
@@ -329,6 +376,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
 
   function onEditPointerDown(event: PointerEvent): void {
     if (!editMode || !editHooks || event.button !== 0) return;
+    hoverMarker.visible = false;
     setNdc(event);
     const picked = pickNote();
     if (picked) {
@@ -362,8 +410,13 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
       return;
     }
 
+    const free = event.ctrlKey || event.metaKey;
     editHooks.beginGesture();
-    const note = editHooks.place(snapX(x, event.shiftKey), snapY(y, event.shiftKey), timeMs);
+    const note = editHooks.place(
+      snapX(x, event.shiftKey, free, tool === 'arc'),
+      snapY(y, event.shiftKey, free),
+      timeMs,
+    );
     if (!note) {
       editHooks.endGesture();
       return;
@@ -380,23 +433,29 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
   }
 
   function onEditPointerMove(event: PointerEvent): void {
-    if (!editMode || !editDrag || !editHooks) return;
+    if (!editMode || !editHooks) return;
+    if (!editDrag) {
+      updateHover(event);
+      return;
+    }
     setNdc(event);
     const world = new THREE.Vector3();
     if (!raycaster.ray.intersectPlane(editDrag.plane, world)) return;
     const dx = (world.x - editDrag.startWorld.x) / params.laneWidth;
     const dy = world.y - editDrag.startWorld.y;
     if (editDrag.arc) {
-      const stepX = editHooks.gridSnap() ? X_GRID : 0.01;
-      const stepY = editHooks.gridSnap() ? Y_GRID : 0.001;
+      const free = event.ctrlKey || event.metaKey;
+      const stepX = editHooks.gridSnap() && !free ? X_GRID : 0.01;
+      const stepY = editHooks.gridSnap() && !free ? Y_GRID : 0.001;
       const sx = Math.round(dx / stepX) * stepX;
       const sy = Math.round(dy / stepY) * stepY;
       editHooks.move(editDrag.note, 0, 0, sx, sy);
     } else {
+      const free = event.ctrlKey || event.metaKey;
       editHooks.move(
         editDrag.note,
-        snapX(editDrag.baseX + dx, event.shiftKey),
-        snapY(editDrag.baseY + dy, event.shiftKey),
+        snapX(editDrag.baseX + dx, event.shiftKey, free, false),
+        snapY(editDrag.baseY + dy, event.shiftKey, free),
         0,
         0,
       );
@@ -432,6 +491,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
   });
   renderer.domElement.addEventListener('pointerleave', () => {
     if (!editDrag) gridHover = false;
+    hoverMarker.visible = false;
     applyGridVisibility();
   });
   renderer.domElement.addEventListener('pointerdown', onEditPointerDown);
@@ -446,6 +506,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
 
   function applyEditMode(): void {
     if (!editMode) gridGroup.position.z = 0;
+    if (!editMode) hoverMarker.visible = false;
     applyGridVisibility();
     selectionMarker.visible = editMode && selectedNote !== null;
     renderer.domElement.style.cursor = editMode ? 'crosshair' : '';
@@ -686,6 +747,9 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
       renderer.domElement.removeEventListener('contextmenu', onEditContextMenu);
       scene.remove(gridGroup);
       scene.remove(selectionMarker);
+      scene.remove(hoverMarker);
+      hoverMarker.geometry.dispose();
+      (hoverMarker.material as THREE.Material).dispose();
       for (const child of gridGroup.children) {
         child.traverse((object) => {
           if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments) {

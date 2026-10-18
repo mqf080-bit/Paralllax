@@ -938,7 +938,7 @@ export class TimelineRenderer {
     for (let x = Math.max(GUTTER, headX); x <= Math.min(layout.width, tailX); x += 2) {
       const time = xToTime(view, x);
       const point = sampleArcPoint(note.points, time - note.time);
-      const y = heightToY(layout, domain, point.y);
+      const y = heightToY(layout, domain, point.z);
       if (!started) {
         ctx.moveTo(x, y);
         started = true;
@@ -952,7 +952,7 @@ export class TimelineRenderer {
       const x = timeToX(view, note.time + tick.time);
       if (x < GUTTER || x > layout.width) continue;
       const point = sampleArcPoint(note.points, tick.time);
-      const y = heightToY(layout, domain, point.y);
+      const y = heightToY(layout, domain, point.z);
       if (tick.key) {
         ctx.fillStyle = COLORS.key;
         ctx.beginPath();
@@ -976,7 +976,7 @@ export class TimelineRenderer {
       note.points.forEach((point, index) => {
         const x = timeToX(view, note.time + point.time);
         if (x < GUTTER - 10 || x > layout.width + 10) return;
-        const y = heightToY(layout, domain, point.y);
+        const y = heightToY(layout, domain, point.z);
         const active = index === pointIndex;
         ctx.beginPath();
         ctx.arc(x, y, active ? 6 : 4, 0, Math.PI * 2);
@@ -990,7 +990,7 @@ export class TimelineRenderer {
           ctx.font = `9px ${MONO}`;
           ctx.textAlign = x > layout.width - 60 ? 'right' : 'left';
           ctx.textBaseline = 'bottom';
-          ctx.fillText(`${point.y.toFixed(2)}m`, x + (x > layout.width - 60 ? -8 : 8), y - 6);
+          ctx.fillText(`${point.z.toFixed(2)}m`, x + (x > layout.width - 60 ? -8 : 8), y - 6);
         }
       });
     }

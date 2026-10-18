@@ -47,7 +47,7 @@ select {
 
 #editor {
   display: grid;
-  grid-template-rows: 48px minmax(0, 1fr);
+  grid-template-rows: 48px minmax(0, 1fr) 58px;
   height: 100vh;
   min-width: 1180px;
 }
@@ -609,6 +609,56 @@ select {
 
 .issues__item {
   margin: 2px 0;
+}
+
+/* —— 底部全局时间线（Blender 式）—— */
+
+.overview {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  min-height: 0;
+  padding: 3px 10px 4px;
+  border-top: 1px solid var(--hairline);
+  background: var(--panel);
+}
+
+.overview__controls {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  width: 92px;
+}
+
+.overview__controls .button {
+  width: 100%;
+  height: 22px;
+  font-size: 10px;
+}
+
+.overview__time {
+  color: var(--ink-dim);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.overview__canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.overview__canvas canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: ew-resize;
 }
 
 /* —— 提示条 —— */
