@@ -49,7 +49,6 @@ export function createDebug(options: DebugOptions): DebugHandle {
   const layout = gui.addFolder('布局');
   layout.add(params, 'showLaneNumbers').name('近端轨号').onChange(onChange);
   layout.add(params, 'showBand').name('判定带').onChange(onChange);
-  layout.add(params, 'showHeightGuides').name('高度基准线').onChange(onChange);
   layout.add(preview, 'visible').name('键型预览').onChange(onPreviewChange);
   layout.add(shift, 'mode', ['normal', 'left', 'right']).name('shift 窗口');
 

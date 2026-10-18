@@ -132,6 +132,22 @@ export interface ArcNote extends TimedNote {
 export type Note = HitNote | DragNote | HoldNote | ArcNote;
 
 /**
+ * 三条高度基准线（米，相对台面）。**只用于制谱**，游戏里不画出来。
+ *
+ * 台面 0.95m；按 1.75m 的玩家算：
+ * - 胸 ≈ 1.28m（台面上 0.33）
+ * - 面 ≈ 1.56m（台面上 0.61）
+ * - 头顶 ≈ 1.76m（台面上 0.81）
+ *
+ * 写谱时高度就按这三条线读，不要写「差不多 0.4」这种数。
+ */
+export const HEIGHT_LEVELS = [
+  { id: 'chest', label: 'CHEST', y: 0.33 },
+  { id: 'face', label: 'FACE', y: 0.61 },
+  { id: 'head', label: 'HEAD', y: 0.81 },
+] as const;
+
+/**
  * 谱面硬性限制：运行时会据此裁剪 —— **不满足的 note 不生成**。
  *
  * 高度上限存在的理由：玩家站在台面前，手能舒服够到的高度是有限的。
@@ -156,8 +172,8 @@ export interface Chart {
 
 /** 默认限制。制谱器、校验器、运行时共用。 */
 export const CHART_LIMITS: ChartLimits = {
-  // 头顶那条高度基准线（见 config.ts 的 HEIGHT_GUIDES）。
-  maxHeight: 0.81,
+  // 头顶那条高度基准线。
+  maxHeight: HEIGHT_LEVELS[HEIGHT_LEVELS.length - 1]!.y,
 };
 
 /** 谱面实际生效的限制 = 默认值 + 谱面覆盖。 */
