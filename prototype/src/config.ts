@@ -25,6 +25,8 @@ export interface TableParams {
   showLaneNumbers: boolean;
   /** 调试：显示判定带。 */
   showBand: boolean;
+  /** 调试：显示空中的高度基准线（胸 / 面 / 头顶）。 */
+  showHeightGuides: boolean;
   /**
    * 可见距离（米，从判定带算起）：更远的 note 完全不画。
    * 默认贴着台面远端（9m），靠一段长的淡入把它接进来。
@@ -43,8 +45,28 @@ export const DEFAULT_PARAMS: TableParams = {
   plateThickness: 0.012,
   showLaneNumbers: false,
   showBand: true,
+  showHeightGuides: true,
   visibleRange: 9,
 };
+
+/**
+ * 空中的三条高度基准线（米，相对台面）。
+ *
+ * 台面 0.95m；按 1.75m 的玩家算：
+ * - 胸 ≈ 1.28m（台面上 0.33）
+ * - 面 ≈ 1.56m（台面上 0.61）
+ * - 头顶 ≈ 1.76m（台面上 0.81）
+ *
+ * 谱面里的高度按这三条线读，不要写「差不多 0.4」这种数。
+ */
+export const HEIGHT_GUIDES: ReadonlyArray<{ id: 'chest' | 'face' | 'head'; label: string; y: number }> = [
+  { id: 'chest', label: 'CHEST', y: 0.33 },
+  { id: 'face', label: 'FACE', y: 0.61 },
+  { id: 'head', label: 'HEAD', y: 0.81 },
+];
+
+/** 硬上限 = 头顶那条线。超过它的 note 不生成。 */
+export const HEIGHT_LIMIT = HEIGHT_GUIDES[HEIGHT_GUIDES.length - 1]!.y;
 
 /** 一切尺寸的派生量集中在这里，避免各处各算一遍。 */
 export interface TableGeometry {

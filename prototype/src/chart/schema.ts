@@ -139,7 +139,7 @@ export type Note = HitNote | DragNote | HoldNote | ArcNote;
  * 连续交互会明显掉速。0.6m 是「还能当做正常动作」的上限。
  */
 export interface ChartLimits {
-  /** note 的最大高度（米，相对台面）。默认 0.6。 */
+  /** note 的最大高度（米，相对台面）。默认 0.81（= 头顶基准线）。 */
   maxHeight: number;
 }
 
@@ -156,7 +156,8 @@ export interface Chart {
 
 /** 默认限制。制谱器、校验器、运行时共用。 */
 export const CHART_LIMITS: ChartLimits = {
-  maxHeight: 0.6,
+  // 头顶那条高度基准线（见 config.ts 的 HEIGHT_GUIDES）。
+  maxHeight: 0.81,
 };
 
 /** 谱面实际生效的限制 = 默认值 + 谱面覆盖。 */

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-import { deriveGeometry, type TableGeometry, type TableParams } from '../config';
+import { deriveGeometry, HEIGHT_GUIDES, type TableGeometry, type TableParams } from '../config';
 import type { MaterialLibrary } from '../materials/library';
 
 /**
@@ -162,6 +162,37 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
     });
   }
 
+  // —— 空中的高度基准线：胸 / 面 / 头顶（远端的一道「门」）——
+  // 谱面高度按这三条线读；它们跟着 4 轨窗口左右滑，和台面保持同一套 x。
+  const guideGroup = new THREE.Group();
+  guideGroup.name = 'height-guides';
+  const guideMaterial = new THREE.MeshBasicMaterial({
+    color: 0x86bcd0,
+    transparent: true,
+    opacity: 0.3,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  createdMaterials.push(guideMaterial);
+
+  const guideWidth = WINDOW_LANES * g.laneWidth;
+  const guideZ = g.farZ + 0.9;
+  const guideThickness = 0.02;
+  const railGeometry = new THREE.BoxGeometry(guideWidth, guideThickness, guideThickness);
+  const postGeometry = new THREE.BoxGeometry(guideThickness, HEIGHT_GUIDES[HEIGHT_GUIDES.length - 1]!.y, guideThickness);
+
+  for (const level of HEIGHT_GUIDES) {
+    const rail = new THREE.Mesh(railGeometry, guideMaterial);
+    rail.position.set(0, topY + level.y, guideZ);
+    guideGroup.add(rail);
+  }
+  for (const side of [-1, 1]) {
+    const post = new THREE.Mesh(postGeometry, guideMaterial);
+    post.position.set((side * guideWidth) / 2, topY + HEIGHT_GUIDES[HEIGHT_GUIDES.length - 1]!.y / 2, guideZ);
+    guideGroup.add(post);
+  }
+  group.add(guideGroup);
+
   function setWindow(value: number): void {
     const w = THREE.MathUtils.clamp(value, -1, 1);
 
@@ -194,6 +225,10 @@ export function buildTable(params: TableParams, lib: MaterialLibrary): TableBuil
       material.opacity = lit * 0.85;
       mesh.visible = lit > VISIBLE_EPSILON;
     }
+
+    // 高度基准线跟着窗口滑（宽度固定 4 轨）。
+    guideGroup.position.x = w * g.laneWidth;
+    guideGroup.visible = params.showHeightGuides;
   }
   setWindow(0);
 

@@ -13,12 +13,13 @@ import type { Chart } from './schema';
  *   - 30s 右 shift（2–5）
  *   - 38s 回正（1–4）
  * - shift 过渡 350ms，过渡期内不写 note（校验器按四舍五入后的窗口判断）。
- * - arc 的高度 ≤ 0.45m，低于 `limits.maxHeight`（0.6m）。
+ * - arc 的高度只用两条基准线：胸（0.33m）/ 面（0.61m）；上限是头顶（0.81m）。
+ * - SV 只写两处：A 段 0.6 慢速、B 段 200ms 停表 —— 够验证「判定与流速无关」，不折磨人。
  *
  * 段落：
  *   A 0–12s   引入：八分 hit → drag 楼梯 → hold → arc（两个关键物量）→ hold
  *   B 12–20s  左 shift：低轨 hit / drag / hold / arc
- *   C 20–30s  常态：密度上来，含一次「停表」（SV 0）与一次倒流（SV -0.8）
+ *   C 20–30s  常态：密度上来，arc 抬到面部高度
  *   D 30–38s  右 shift：高轨 hit / drag / hold / arc
  *   E 38–42s  收尾：回到常态，最后一条 hold + 一颗 hit
  */
@@ -41,22 +42,14 @@ export const TEST_CHART: Chart = {
     { time: 38000, label: 'E' },
   ],
 
-  limits: { maxHeight: 0.6 },
-
   speed: [
     { time: 0, multiplier: 1 },
-    // 慢速段：看远 / 中 / 近三档的可读性
-    { time: 7200, multiplier: 0.55, easing: 'sine', duration: 300 },
-    { time: 8400, multiplier: 1, easing: 'sine', duration: 300 },
-    // 停表：400ms 内 note 不动（判定照常按时间走）
-    { time: 16400, multiplier: 0, easing: 'linear', duration: 400 },
-    { time: 16800, multiplier: 1, easing: 'sine', duration: 300 },
-    // 倒流：note 往回退（共 800ms，含回正）
-    { time: 24400, multiplier: -0.8, easing: 'sine', duration: 400 },
-    { time: 24800, multiplier: 1, easing: 'sine', duration: 400 },
-    // 右 shift 里再来一次慢速
-    { time: 34400, multiplier: 0.4, easing: 'sine', duration: 300 },
-    { time: 35600, multiplier: 1, easing: 'sine', duration: 300 },
+    // 慢速段：看远 / 中 / 近三档的可读性（A 段）
+    { time: 7200, multiplier: 0.6, easing: 'sine', duration: 400 },
+    { time: 8400, multiplier: 1, easing: 'sine', duration: 400 },
+    // 短停表：200ms 内 note 不动（判定照常按时间走，B 段）
+    { time: 16400, multiplier: 0, easing: 'linear', duration: 200 },
+    { time: 16600, multiplier: 1, easing: 'sine', duration: 200 },
   ],
 
   shift: [
@@ -95,8 +88,8 @@ export const TEST_CHART: Chart = {
       keyObjects: [400, 800],
       points: [
         { time: 0, x: 1, y: 0.08, easing: 'linear' },
-        { time: 400, x: 1, y: 0.35, easing: 'sine' },
-        { time: 800, x: 3, y: 0.35, easing: 'linear' },
+        { time: 400, x: 1, y: 0.33, easing: 'sine' },
+        { time: 800, x: 3, y: 0.33, easing: 'linear' },
         { time: 1200, x: 3, y: 0.08, easing: 'sine' },
       ],
     },
@@ -132,8 +125,8 @@ export const TEST_CHART: Chart = {
       keyObjects: [800],
       points: [
         { time: 0, x: 0, y: 0.08, easing: 'linear' },
-        { time: 400, x: 0, y: 0.3, easing: 'sine' },
-        { time: 800, x: 2, y: 0.3, easing: 'linear' },
+        { time: 400, x: 0, y: 0.33, easing: 'sine' },
+        { time: 800, x: 2, y: 0.33, easing: 'linear' },
         { time: 1200, x: 2, y: 0.08, easing: 'sine' },
       ],
     },
@@ -169,10 +162,10 @@ export const TEST_CHART: Chart = {
       notesPerSecond: 4,
       keyObjects: [400, 800],
       points: [
-        { time: 0, x: 1, y: 0.1, easing: 'linear' },
-        { time: 400, x: 1, y: 0.45, easing: 'sine' },
-        { time: 800, x: 4, y: 0.45, easing: 'linear' },
-        { time: 1200, x: 4, y: 0.1, easing: 'sine' },
+        { time: 0, x: 1, y: 0.08, easing: 'linear' },
+        { time: 400, x: 1, y: 0.61, easing: 'sine' },
+        { time: 800, x: 4, y: 0.61, easing: 'linear' },
+        { time: 1200, x: 4, y: 0.08, easing: 'sine' },
       ],
     },
 
@@ -203,10 +196,10 @@ export const TEST_CHART: Chart = {
       notesPerSecond: 4,
       keyObjects: [800],
       points: [
-        { time: 0, x: 2, y: 0.1, easing: 'linear' },
-        { time: 400, x: 2, y: 0.3, easing: 'sine' },
-        { time: 800, x: 5, y: 0.3, easing: 'linear' },
-        { time: 1200, x: 5, y: 0.1, easing: 'sine' },
+        { time: 0, x: 2, y: 0.08, easing: 'linear' },
+        { time: 400, x: 2, y: 0.33, easing: 'sine' },
+        { time: 800, x: 5, y: 0.33, easing: 'linear' },
+        { time: 1200, x: 5, y: 0.08, easing: 'sine' },
       ],
     },
 
