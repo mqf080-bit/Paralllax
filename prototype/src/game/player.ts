@@ -96,7 +96,14 @@ const FAR_FADE_SPAN = 2.0;
 
 type RuntimeNote =
   | { kind: 'hit'; chart: ChartHitNote; laneX: number; group: THREE.Group; resolved: boolean }
-  | { kind: 'drag'; chart: ChartDragNote; laneX: number; group: THREE.Group; resolved: boolean }
+  | {
+      kind: 'drag';
+      chart: ChartDragNote;
+      laneX: number;
+      group: THREE.Group;
+      bar: THREE.Mesh;
+      resolved: boolean;
+    }
   | {
       kind: 'hold';
       chart: ChartHoldNote;
@@ -171,7 +178,7 @@ export function createPlayer(
   // 玻璃片在远处太淡，会变成「到跟前才突然出现」；有了这条亮边，
   // hold 在远端就能读成「一条线 + 一条拖尾」，也顺便标出该从哪里按下去。
   const holdHeadGeometry = new RoundedBoxGeometry(0.2, 0.014, 0.034, 2, 0.004);
-  const holdHeadMaterialBase = applyDistanceFade(lib.iceBar.clone(), { far: fadeFar, span: fadeSpan });
+  const holdHeadMaterialBase = applyDistanceFade(lib.iceBar.clone(), { far: fadeFar, span: fadeSpan * 1.8 });
   holdHeadMaterialBase.emissiveIntensity = 3.0;
 
   const runtime: RuntimeNote[] = [];
@@ -252,9 +259,12 @@ export function createPlayer(
       glow.position.y = 0.002;
       glow.renderOrder = 4;
       noteGroup.add(glow);
-      runtime.push({ kind: 'drag', chart: note, laneX: x, group: noteGroup, resolved: false });
+      runtime.push({ kind: 'drag', chart: note, laneX: x, group: noteGroup, bar, resolved: false });
     } else {
-      const sheetMaterial = applyDistanceFade(lib.clearGlass.clone(), { far: fadeFar, span: fadeSpan });
+      // 先到的是「头」（亮边），片子本身晚一点才铺开 ——
+      // 这样远处看到的是一条线，靠近时片子从线后面长出来，不会整片一闪。
+      const holdSpan = fadeSpan * 0.7;
+      const sheetMaterial = applyDistanceFade(lib.clearGlass.clone(), { far: fadeFar, span: holdSpan });
       sheetMaterial.emissive.setHex(0x1c6f86);
       sheetMaterial.emissiveIntensity = 0;
       const sheet = new THREE.Mesh(holdSheetGeometry, sheetMaterial);
@@ -265,13 +275,13 @@ export function createPlayer(
       headBar.position.y = 0.004;
       noteGroup.add(headBar);
 
-      const stripMaterial = applyDistanceFade(lib.holdFill.clone(), { far: fadeFar, span: fadeSpan });
+      const stripMaterial = applyDistanceFade(lib.holdFill.clone(), { far: fadeFar, span: holdSpan });
       const strip = new THREE.Mesh(holdStripGeometry, stripMaterial);
       strip.position.y = 0.0045;
       strip.visible = false;
       noteGroup.add(strip);
 
-      const auraMaterial = applyDistanceFade(lib.glowLeft.clone(), { far: fadeFar, span: fadeSpan, power: 1.6 });
+      const auraMaterial = applyDistanceFade(lib.glowLeft.clone(), { far: fadeFar, span: holdSpan, power: 1.6 });
       auraMaterial.opacity = 0;
       const aura = new THREE.Mesh(holdAuraGeometry, auraMaterial);
       aura.rotation.x = -Math.PI / 2;
@@ -427,6 +437,8 @@ export function createPlayer(
     const headBarZ = Math.min(near, visibleNear) - 0.012;
     note.headBar.visible = headBarZ > far + 0.005;
     note.headBar.position.z = Math.max(headBarZ - far, 0.012);
+    const headAhead = Math.max(geometry.bandZ - headBarZ, 0);
+    note.headBar.scale.y = THREE.MathUtils.clamp((0.003 * headAhead) / 0.014, 1, 2.2);
 
     const litStart = Math.max(geometry.bandZ, far);
     const litLength = Math.max(visibleNear - litStart, 0);
@@ -510,6 +522,12 @@ export function createPlayer(
     // 流速越快，note 过线后还要多留一会儿（good 窗口按时间算，不按距离）。
     const nearLimit = geometry.nearZ + 0.1 + (MISS_MS / 1000) * baseSpeed();
     note.group.visible = z > fadeFar && z <= nearLimit;
+
+    // 细物件在远处会掉到 1–2 px：按距离补一点厚度，让「是一条」这件事撑住。
+    if (note.kind === 'drag') {
+      const ahead = Math.max(geometry.bandZ - z, 0);
+      note.bar.scale.y = THREE.MathUtils.clamp((0.003 * ahead) / 0.011, 1, 2.4);
+    }
   }
 
   // —— 自动演示 ——
