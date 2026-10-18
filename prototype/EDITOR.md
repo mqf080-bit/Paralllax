@@ -233,7 +233,8 @@ arc 的点列就是 `points[]`；可以任意多段，每段一个缓动。
 
 右侧 `AUDIO`：
 
-- **TRACK**：选择本地音频（也支持把音频文件拖进页面）。解码后：
+- **TRACK**：选择本地音频（也支持把音频文件拖进页面）。会读 FLAC / MP3 的内嵌封面、
+  标题、作者；没有封面时在 `COVER` 里手动选图片。解码后：
   - 波形画在时间轴**最底下**的波形带里；
   - 预览播放会用它当音轨（1× 正放时）；
   - 找不到文件 / 解码失败会在 `VALIDATION` 上方显示错误。
@@ -241,11 +242,14 @@ arc 的点列就是 `points[]`；可以任意多段，每段一个缓动。
   **正值 = 谱面时间比音频提前**。波形会跟着左右平移：
   谱面时间 `t` 处画的是音频 `t − offset` 的采样。
   用 `−10 / −1 / +1 / +10` 微调，把鼓点 / 人声对齐到小节线。
+- **DURATION (ms)**：谱面 / 音轨时长。导入音频时自动设为音频长度；也可以手动改。
+  `AUDIO LENGTH` 一键恢复成当前音轨长度。时间轴和游戏进度都按它显示。
+- **COVER**：音频内嵌封面（FLAC / MP3）；没有就显示 `NO COVER`，可以手动选图片。
 - 没有音频时，预览可以按 `timing` 现场合成鼓点，照样能对拍；编辑器默认关，走带上的 `DRUMS` 勾选后才响。
 - 音量 / 节拍器只影响预览，不写进谱面。
 
-> 音频文件不会保存进 JSON / localStorage。导出的谱面只记 `audio` 文件名，
-> 游戏里需要 `?audio=/你的音频.mp3` 或把文件放到 `public/`。
+> 音频 / 封面文件不会保存进 JSON / localStorage。`.parallax` 会把它们打进包里；
+> 单独导出的 JSON 只记文件名，游戏里需要 `?audio=/你的音频.mp3`。
 
 ---
 
@@ -256,7 +260,7 @@ arc 的点列就是 `points[]`；可以任意多段，每段一个缓动。
 | 自动 | 每次改动后 650ms 写 localStorage 草稿；关页面前再写一次 |
 | `EXPORT` / `Ctrl+S` | 下载 `<title>.parallax` 谱面包（谱面 + 当前音轨 + 保留资源） |
 | `JSON` | 下载旧的 `<title>.parallax.json`（调试 / 兼容） |
-| `IMPORT` | 读入 `.parallax` 或 `.parallax.json`；包内音频会自动恢复 |
+| `IMPORT` | 读入 `.parallax` 或 `.parallax.json`；包内音频 / 封面会自动恢复 |
 | `NEW` | 空谱（有内容时确认） |
 | `LOAD TEST / LOAD DEMO` | 载入内置验收谱 / 12 秒示例 |
 | `CLEAR DRAFT` | 只删 localStorage 草稿，不动当前编辑内容 |
@@ -382,5 +386,7 @@ src/editor/
    在高度轨把 arc 抬到胸 / 面；`MAKE EXPLICIT` 后只保留需要结算的 arc 物量。
 5. `SHIFT` 在段落切换处加窗口移动；`SV` 在需要停顿 / 加速的地方加点。
 6. 按 `Space` 用 1× 跑一遍，再用 0.5× 看判定与视觉；`REV` 检查后半段。
-7. `EXPORT`，把 `.parallax` 放进 `prototype/public/packages/`，用
-   `?pack=/packages/…parallax` 在游戏页 / Quest 里最终验一遍。
+7. `EXPORT` 得到 `.parallax`：
+   - 最快：打开游戏页，左下角 `LOAD .parallax` 选这个文件（或拖进去），直接开始；
+   - 或放进 `prototype/public/packages/`，用 `?pack=/packages/…parallax` 打开；
+   - Quest 上用同一 URL（`adb reverse` 已配好）。

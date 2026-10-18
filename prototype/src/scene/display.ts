@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { drawToTexture } from '../materials/textures';
 
 /**
- * 浮空显示：曲名 + 分数，飘在台面右前方的空间里。
+ * 浮空显示：曲名 / 作者 / 封面 + 分数，飘在台面右前方的空间里。
  *
  * 不是 HUD：不挂在相机上，不跟着头走，也没有「显示屏」。
  * 它属于世界，位置在玩家自然的视线方向上（看轨道时顺带就能瞄到），
@@ -29,7 +29,10 @@ export interface DisplayState {
 
 export interface DisplayMeta {
   title: string;
+  artist: string;
   difficulty: string;
+  /** 封面（已 decode 的图片）；null = 没有封面。 */
+  cover?: CanvasImageSource | null;
 }
 
 export interface DisplayBuild {
@@ -77,14 +80,36 @@ export function createDisplayTextures(meta: DisplayMeta): DisplayTextures {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
 
-    // 曲名
+    // 封面：右侧一块方图；没有就留空，不伪造一个「CD」。
+    if (meta.cover) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.fillRect(792, 24, 180, 180);
+      ctx.drawImage(meta.cover, 792, 24, 180, 180);
+      ctx.strokeStyle = 'rgba(176,141,87,0.45)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(792.5, 24.5, 180, 180);
+      ctx.restore();
+    }
+
+    // 曲名（限制在封面左侧，避免长标题压到图上）
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(8, 0, 760, 130);
+    ctx.clip();
     ctx.font = '500 34px ui-monospace, Menlo, monospace';
     ctx.fillStyle = 'rgba(196,210,226,0.82)';
-    ctx.fillText(meta.title, 8, 72);
+    ctx.fillText(meta.title, 8, 64);
+
+    // 作者
+    ctx.font = '500 24px ui-monospace, Menlo, monospace';
+    ctx.fillStyle = 'rgba(170,185,200,0.95)';
+    ctx.fillText(meta.artist || '—', 8, 100);
+    ctx.restore();
 
     // 黄铜细线：唯一的暖色。
     ctx.fillStyle = 'rgba(176,141,87,0.55)';
-    ctx.fillRect(8, 94, 480, 2);
+    ctx.fillRect(8, 116, 480, 2);
 
     // 分数
     ctx.font = '700 118px ui-monospace, Menlo, monospace';

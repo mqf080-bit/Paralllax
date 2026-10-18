@@ -35,8 +35,17 @@ export function audioFromPackage(pkg: UnpackedPackage): PackedAudio | null {
 export function packageAssets(pkg: UnpackedPackage): Map<string, { data: Uint8Array; type: string }> {
   const assets = new Map<string, { data: Uint8Array; type: string }>();
   for (const entry of pkg.header.files) {
-    if (entry.path === pkg.header.chart || entry.path === pkg.header.audio) continue;
+    if (entry.path === pkg.header.chart || entry.path === pkg.header.audio || entry.path === pkg.header.cover) continue;
     assets.set(entry.path, { data: packageFile(pkg, entry.path), type: entry.type });
   }
   return assets;
+}
+
+export function coverFromPackage(pkg: UnpackedPackage): PackedAudio | null {
+  const path = pkg.header.cover;
+  if (!path) return null;
+  const data = packageFile(pkg, path);
+  const name = path.split('/').pop() ?? 'cover';
+  const entry = pkg.header.files.find((file) => file.path === path);
+  return { data, name, type: mimeForPath(path, entry?.type) };
 }

@@ -14,7 +14,7 @@ import {
 import {
   arcDuration,
   arcTicks,
-  chartEnd,
+  chartDuration,
   clampLane,
   clampX,
   countObjects,
@@ -46,6 +46,9 @@ export interface InspectorHost {
   readonly audioLoaded: boolean;
   readonly metronome: boolean;
   readonly volume: number;
+  readonly audioDurationMs: number | null;
+  readonly coverUrl: string | null;
+  readonly coverName: string | null;
   select(selection: Selection | null): void;
   seek(timeMs: number): void;
   commit(options?: { preview?: boolean }): void;
@@ -57,6 +60,7 @@ export interface InspectorHost {
   importAudio(file: File): void;
   setVolume(volume: number): void;
   setMetronome(enabled: boolean): void;
+  setCover(file: File | null): void;
   clearDraft(): void;
   deleteSelection(): void;
   loadBuiltin(kind: 'test' | 'demo'): void;
@@ -192,6 +196,32 @@ export class Inspector {
     );
     root.append(field('ARTIST', textInput(meta.artist, (value) => edit(host, () => (meta.artist = value), false))));
     root.append(field('CHARTER', textInput(meta.charter, (value) => edit(host, () => (meta.charter = value), false))));
+
+    root.append(
+      field(
+        'DURATION (ms)',
+        numberInput(
+          meta.duration ?? 0,
+          (value) =>
+            edit(host, () => {
+              if (value <= 0) delete meta.duration;
+              else meta.duration = Math.round(value);
+            }),
+          { min: 0, step: 1000 },
+        ),
+      ),
+    );
+    if (host.audioDurationMs !== null) {
+      const lengthActions = el('div', 'inspector__actions');
+      lengthActions.append(
+        button('AUDIO LENGTH', () =>
+          edit(host, () => {
+            meta.duration = host.audioDurationMs ?? undefined;
+          }),
+        ),
+      );
+      root.append(lengthActions);
+    }
 
     const summary = el('div', 'inspector__note');
     summary.textContent = `${host.chart.notes.length} notes · ${formatTime(chartLength(host.chart))} · ${objectCount(host.chart)} objects`;
@@ -877,6 +907,29 @@ export class Inspector {
     });
     root.append(field('TRACK', fileInput));
 
+    const coverRow = el('div', 'cover');
+    if (host.coverUrl) {
+      const image = el('img', 'cover__image');
+      image.src = host.coverUrl;
+      image.alt = host.coverName ?? 'cover';
+      coverRow.append(image);
+    } else {
+      coverRow.append(el('div', 'cover__empty', 'NO COVER'));
+    }
+    const coverControls = el('div', 'cover__controls');
+    const coverInput = el('input', 'input input--file');
+    coverInput.type = 'file';
+    coverInput.accept = 'image/*';
+    coverInput.addEventListener('change', () => {
+      const file = coverInput.files?.[0];
+      if (file) host.setCover(file);
+      coverInput.value = '';
+    });
+    coverControls.append(coverInput);
+    if (host.coverUrl) coverControls.append(button('CLEAR', () => host.setCover(null)));
+    coverRow.append(coverControls);
+    root.append(field('COVER', coverRow));
+
     root.append(
       field(
         'OFFSET (ms)',
@@ -1047,7 +1100,7 @@ function checkInput(checked: boolean, onChange: (value: boolean) => void): HTMLI
 }
 
 function chartLength(chart: Chart): number {
-  return chartEnd(chart);
+  return chartDuration(chart);
 }
 
 function objectCount(chart: Chart): number {

@@ -1,6 +1,6 @@
 # agent.md — Parallax Phase 1 协作协议
 
-> 状态：**Step 0–5 已完成；Step 5 第八轮修正（单文件谱面包）已实现，等待你验收**。
+> 状态：**Step 0–5 已完成；Step 5 第九轮修正（封面 / 时长 / 本地包）已实现，等待你验收**。
 > 阶段：Phase 1 — Prototyping in WebXR
 > 设计真相：`parallax-idea.md`
 > 空间 / 材质参考：`references/`
@@ -82,7 +82,7 @@
 | 2 | ✅ | 四种键型 + 判定 + hold/arc 物量 |
 | 3 | ✅ | 4 轨窗口整体滑动 |
 | 4 | ✅ | 谱面 / SV / shift / 计分 / 音频时钟 / 视距淡出 / VR UI / 高度上限 / 41.6s 测试谱都已完成；只剩「72fps 在头显里实测」没记录 |
-| 5 | ✅ | **待验收（第八轮）**：`.parallax` 单文件谱面包（谱面 + 音轨 + 资源）、2D 多选整组拖拽、3D arc 编辑、空中 note 1/4 轨吸附 |
+| 5 | ✅ | **待验收（第九轮）**：FLAC/MP3 封面与标签、时长默认音频长度、游戏本地 `.parallax` 直接加载、`.parallax` 单文件包 |
 
 ---
 
@@ -447,6 +447,11 @@ adb reverse tcp:5173 tcp:5173
   - 自定义 `.parallax` 容器（magic + header + 文件），编辑器默认导出、游戏 `?pack=` 读取；
   - 包内音频自动恢复；`resources/` 只作为源素材目录，运行时只认包；
   - 主题 / 背景路径和文件随包保留，游戏消费外观留到后续。
+- **第九轮修正（2026-10-18）**：
+  - FLAC/MP3 内嵌封面 + title/artist；编辑器可手动换封面；
+  - `meta.duration` 默认音频长度、可手动改；时间轴 / 游戏进度同步；
+  - 游戏浮空显示加入作者和封面；
+  - 游戏页左下 `LOAD .parallax`（IndexedDB + `?localPack=1`），不用复制到 public。
 - **没做**：框选 / 复制粘贴 / 自动 BPM 检测 / 波形频谱 / section 编辑 / VR 制谱；
   3D 里 arc 点的时间仍要在 2D / 检查器改。
 

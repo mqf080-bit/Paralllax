@@ -27,6 +27,13 @@ export interface ChartMeta {
   difficulty: string;
   /** 音频偏移（毫秒）：正数 = 谱面时间比音频早，和 AFF 的 AudioOffset 同义。 */
   offset: number;
+  /**
+   * 谱面 / 音轨时长（毫秒）。导入音频时默认填音频长度；可以手动改。
+   * 省略 = 按最后一颗 note 的结束时间算。
+   */
+  duration?: number;
+  /** 可选的封面 URL / data URL；`.parallax` 包用 header.cover 存文件。 */
+  cover?: string;
 }
 
 /** 小节信息：BPM 只用于画小节线 / 制谱器对齐，不参与滚动速度。 */

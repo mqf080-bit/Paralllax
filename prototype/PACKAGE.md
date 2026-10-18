@@ -31,11 +31,13 @@ offset 18   头部 JSON（UTF-8）
   "version": 1,
   "chart": "chart.json",
   "audio": "audio/track.mp3",
+  "cover": "cover/front.jpg",
   "theme": "theme/dark.json",
   "background": "background/stage.webp",
   "files": [
     { "path": "chart.json", "size": 12034, "type": "application/json" },
     { "path": "audio/track.mp3", "size": 4123456, "type": "audio/mpeg" },
+    { "path": "cover/front.jpg", "size": 256888, "type": "image/jpeg" },
     { "path": "theme/dark.json", "size": 512, "type": "application/json" },
     { "path": "background/stage.webp", "size": 98765, "type": "image/webp" }
   ]
@@ -44,7 +46,7 @@ offset 18   头部 JSON（UTF-8）
 
 - 不做压缩：音频本身是压缩格式，谱面 / 主题很小；省掉解压依赖。
 - 文件路径不允许 `..` / 绝对路径 / 重复；解包时会校验长度和越界。
-- `audio` 可以是 `null`：游戏退回合成鼓组；`theme` / `background` 可选。
+- `audio` / `cover` 可以是 `null`：游戏退回合成鼓组 / 不画封面；`theme` / `background` 可选。
 - 一个包当前只放**一张谱**；多谱、DLC、签名 / 加密以后可以升 `version`。
 
 格式实现：`src/pack/format.ts`；浏览器读取辅助：`src/pack/io.ts`。
@@ -55,6 +57,8 @@ offset 18   头部 JSON（UTF-8）
 - `JSON` → 仍导出旧的 `.parallax.json`，用于调试 / 兼容；
 - `IMPORT` 接受 `.parallax` 和 `.json`；
 - 导入包时会把音频自动载入，不需要再单独拖音频；
+- 音频里的 FLAC PICTURE / Vorbis `METADATA_BLOCK_PICTURE`、MP3 ID3 `APIC`
+  会自动取封面；没有就显示 `NO COVER`，可以在检查器 `COVER` 里手动选图片；
 - 主题 / 背景等未知资源会被原样保留在包内并随下一次导出写回；当前编辑器还没有
   主题 / 背景 UI，但格式已经预留。
 
@@ -66,6 +70,9 @@ offset 18   头部 JSON（UTF-8）
 ```
 
 仓库自带示例：`public/packages/air-example.parallax`（只有谱面 + 一个主题 JSON，没有音轨）。
+
+**不想复制文件时**：游戏页左下角有 `LOAD .parallax`，选择 / 拖入导出的包会写进
+IndexedDB 然后 reload 成 `?localPack=1` 直接开始玩。适合桌面和 Quest 浏览器。
 
 旧的加载方式仍可用：
 
@@ -91,5 +98,6 @@ resources/
 
 - 不做压缩 / 加密 / 签名；
 - 一个包一张谱；
+- 音频封面目前只解析 FLAC / MP3；M4A / OGG 的内嵌封面留到后续；
 - `theme` / `background` 只是被携带和保留，游戏还没有读取它们来切换外观；
 - 浏览器下载 / 导入文件仍受 File API 限制，音频不会进 localStorage 草稿。

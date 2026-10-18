@@ -18,6 +18,13 @@
       <p id="hint" class="panel__hint"></p>
     </aside>
 
+    <div id="package-loader" class="package-loader">
+      <button id="package-load" class="package-loader__button" type="button">LOAD .parallax</button>
+      <span id="package-hint" class="package-loader__hint">or drop a package</span>
+      <input id="package-file" type="file" accept=".parallax" hidden />
+    </div>
+    <div id="package-drop" class="package-drop" hidden>DROP .parallax TO PLAY</div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

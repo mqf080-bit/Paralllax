@@ -31,8 +31,8 @@
 
 | 段 | 作用 | 备注 |
 | --- | --- | --- |
-| `meta` | 标题 / 难度 / offset | `offset` 正 = 谱面比音频提前 |
-| `audio` | 音轨文件名 | 只记录；播放时用 `?audio=/track.mp3` |
+| `meta` | 标题 / 难度 / offset / duration / cover | `offset` 正 = 谱面比音频提前；`duration` 毫秒，导入音频时默认为音频长度；`cover` 可放 URL / data URL（`.parallax` 用 header.cover） |
+| `audio` | 音轨文件名 | 只记录；`.parallax` 包里音频是真实文件，旧 JSON 用 `?audio=/track.mp3` |
 | `timing` | BPM + 每小节拍数 | 画小节 / 对齐；**也是合成音轨的拍点**；不参与滚动速度 |
 | `sections` | 段落标记 | 纯制谱器信息 |
 | `speed` | 视觉流速（SV） | 支持 0 / 负数 / 极端值 |

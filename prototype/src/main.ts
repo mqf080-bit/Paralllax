@@ -10,7 +10,9 @@ import { DEMO_CHART } from './chart/demo';
 import { TEST_CHART } from './chart/test';
 import type { Chart } from './chart/schema';
 import { createPlayer, type Player, type PlayerSettings } from './game/player';
-import { audioFromPackage, chartJsonFromPackage, loadPackageUrl, type PackedAudio } from './pack/io';
+import { unpackPackage } from './pack/format';
+import { audioFromPackage, chartJsonFromPackage, coverFromPackage, loadPackageUrl, type PackedAudio } from './pack/io';
+import { readLocalPackage, saveLocalPackage } from './pack/local';
 import { createEnvironment } from './materials/environment';
 import { createMaterialLibrary } from './materials/library';
 import { buildBackdrop } from './scene/backdrop';
@@ -38,6 +40,35 @@ const params: TableParams = { ...DEFAULT_PARAMS };
 
 // 默认跑 42 秒的验收谱。
 // `?chart=demo` 切回 12 秒示例；`?chart=/charts/xxx.json` 载入制谱器导出的谱面。
+async function loadImageBytes(data: Uint8Array, type: string): Promise<HTMLImageElement | null> {
+  const copy = new Uint8Array(data);
+  const url = URL.createObjectURL(new Blob([copy.buffer], { type }));
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    return image;
+  } catch (cause) {
+    console.warn('[cover] 图片解码失败', cause);
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function loadImageUrl(url: string): Promise<HTMLImageElement | null> {
+  try {
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.src = url;
+    await image.decode();
+    return image;
+  } catch (cause) {
+    console.warn(`[cover] 载入失败 ${url}`, cause);
+    return null;
+  }
+}
+
 function prepareChart(raw: unknown, label: string): Chart {
   if (!raw || typeof raw !== 'object') throw new Error('不是有效的谱面');
   const loaded = raw as Chart;
@@ -58,13 +89,30 @@ const chartParam = bootQuery.get('chart');
 const packParam = bootQuery.get('pack');
 let activeChart: Chart = TEST_CHART;
 let packedAudio: PackedAudio | null = null;
-if (packParam) {
+let packedCover: PackedAudio | null = null;
+const localPack = bootQuery.get('localPack') === '1' ? await readLocalPackage() : null;
+if (localPack) {
+  try {
+    const pkg = unpackPackage(localPack);
+    activeChart = prepareChart(chartJsonFromPackage(pkg), 'local package');
+    packedAudio = audioFromPackage(pkg);
+    packedCover = coverFromPackage(pkg);
+    console.info(
+      `[pack] local · ${pkg.header.files.length} files${packedAudio ? ` · audio ${packedAudio.name}` : ''}${packedCover ? ` · cover ${packedCover.name}` : ''}`,
+    );
+  } catch (cause) {
+    console.warn('[pack] 本地谱面包解析失败，回退测试谱', cause);
+  }
+} else if (packParam) {
   const url = packParam.includes('/') || packParam.endsWith('.parallax') ? packParam : `/packages/${packParam}.parallax`;
   try {
     const pkg = await loadPackageUrl(url);
     activeChart = prepareChart(chartJsonFromPackage(pkg), url);
     packedAudio = audioFromPackage(pkg);
-    console.info(`[pack] ${url} · ${pkg.header.files.length} files${packedAudio ? ` · audio ${packedAudio.name}` : ''}`);
+    packedCover = coverFromPackage(pkg);
+    console.info(
+      `[pack] ${url} · ${pkg.header.files.length} files${packedAudio ? ` · audio ${packedAudio.name}` : ''}${packedCover ? ` · cover ${packedCover.name}` : ''}`,
+    );
   } catch (cause) {
     console.warn(`[pack] 载入 ${url} 失败，回退测试谱`, cause);
   }
@@ -111,6 +159,72 @@ if (packedAudio) {
 // 过渡值是连续的，做淡入淡出与判定带的交叉过渡。
 const shiftState: { mode: 'normal' | 'left' | 'right' } = { mode: 'normal' };
 let shiftValue = 0;
+
+// —— 桌面 / Quest 浏览器：选一个本地 .parallax 直接玩，不用复制到 public/ ——
+function setupPackageLoader(): void {
+  const root = document.getElementById('package-loader');
+  const button = document.getElementById('package-load');
+  const input = document.getElementById('package-file') as HTMLInputElement | null;
+  const hint = document.getElementById('package-hint');
+  const drop = document.getElementById('package-drop');
+  if (!root || !button || !input || !hint || !drop) return;
+  const hintNode = hint;
+
+  const fail = (message: string): void => {
+    root.classList.add('is-error');
+    hintNode.textContent = message;
+  };
+
+  async function open(file: File): Promise<void> {
+    if (!file.name.toLowerCase().endsWith('.parallax')) {
+      fail('需要 .parallax 文件');
+      return;
+    }
+    hintNode.textContent = 'LOADING…';
+    try {
+      await saveLocalPackage(await file.arrayBuffer());
+      const url = new URL(window.location.href);
+      url.search = '?localPack=1';
+      window.location.href = url.toString();
+    } catch (cause) {
+      fail(cause instanceof Error ? cause.message : '本地包保存失败');
+    }
+  }
+
+  button.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => {
+    const file = input.files?.[0];
+    if (file) void open(file);
+    input.value = '';
+  });
+
+  let drops = 0;
+  window.addEventListener('dragenter', (event) => {
+    if (!event.dataTransfer?.types.includes('Files')) return;
+    event.preventDefault();
+    drops += 1;
+    drop.hidden = false;
+  });
+  window.addEventListener('dragover', (event) => {
+    if (event.dataTransfer?.types.includes('Files')) event.preventDefault();
+  });
+  window.addEventListener('dragleave', (event) => {
+    if (!event.dataTransfer?.types.includes('Files')) return;
+    drops = Math.max(0, drops - 1);
+    if (drops === 0) drop.hidden = true;
+  });
+  window.addEventListener('drop', (event) => {
+    if (!event.dataTransfer?.files.length) return;
+    event.preventDefault();
+    drops = 0;
+    drop.hidden = true;
+    const file = event.dataTransfer.files[0];
+    if (file) void open(file);
+  });
+
+  if (bootQuery.get('localPack') === '1') hintNode.textContent = 'LOCAL PACKAGE';
+}
+setupPackageLoader();
 
 // —— 渲染器 ——
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -247,9 +361,16 @@ if (import.meta.env.DEV) {
 // —— 内容 ——
 // 浮空显示属于世界，不挂相机；位置可由调试面板调整（x / y / z）。
 const displayPlacement: DisplayPlacement = { ...DEFAULT_DISPLAY };
+const coverImage = packedCover
+  ? await loadImageBytes(packedCover.data, packedCover.type)
+  : activeChart.meta.cover
+    ? await loadImageUrl(activeChart.meta.cover)
+    : null;
 const displayTextures = createDisplayTextures({
   title: activeChart.meta.title,
+  artist: activeChart.meta.artist,
   difficulty: activeChart.meta.difficulty,
+  cover: coverImage,
 });
 const display = buildDisplay(displayTextures, displayPlacement);
 scene.add(display.group);

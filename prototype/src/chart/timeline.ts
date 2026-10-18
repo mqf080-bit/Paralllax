@@ -146,7 +146,7 @@ function noteEndTime(chart: Chart): number {
       if (last) end = Math.max(end, note.time + last.time);
     } else end = Math.max(end, note.time);
   }
-  return end;
+  return Math.max(end, chart.meta.duration ?? 0);
 }
 
 export function createTimeline(chart: Chart): Timeline {

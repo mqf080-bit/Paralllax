@@ -36,6 +36,8 @@ export interface PackageHeader {
   chart: string;
   /** 音轨的包内路径；null = 无音轨（游戏会退回合成鼓组）。 */
   audio: string | null;
+  /** 封面图片的包内路径；null = 没有封面。 */
+  cover: string | null;
   /** 可选的浅色 / 深色主题 JSON。 */
   theme?: string;
   /** 可选的背景图片 / 视频路径。 */
@@ -52,6 +54,7 @@ export interface PackageFileInput {
 export interface PackageOptions {
   chart: string;
   audio?: string | null;
+  cover?: string | null;
   theme?: string;
   background?: string;
 }
@@ -148,9 +151,11 @@ export function packPackage(inputs: PackageFileInput[], options: PackageOptions)
   const chart = normalizePackagePath(options.chart);
   if (!seen.has(chart)) throw new Error('谱面文件不在包内');
   const audio = options.audio ? normalizePackagePath(options.audio) : null;
+  const cover = options.cover ? normalizePackagePath(options.cover) : null;
   const theme = options.theme ? normalizePackagePath(options.theme) : undefined;
   const background = options.background ? normalizePackagePath(options.background) : undefined;
   ensureFile(new Map(files.map((file) => [file.path, file])), audio ?? undefined, 'audio');
+  ensureFile(new Map(files.map((file) => [file.path, file])), cover ?? undefined, 'cover');
   ensureFile(new Map(files.map((file) => [file.path, file])), theme, 'theme');
   ensureFile(new Map(files.map((file) => [file.path, file])), background, 'background');
 
@@ -159,6 +164,7 @@ export function packPackage(inputs: PackageFileInput[], options: PackageOptions)
     version: PACKAGE_VERSION,
     chart,
     audio,
+    cover,
     ...(theme ? { theme } : {}),
     ...(background ? { background } : {}),
     files: files.map((file) => ({
@@ -233,6 +239,12 @@ export function unpackPackage(data: ArrayBuffer | Uint8Array): UnpackedPackage {
     throw new Error('不是 Parallax 包：末尾有多余数据');
   }
   if (!files.has(normalizePackagePath(header.chart))) throw new Error('不是 Parallax 包：谱面文件不存在');
+  if (header.cover && !files.has(normalizePackagePath(header.cover))) {
+    throw new Error('不是 Parallax 包：封面文件不存在');
+  }
+  if (header.audio && !files.has(normalizePackagePath(header.audio))) {
+    throw new Error('不是 Parallax 包：音轨文件不存在');
+  }
   return { header, files };
 }
 

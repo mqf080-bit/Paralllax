@@ -10,6 +10,7 @@ import {
   type ArcNote,
   type ArcPoint,
   type Chart,
+  type ChartMeta,
   type Easing,
   type Note,
   type ShiftEvent,
@@ -146,9 +147,14 @@ export function chartEnd(chart: Chart): number {
   return end;
 }
 
+/** 谱面 / 音轨时长：手动 duration 与最后一颗 note 取较大者。 */
+export function chartDuration(chart: Chart): number {
+  return Math.max(chartEnd(chart), chart.meta.duration ?? 0);
+}
+
 /** 时间轴需要展示的长度：内容 + 一点尾巴，至少 10 秒。 */
 export function chartSpan(chart: Chart): number {
-  return Math.max(10000, chartEnd(chart) + 2000);
+  return Math.max(10000, chartDuration(chart) + 2000);
 }
 
 /** 统一排序，保证校验器不抱怨。 */
@@ -441,8 +447,11 @@ export function normalizeChart(input: unknown): Chart {
   if (!Array.isArray(raw.notes)) throw new Error('缺少 notes');
 
   const base = createDefaultChart();
+  const meta = { ...base.meta, ...raw.meta } as ChartMeta;
+  if (meta.duration !== undefined && (!Number.isFinite(meta.duration) || meta.duration < 0)) delete meta.duration;
+  if (meta.cover !== undefined && typeof meta.cover !== 'string') delete meta.cover;
   const chart: Chart = {
-    meta: { ...base.meta, ...raw.meta },
+    meta,
     audio: typeof raw.audio === 'string' ? raw.audio : undefined,
     timing:
       Array.isArray(raw.timing) && raw.timing.length > 0

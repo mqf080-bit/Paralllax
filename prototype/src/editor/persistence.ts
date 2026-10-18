@@ -1,6 +1,6 @@
 import type { Chart } from '../chart/schema';
 import { PACKAGE_EXTENSION, PACKAGE_MIME, isParallaxPackage, packPackage } from '../pack/format';
-import { audioFromPackage, chartJsonFromPackage, packageAssets, readPackageFile, type PackedAudio } from '../pack/io';
+import { audioFromPackage, chartJsonFromPackage, coverFromPackage, packageAssets, readPackageFile, type PackedAudio } from '../pack/io';
 import { normalizeChart } from './model';
 
 /**
@@ -78,10 +78,18 @@ export interface PackageAsset {
   type: string;
 }
 
+export interface CoverAsset {
+  data: Uint8Array;
+  type: string;
+  name: string;
+  url?: string;
+}
+
 export interface LoadedChartFile {
   chart: Chart;
   package: Awaited<ReturnType<typeof readPackageFile>> | null;
   audio: PackedAudio | null;
+  cover: CoverAsset | null;
   assets: Map<string, PackageAsset>;
 }
 
@@ -99,6 +107,7 @@ export async function readChartFile(file: File): Promise<LoadedChartFile> {
       chart: normalizeChart(parsed),
       package: pkg,
       audio: audioFromPackage(pkg),
+      cover: coverFromPackage(pkg),
       assets: packageAssets(pkg),
     };
   }
@@ -109,7 +118,7 @@ export async function readChartFile(file: File): Promise<LoadedChartFile> {
   } catch {
     throw new Error('不是合法的 JSON');
   }
-  return { chart: normalizeChart(parsed), package: null, audio: null, assets: new Map() };
+  return { chart: normalizeChart(parsed), package: null, audio: null, cover: null, assets: new Map() };
 }
 
 function safeFilename(name: string): string {
@@ -126,7 +135,7 @@ export async function downloadPackage(
   chart: Chart,
   audio: File | null,
   assets: Map<string, PackageAsset>,
-  options: { theme?: string; background?: string } = {},
+  options: { theme?: string; background?: string; cover?: CoverAsset | null } = {},
 ): Promise<string> {
   const files: Array<{ path: string; data: Uint8Array; type?: string }> = [];
   files.push({
@@ -141,14 +150,21 @@ export async function downloadPackage(
     audioPath = `audio/${name}`;
     files.push({ path: audioPath, data: new Uint8Array(await audio.arrayBuffer()), type: audio.type || undefined });
   }
+  let coverPath: string | null = null;
+  if (options.cover) {
+    const name = safeFilename(options.cover.name || 'cover.jpg');
+    coverPath = `cover/${name}`;
+    files.push({ path: coverPath, data: options.cover.data, type: options.cover.type || undefined });
+  }
   for (const [path, asset] of assets) {
-    if (path === 'chart.json' || path === audioPath) continue;
+    if (path === 'chart.json' || path === audioPath || path === coverPath) continue;
     files.push({ path, data: asset.data, type: asset.type });
   }
 
   const bytes = packPackage(files, {
     chart: 'chart.json',
     audio: audioPath,
+    cover: coverPath,
     theme: options.theme,
     background: options.background,
   });

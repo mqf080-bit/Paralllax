@@ -186,6 +186,44 @@ select {
   accent-color: var(--brass);
 }
 
+.cover {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cover__image {
+  width: 58px;
+  height: 58px;
+  object-fit: cover;
+  border: 1px solid var(--hairline);
+  background: var(--bg);
+}
+
+.cover__empty {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border: 1px dashed var(--hairline);
+  color: var(--ink-faint);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.cover__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.cover__controls .input--file {
+  width: 100%;
+}
+
 .input--file {
   height: auto;
   padding: 3px;

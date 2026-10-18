@@ -1,7 +1,7 @@
 # prototype / STATUS
 
 > 更新：2026-10-18 22:10 CEST
-> 当前 Step：**5 — 制谱器（第八轮修正已实现），待你验收**
+> 当前 Step：**5 — 制谱器（第九轮修正已实现），待你验收**
 > 设计真相：`../parallax-idea.md`｜施工协议：`../agent.md`
 
 ---
@@ -1342,3 +1342,54 @@ prototype/public/packages/              # 示例 / 可直接用 URL 加载的包
 - 一包多谱；
 - 游戏真正消费 `theme` / `background`（浅色 / 深色 / 背景渲染）；
 - 批量打包 CLI（当前由编辑器导出）。
+
+## 43. 封面 / 时长 / 本地谱面包（2026-10-18）
+
+### 43.1 音频封面与标签
+
+- 新增 `src/audio/metadata.ts`：
+  - FLAC：PICTURE 元数据块，或 Vorbis comment 里的 `METADATA_BLOCK_PICTURE`；
+  - MP3：ID3v2 的 TIT2 / TPE1 / TALB / APIC；
+  - 封面优先 type 3（front cover）。
+- 用下载目录里的 `HyuN - Infinity Heaven.flac` 实测：
+  - title `Infinity Heaven`、artist `HyuN`、album `Cross†Soul`；
+  - cover `image/jpeg` 256888 B；
+  - duration `153816ms`。
+- 编辑器导入音频时：
+  - 只在标题为空 / `UNTITLED` 时填入 tag 标题；作者为空时填作者；
+  - 有内嵌封面就自动用；没有时保留手动封面，没有就显示 `NO COVER`；
+  - `COVER` 可以手动选图片 / `CLEAR`。
+- `.parallax` 新增 `header.cover`；导出时把封面写进 `cover/<name>`，导入时恢复。
+- 游戏浮空显示：标题、作者、封面、难度 / 物量都在；封面画在右侧 180×180。
+
+### 43.2 谱面时长
+
+- 新增 `meta.duration`（毫秒，可选）：
+  - 导入音频时默认设为 `decodeAudioData().duration`；
+  - 检查器 `DURATION (ms)` 可手动改，`AUDIO LENGTH` 一键恢复为当前音轨长度；
+  - `chartSpan` / `chartDuration` / `createTimeline().duration` / 游戏进度都以它为上限；
+  - 手动值小于最后一颗 note 时，仍以 note 尾端为准。
+- 实测 FLAC：`meta.duration = 153816`，waveform 长度一致。
+
+### 43.3 游戏直接玩本地包
+
+- 游戏页左下新增 `LOAD .parallax`，支持点击选择 / 拖入；
+- 文件写进 IndexedDB，reload 成 `?localPack=1`，main 读回后直接进入游戏；
+- 不需要复制到 `public/packages/`；复制方式仍然可用。
+- 桌面 / Quest 浏览器都走同一套 File API + IndexedDB。
+
+### 43.4 验证
+
+- `npm run typecheck` / `npm run build` 通过。
+- FLAC 导入：title/artist/duration/cover 均正确；无 issue。
+- 导出带 FLAC 的包：18.4MB，header 有 `audio`、`cover`、`theme`；
+- 游戏 `?pack=...` 载入封面测试包：显示标题 / 作者 / 封面；
+- 游戏本地包：`[pack] local · 2 files`，`?localPack=1` 正常进入；
+- 控制台无异常。
+
+### 43.5 还没做
+
+- M4A / OGG 内嵌封面；
+- 手动封面目前只存在于当前编辑会话 / 包内，不写入 localStorage 草稿；
+- 主题 / 背景仍未消费；
+- 包内压缩 / 签名。

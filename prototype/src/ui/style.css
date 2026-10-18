@@ -157,3 +157,65 @@ body {
   color: var(--ink-dim);
   cursor: default;
 }
+
+/* —— 本地谱面包加载（桌面 / Quest 浏览器） —— */
+
+.package-loader {
+  position: fixed;
+  left: 16px;
+  bottom: 64px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(160, 180, 205, 0.22);
+  background: rgba(6, 7, 12, 0.82);
+  color: #71829a;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  pointer-events: auto;
+}
+
+.package-loader__button {
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid rgba(176, 141, 87, 0.55);
+  background: rgba(176, 141, 87, 0.1);
+  color: #b08d57;
+  font: inherit;
+  cursor: pointer;
+}
+
+.package-loader__button:hover {
+  border-color: rgba(176, 141, 87, 0.9);
+  color: #e8cf9d;
+}
+
+.package-loader__hint {
+  color: #48546a;
+}
+
+.package-loader.is-error .package-loader__hint {
+  color: #e0704f;
+}
+
+.package-drop {
+  position: fixed;
+  inset: 0;
+  z-index: 29;
+  display: grid;
+  place-items: center;
+  border: 2px dashed rgba(176, 141, 87, 0.65);
+  background: rgba(6, 7, 12, 0.72);
+  color: #e8cf9d;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+  font-size: 22px;
+  letter-spacing: 0.18em;
+  pointer-events: none;
+}
+
+.package-drop[hidden] {
+  display: none;
+}

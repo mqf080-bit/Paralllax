@@ -2,16 +2,18 @@ import { CHART_DEFAULTS, chartLimits, type ArcNote, type Chart, type Note, type 
 import { DEMO_CHART } from '../chart/demo';
 import { TEST_CHART } from '../chart/test';
 import { createTimeline, validateChart, type Timeline } from '../chart/timeline';
+import { extractAudioMetadata } from '../audio/metadata';
 import { deleteSelection as deleteSelectionImpl, attachInteraction, type EditorHost } from './interaction';
 import { Inspector, type InspectorHost } from './inspector';
 import { OverviewTimeline } from './overview';
 import { createPreview, type Preview, type PreviewState } from './preview';
 import * as persistence from './persistence';
+import type { CoverAsset } from './persistence';
 import {
   arcDuration,
   arcTicks,
   beatMs,
-  chartEnd,
+  chartDuration,
   clampHeight,
   clampLane,
   clampX,
@@ -100,6 +102,11 @@ const TOOL_LABELS: Record<ToolId, string> = {
   arc: 'ARC',
 };
 
+interface EditorCover extends CoverAsset {
+  url: string;
+  source: 'embedded' | 'manual' | 'package';
+}
+
 const MIN_ZOOM = 0.006;
 const MAX_ZOOM = 3;
 
@@ -132,6 +139,8 @@ export class EditorController implements EditorHost, InspectorHost {
   private timeline: Timeline;
   private waveform: WaveformPeaks | null = null;
   private audioFile: File | null = null;
+  private audioLengthMs: number | null = null;
+  private cover: EditorCover | null = null;
   private packageAssets = new Map<string, { data: Uint8Array; type: string }>();
   private packageTheme: string | undefined;
   private packageBackground: string | undefined;
@@ -217,6 +226,18 @@ export class EditorController implements EditorHost, InspectorHost {
 
   get audioLoaded(): boolean {
     return this.preview.state.trackName !== 'DRUMS';
+  }
+
+  get audioDurationMs(): number | null {
+    return this.audioLengthMs;
+  }
+
+  get coverUrl(): string | null {
+    return this.cover?.url ?? null;
+  }
+
+  get coverName(): string | null {
+    return this.cover?.name ?? null;
   }
 
   loadBuiltin(kind: 'test' | 'demo'): void {
@@ -321,6 +342,7 @@ export class EditorController implements EditorHost, InspectorHost {
     if (this.previewTimer !== null) window.clearTimeout(this.previewTimer);
     if (this.draftTimer !== null) window.clearTimeout(this.draftTimer);
     if (this.toastTimer !== null) window.clearTimeout(this.toastTimer);
+    if (this.cover) URL.revokeObjectURL(this.cover.url);
     this.preview.dispose();
   }
 
@@ -669,18 +691,39 @@ export class EditorController implements EditorHost, InspectorHost {
     void this.loadAudioFile(file, true);
   }
 
-  private async loadAudioFile(file: File, announce: boolean): Promise<boolean> {
+  private async loadAudioFile(
+    file: File,
+    announce: boolean,
+    options: { applyMetadata?: boolean; useEmbeddedCover?: boolean; setDuration?: boolean } = {},
+  ): Promise<boolean> {
     if (announce) this.showToast(`载入音频 ${file.name} …`);
     try {
-      const peaks = await decodeWaveform(file);
+      const [peaks, metadata] = await Promise.all([decodeWaveform(file), extractAudioMetadata(file)]);
       const ok = await this.preview.loadTrack(file);
       if (!ok) throw new Error(this.preview.state.error ?? '音频载入失败');
       this.audioFile = file;
       this.waveform = peaks;
+      this.audioLengthMs = Math.round(peaks.durationMs);
       this.chart.audio = file.name;
+      if (options.applyMetadata !== false) {
+        if (metadata.title && (!this.chart.meta.title || this.chart.meta.title === 'UNTITLED')) {
+          this.chart.meta.title = metadata.title;
+        }
+        if (metadata.artist && !this.chart.meta.artist) this.chart.meta.artist = metadata.artist;
+        this.chart.meta.duration = this.audioLengthMs;
+      } else if (this.chart.meta.duration === undefined && options.setDuration !== false) {
+        this.chart.meta.duration = this.audioLengthMs;
+      }
+      if (options.useEmbeddedCover !== false) {
+        if (metadata.cover) {
+          this.setCoverData(metadata.cover.data, metadata.cover.type, `cover.${metadata.cover.type.split('/')[1] ?? 'jpg'}`, 'embedded');
+        } else if (this.cover?.source === 'embedded') {
+          this.setCoverData(null);
+        }
+      }
       this.preview.setOffset(this.chart.meta.offset);
       this.commit({ preview: false });
-      if (announce) this.showToast(`音频已载入 · ${file.name}`);
+      if (announce) this.showToast(`音频已载入 · ${file.name} · ${formatTime(this.audioLengthMs ?? 0)}`);
       return true;
     } catch (cause) {
       this.showToast(cause instanceof Error ? cause.message : '音频载入失败', true);
@@ -688,11 +731,46 @@ export class EditorController implements EditorHost, InspectorHost {
     }
   }
 
+  private setCoverData(
+    data: Uint8Array | null,
+    type = 'image/jpeg',
+    name = 'cover.jpg',
+    source: EditorCover['source'] = 'manual',
+  ): void {
+    if (this.cover) URL.revokeObjectURL(this.cover.url);
+    if (!data) {
+      this.cover = null;
+      return;
+    }
+    const copy = new Uint8Array(data);
+    const url = URL.createObjectURL(new Blob([copy.buffer], { type }));
+    this.cover = { data: copy, type, name, url, source };
+  }
+
+  setCover(file: File | null): void {
+    if (!file) {
+      this.setCoverData(null);
+      this.commit({ preview: false });
+      return;
+    }
+    void (async () => {
+      try {
+        const data = new Uint8Array(await file.arrayBuffer());
+        this.setCoverData(data, file.type || 'image/jpeg', file.name || 'cover.jpg', 'manual');
+        this.commit({ preview: false });
+        this.showToast(`封面已设置 · ${file.name}`);
+      } catch (cause) {
+        this.showToast(cause instanceof Error ? cause.message : '封面读取失败', true);
+      }
+    })();
+  }
+
   async exportChart(): Promise<void> {
     try {
       const filename = await persistence.downloadPackage(this.chart, this.audioFile, this.packageAssets, {
         theme: this.packageTheme,
         background: this.packageBackground,
+        cover: this.cover,
       });
       this.showToast(`已导出谱面包 ${filename}`);
     } catch (cause) {
@@ -717,12 +795,19 @@ export class EditorController implements EditorHost, InspectorHost {
       this.packageAssets = loaded.assets;
       this.packageTheme = loaded.package?.header.theme;
       this.packageBackground = loaded.package?.header.background;
+      if (loaded.cover) {
+        this.setCoverData(loaded.cover.data, loaded.cover.type, loaded.cover.name, 'package');
+        this.inspector.render();
+      }
       if (loaded.package && !loaded.audio) delete this.chart.audio;
       let audioOk = true;
       if (loaded.audio) {
         const copy = new Uint8Array(loaded.audio.data);
         const audioFile = new File([copy.buffer], loaded.audio.name, { type: loaded.audio.type });
-        audioOk = await this.loadAudioFile(audioFile, false);
+        audioOk = await this.loadAudioFile(audioFile, false, {
+          applyMetadata: false,
+          useEmbeddedCover: false,
+        });
       }
       if (loaded.package) {
         this.showToast(
@@ -748,6 +833,8 @@ export class EditorController implements EditorHost, InspectorHost {
       this.preview.clearTrack();
       this.waveform = null;
       this.audioFile = null;
+      this.audioLengthMs = null;
+      this.setCoverData(null);
       this.packageAssets.clear();
       this.packageTheme = undefined;
       this.packageBackground = undefined;
@@ -870,7 +957,7 @@ export class EditorController implements EditorHost, InspectorHost {
       this.elements.saveState.className = 'save-state';
     }
 
-    this.elements.status.textContent = `${TOOL_LABELS[this.tool]} · SNAP ${snapLabel(this.snap)} · ${this.chart.notes.length} NOTES · ${countObjects(this.chart)} OBJECTS · ${formatTime(chartEnd(this.chart))}`;
+    this.elements.status.textContent = `${TOOL_LABELS[this.tool]} · SNAP ${snapLabel(this.snap)} · ${this.chart.notes.length} NOTES · ${countObjects(this.chart)} OBJECTS · ${formatTime(chartDuration(this.chart))}`;
     document.title = `${this.chart.meta.title || 'UNTITLED'} — Parallax Editor`;
   }
 
