@@ -51,9 +51,9 @@ export const TEST_CHART: Chart = {
     // 停表：400ms 内 note 不动（判定照常按时间走）
     { time: 16400, multiplier: 0, easing: 'linear', duration: 400 },
     { time: 16800, multiplier: 1, easing: 'sine', duration: 300 },
-    // 倒流：note 往回退
+    // 倒流：note 往回退（共 800ms，含回正）
     { time: 24400, multiplier: -0.8, easing: 'sine', duration: 400 },
-    { time: 25200, multiplier: 1, easing: 'sine', duration: 400 },
+    { time: 24800, multiplier: 1, easing: 'sine', duration: 400 },
     // 右 shift 里再来一次慢速
     { time: 34400, multiplier: 0.4, easing: 'sine', duration: 300 },
     { time: 35600, multiplier: 1, easing: 'sine', duration: 300 },
