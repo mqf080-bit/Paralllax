@@ -1,7 +1,7 @@
 # prototype / STATUS
 
 > 更新：2026-10-18 22:10 CEST
-> 当前 Step：**5 — 制谱器（第七轮修正已实现），待你验收**
+> 当前 Step：**5 — 制谱器（第八轮修正已实现），待你验收**
 > 设计真相：`../parallax-idea.md`｜施工协议：`../agent.md`
 
 ---
@@ -1282,3 +1282,63 @@ CDP `Performance.getMetrics()` 实测空转 5 秒：`TaskDuration` 从 **0.479s 
   - 2D 地面 hit（z 0.07）同样拖 → x 2.5 → 3；
   - 3D 空中放置 → `z 0.4, x 2.5`（不是整轨 3）；
   - 无控制台异常。
+
+## 42. 文件系统：`.parallax` 单文件谱面包（2026-10-18）
+
+### 42.1 决定
+
+**运行时只认单文件 `.parallax`**；`resources/` 只作为作者整理素材的源目录，不参与运行时扫描。
+
+格式是自定义二进制容器（`src/pack/format.ts`）：
+
+```
+"PARALLAXPAK\0" + u16 容器版本 + u32 头部长度 + 头部 JSON + 按顺序拼接的文件
+```
+
+头部记录 `chart` / `audio` / `theme?` / `background?` 和每个文件的
+`path / size / type`。不做压缩：音轨本身已压缩，谱面 / 主题很小；
+以后要加压缩或签名就升容器版本。
+
+### 42.2 编辑器
+
+- `EXPORT` 默认导出 `.parallax`：谱面 + 当前音轨 + 导入包时保留的主题 / 背景等资源；
+- `JSON` 仍导出旧的 `.parallax.json`；
+- `IMPORT` 接受 `.parallax` 和 `.json`；包内音频会自动解码、恢复波形和 `chart.audio`；
+- 主题 / 背景文件被原样保留并随下一次导出写回；当前还没有主题 / 背景 UI。
+
+### 42.3 游戏
+
+```text
+?pack=/packages/air-example.parallax
+?pack=air-example
+```
+
+`pack` 优先于 `chart`；包里有音轨就自动 `audio.loadTrack`，没有就沿用合成鼓组 / 空格。
+旧的 `?chart=` / `?audio=` 保留兼容。
+
+### 42.4 素材目录
+
+```text
+resources/
+  charts/ audio/ themes/ backgrounds/   # 作者源素材，运行时不用
+prototype/public/packages/              # 示例 / 可直接用 URL 加载的包
+```
+
+### 42.5 验证
+
+- `npm run typecheck` / `npm run build` 通过。
+- `packPackage` / `unpackPackage` 往返：谱面文本一致、header/theme 正确；
+- 生成 `public/packages/air-example.parallax`（2350 B）；
+- 游戏 `?pack=/packages/air-example.parallax` 日志：
+  `[pack] ... 2 files`、`[chart] ok · AIR / TICKS · 7 notes`；
+- 编辑器导入该包：title `AIR / TICKS`、7 notes、资源 `theme/dark.json`、无 issue；
+- 编辑器导入带 WAV 的包：`audio=test.wav`、`trackName=test.wav`、波形存在；
+- 游戏加载带 WAV 的临时包：`[pack] ... audio test.wav`，无异常；
+- 控制台无异常。
+
+### 42.6 还没做
+
+- 包内压缩 / 加密 / 签名；
+- 一包多谱；
+- 游戏真正消费 `theme` / `background`（浅色 / 深色 / 背景渲染）；
+- 批量打包 CLI（当前由编辑器导出）。

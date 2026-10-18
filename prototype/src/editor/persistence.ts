@@ -1,4 +1,6 @@
 import type { Chart } from '../chart/schema';
+import { PACKAGE_EXTENSION, PACKAGE_MIME, isParallaxPackage, packPackage } from '../pack/format';
+import { audioFromPackage, chartJsonFromPackage, packageAssets, readPackageFile, type PackedAudio } from '../pack/io';
 import { normalizeChart } from './model';
 
 /**
@@ -71,7 +73,35 @@ export function downloadChart(chart: Chart): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export async function readChartFile(file: File): Promise<Chart> {
+export interface PackageAsset {
+  data: Uint8Array;
+  type: string;
+}
+
+export interface LoadedChartFile {
+  chart: Chart;
+  package: Awaited<ReturnType<typeof readPackageFile>> | null;
+  audio: PackedAudio | null;
+  assets: Map<string, PackageAsset>;
+}
+
+export async function readChartFile(file: File): Promise<LoadedChartFile> {
+  const isPackage = file.name.toLowerCase().endsWith(`.${PACKAGE_EXTENSION}`) || isParallaxPackage(await file.slice(0, 12).arrayBuffer());
+  if (isPackage) {
+    const pkg = await readPackageFile(file);
+    let parsed: unknown;
+    try {
+      parsed = chartJsonFromPackage(pkg);
+    } catch (cause) {
+      throw new Error(cause instanceof Error ? `包内谱面不是合法 JSON：${cause.message}` : '包内谱面不是合法 JSON');
+    }
+    return {
+      chart: normalizeChart(parsed),
+      package: pkg,
+      audio: audioFromPackage(pkg),
+      assets: packageAssets(pkg),
+    };
+  }
   const text = await file.text();
   let parsed: unknown;
   try {
@@ -79,5 +109,63 @@ export async function readChartFile(file: File): Promise<Chart> {
   } catch {
     throw new Error('不是合法的 JSON');
   }
-  return normalizeChart(parsed);
+  return { chart: normalizeChart(parsed), package: null, audio: null, assets: new Map() };
+}
+
+function safeFilename(name: string): string {
+  return (
+    name
+      .trim()
+      .replace(/[^a-zA-Z0-9.\-\u4e00-\u9fa5]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'audio'
+  );
+}
+
+/** 导出单个 `.parallax`：谱面 + 当前音轨 + 导入时保留的其它资源。 */
+export async function downloadPackage(
+  chart: Chart,
+  audio: File | null,
+  assets: Map<string, PackageAsset>,
+  options: { theme?: string; background?: string } = {},
+): Promise<string> {
+  const files: Array<{ path: string; data: Uint8Array; type?: string }> = [];
+  files.push({
+    path: 'chart.json',
+    data: new TextEncoder().encode(JSON.stringify(chart, null, 2)),
+    type: 'application/json',
+  });
+
+  let audioPath: string | null = null;
+  if (audio) {
+    const name = safeFilename(audio.name || 'audio');
+    audioPath = `audio/${name}`;
+    files.push({ path: audioPath, data: new Uint8Array(await audio.arrayBuffer()), type: audio.type || undefined });
+  }
+  for (const [path, asset] of assets) {
+    if (path === 'chart.json' || path === audioPath) continue;
+    files.push({ path, data: asset.data, type: asset.type });
+  }
+
+  const bytes = packPackage(files, {
+    chart: 'chart.json',
+    audio: audioPath,
+    theme: options.theme,
+    background: options.background,
+  });
+  const payload = new Uint8Array(bytes.byteLength);
+  payload.set(bytes);
+  const url = URL.createObjectURL(new Blob([payload.buffer], { type: PACKAGE_MIME }));
+  const anchor = document.createElement('a');
+  const filename = packageFilename(chart);
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return filename;
+}
+
+export function packageFilename(chart: Chart): string {
+  return chartFilename(chart).replace(/\.parallax\.json$/, `.${PACKAGE_EXTENSION}`);
 }

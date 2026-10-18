@@ -87,6 +87,7 @@ const elements: EditorElements = {
   newButton: byId('new'),
   importButton: byId('import'),
   exportButton: byId('export'),
+  exportJson: byId('export-json'),
   chartFile: byId<HTMLInputElement>('chart-file'),
   overviewCanvas: byId<HTMLCanvasElement>('overview-canvas'),
   overviewPlay: byId('overview-play'),
@@ -113,7 +114,7 @@ window.addEventListener('drop', (event) => {
   if (!file) return;
   if (file.type.startsWith('audio/')) {
     controller.importAudio(file);
-  } else if (file.name.endsWith('.json')) {
+  } else if (file.name.endsWith('.json') || file.name.endsWith('.parallax')) {
     controller.loadChartFile(file);
   }
 });

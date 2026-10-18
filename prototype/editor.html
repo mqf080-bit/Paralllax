@@ -44,7 +44,8 @@
           <span id="issue-readout" class="save-state">OK</span>
           <button id="new" class="button button--small" type="button">NEW</button>
           <button id="import" class="button button--small" type="button">IMPORT</button>
-          <button id="export" class="button button--small" type="button">EXPORT</button>
+          <button id="export" class="button button--small" type="button" title="导出单个 .parallax 谱面包（含音轨）">EXPORT</button>
+          <button id="export-json" class="button button--small" type="button">JSON</button>
           <span id="save-state" class="save-state">DRAFT —</span>
         </div>
       </header>
@@ -107,7 +108,7 @@
     </div>
 
     <div id="toast" class="toast" aria-live="polite"></div>
-    <input id="chart-file" type="file" accept=".json,application/json" hidden />
+    <input id="chart-file" type="file" accept=".parallax,.json,application/json" hidden />
     <script type="module" src="/src/editor/main.ts"></script>
   </body>
 </html>

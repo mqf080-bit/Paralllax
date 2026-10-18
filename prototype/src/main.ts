@@ -10,6 +10,7 @@ import { DEMO_CHART } from './chart/demo';
 import { TEST_CHART } from './chart/test';
 import type { Chart } from './chart/schema';
 import { createPlayer, type Player, type PlayerSettings } from './game/player';
+import { audioFromPackage, chartJsonFromPackage, loadPackageUrl, type PackedAudio } from './pack/io';
 import { createEnvironment } from './materials/environment';
 import { createMaterialLibrary } from './materials/library';
 import { buildBackdrop } from './scene/backdrop';
@@ -37,28 +38,44 @@ const params: TableParams = { ...DEFAULT_PARAMS };
 
 // 默认跑 42 秒的验收谱。
 // `?chart=demo` 切回 12 秒示例；`?chart=/charts/xxx.json` 载入制谱器导出的谱面。
+function prepareChart(raw: unknown, label: string): Chart {
+  if (!raw || typeof raw !== 'object') throw new Error('不是有效的谱面');
+  const loaded = raw as Chart;
+  if (!loaded.meta || !Array.isArray(loaded.notes)) throw new Error('不是有效的谱面 JSON');
+  // 老谱面可能缺轨道数组；补成空轨，别让播放器在运行时崩。
+  loaded.timing =
+    Array.isArray(loaded.timing) && loaded.timing.length > 0
+      ? loaded.timing
+      : [{ time: 0, bpm: 150, beats: 4 }];
+  loaded.speed = Array.isArray(loaded.speed) ? loaded.speed : [];
+  loaded.shift = Array.isArray(loaded.shift) ? loaded.shift : [];
+  console.info(`[chart] loaded ${label} · ${loaded.notes.length} notes`);
+  return loaded;
+}
+
 const bootQuery = new URLSearchParams(window.location.search);
 const chartParam = bootQuery.get('chart');
+const packParam = bootQuery.get('pack');
 let activeChart: Chart = TEST_CHART;
-if (chartParam === 'demo') {
+let packedAudio: PackedAudio | null = null;
+if (packParam) {
+  const url = packParam.includes('/') || packParam.endsWith('.parallax') ? packParam : `/packages/${packParam}.parallax`;
+  try {
+    const pkg = await loadPackageUrl(url);
+    activeChart = prepareChart(chartJsonFromPackage(pkg), url);
+    packedAudio = audioFromPackage(pkg);
+    console.info(`[pack] ${url} · ${pkg.header.files.length} files${packedAudio ? ` · audio ${packedAudio.name}` : ''}`);
+  } catch (cause) {
+    console.warn(`[pack] 载入 ${url} 失败，回退测试谱`, cause);
+  }
+} else if (chartParam === 'demo') {
   activeChart = DEMO_CHART;
 } else if (chartParam && chartParam !== 'test') {
   const url = chartParam.includes('/') || chartParam.endsWith('.json') ? chartParam : `/charts/${chartParam}.json`;
   try {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const loaded = (await response.json()) as Chart;
-    if (!loaded || typeof loaded !== 'object' || !loaded.meta || !Array.isArray(loaded.notes)) {
-      throw new Error('不是有效的谱面 JSON');
-    }
-    // 老谱面可能缺轨道数组；补成空轨，别让播放器在运行时崩。
-    loaded.timing = Array.isArray(loaded.timing) && loaded.timing.length > 0
-      ? loaded.timing
-      : [{ time: 0, bpm: 150, beats: 4 }];
-    loaded.speed = Array.isArray(loaded.speed) ? loaded.speed : [];
-    loaded.shift = Array.isArray(loaded.shift) ? loaded.shift : [];
-    activeChart = loaded;
-    console.info(`[chart] loaded ${url} · ${activeChart.notes.length} notes`);
+    activeChart = prepareChart(await response.json(), url);
   } catch (cause) {
     console.warn(`[chart] 载入 ${url} 失败，回退测试谱`, cause);
   }
@@ -79,6 +96,16 @@ const audioSettings: AudioSettings = {
 };
 const audio = createAudioClock(audioSettings);
 audio.setTiming(activeChart.timing);
+if (packedAudio) {
+  const copy = new Uint8Array(packedAudio.data);
+  const url = URL.createObjectURL(new Blob([copy.buffer], { type: packedAudio.type }));
+  try {
+    const ok = await audio.loadTrack(url, packedAudio.name);
+    if (!ok) console.warn(`[pack] 音频载入失败：${packedAudio.name}`);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 // shift 状态：4 轨窗口的位置。-1 = 左移一轨，0 = 常态，1 = 右移一轨。
 // 过渡值是连续的，做淡入淡出与判定带的交叉过渡。

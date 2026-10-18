@@ -254,8 +254,9 @@ arc 的点列就是 `points[]`；可以任意多段，每段一个缓动。
 | 动作 | 结果 |
 | --- | --- |
 | 自动 | 每次改动后 650ms 写 localStorage 草稿；关页面前再写一次 |
-| `EXPORT` / `Ctrl+S` | 下载 `<title>.parallax.json` |
-| `IMPORT` | 读入这种 JSON（字段缺失会补默认值，然后跑校验） |
+| `EXPORT` / `Ctrl+S` | 下载 `<title>.parallax` 谱面包（谱面 + 当前音轨 + 保留资源） |
+| `JSON` | 下载旧的 `<title>.parallax.json`（调试 / 兼容） |
+| `IMPORT` | 读入 `.parallax` 或 `.parallax.json`；包内音频会自动恢复 |
 | `NEW` | 空谱（有内容时确认） |
 | `LOAD TEST / LOAD DEMO` | 载入内置验收谱 / 12 秒示例 |
 | `CLEAR DRAFT` | 只删 localStorage 草稿，不动当前编辑内容 |
@@ -263,13 +264,16 @@ arc 的点列就是 `points[]`；可以任意多段，每段一个缓动。
 游戏页读取导出文件：
 
 ```bash
-# 把导出的 JSON 放进 public/charts/
-cp ~/Downloads/xxx.parallax.json prototype/public/charts/
-# 打开
-http://127.0.0.1:5173/?chart=/charts/xxx.parallax.json
-# 有音轨时
-http://127.0.0.1:5173/?chart=/charts/xxx.parallax.json&audio=/track.mp3
+# 谱面包放进 public/packages/
+cp ~/Downloads/xxx.parallax prototype/public/packages/
+# 打开（自动同时载入谱面和音轨）
+http://127.0.0.1:5173/?pack=/packages/xxx.parallax
+
+# 旧 JSON / 分离音轨仍然可用
+http://127.0.0.1:5173/?chart=/charts/xxx.parallax.json&audio=/audio/track.mp3
 ```
+
+完整格式见 [`PACKAGE.md`](PACKAGE.md)。
 
 格式与校验都走 `src/chart/schema.ts` / `src/chart/timeline.ts`，和播放器完全同一套。
 
@@ -290,7 +294,7 @@ http://127.0.0.1:5173/?chart=/charts/xxx.parallax.json&audio=/track.mp3
 | `Esc` | 取消选中 |
 | `Ctrl/Cmd + Z` | 撤销 |
 | `Ctrl/Cmd + Shift + Z` / `Ctrl+Y` | 重做 |
-| `Ctrl/Cmd + S` | 导出 JSON |
+| `Ctrl/Cmd + S` | 导出 `.parallax` 谱面包 |
 | 中键 / `Alt`+左键拖动 | 平移时间轴 |
 | 滚轮 | 平移 |
 | `Ctrl`+滚轮 | 以光标为中心缩放 |
@@ -338,7 +342,7 @@ src/editor/
 ├── arcEdit.ts         # 3D arc 编辑层：控制点 / X/Z 轴把手 / 物量珠 / 实时几何
 ├── waveform.ts        # 音频 → min/max 峰值
 ├── inspector.ts       # 右侧检查器（元数据 / 选区 / timing / shift / 音频 / 校验）
-├── persistence.ts     # localStorage 草稿 + JSON 导入导出
+├── persistence.ts     # localStorage 草稿 + .parallax / JSON 导入导出
 ├── overview.ts        # 底部 Blender 式总览时间线
 └── style.css
 ```
@@ -378,5 +382,5 @@ src/editor/
    在高度轨把 arc 抬到胸 / 面；`MAKE EXPLICIT` 后只保留需要结算的 arc 物量。
 5. `SHIFT` 在段落切换处加窗口移动；`SV` 在需要停顿 / 加速的地方加点。
 6. 按 `Space` 用 1× 跑一遍，再用 0.5× 看判定与视觉；`REV` 检查后半段。
-7. `EXPORT`，把 JSON 放进 `prototype/public/charts/`，用
-   `?chart=/charts/…json` 在游戏页 / Quest 里最终验一遍。
+7. `EXPORT`，把 `.parallax` 放进 `prototype/public/packages/`，用
+   `?pack=/packages/…parallax` 在游戏页 / Quest 里最终验一遍。

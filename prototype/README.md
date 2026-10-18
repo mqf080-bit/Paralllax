@@ -3,7 +3,7 @@
 Phase 1 的 WebXR 原型。**Step 0–5 已完成**：游戏可玩，桌面制谱器可用。
 
 > 项目总览：[`../README.md`](../README.md) ｜ 谱面格式：[`CHART.md`](CHART.md) ｜
-> 制谱器：[`EDITOR.md`](EDITOR.md) ｜ 迭代记录：[`STATUS.md`](STATUS.md)
+> 制谱器：[`EDITOR.md`](EDITOR.md) ｜ 谱面包：[`PACKAGE.md`](PACKAGE.md) ｜ 迭代记录：[`STATUS.md`](STATUS.md)
 
 设计真相在仓库根的 `parallax-idea.md`；施工协议在 `agent.md`。这里只放能跑的东西。
 
@@ -42,7 +42,7 @@ npm run dev
 - 时间吸附含 3 连 / 5 连 / 附点 / 1/32 / 1/24；`Ctrl` 临时自由；
 - 导入本地音频、看波形、调 `meta.offset`；
 - 预览支持自动打、暂停、0.25×–2×、倒放、FOLLOW；
-- 导出 `<title>.parallax.json`，草稿自动存 localStorage。
+- 导出 `<title>.parallax` 单文件谱面包（谱面 + 音轨 + 资源），也可单独导出 JSON；草稿自动存 localStorage。
 
 操作细节、快捷键、字段约定见 [`EDITOR.md`](EDITOR.md)。
 

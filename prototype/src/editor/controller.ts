@@ -85,6 +85,7 @@ export interface EditorElements {
   newButton: HTMLButtonElement;
   importButton: HTMLButtonElement;
   exportButton: HTMLButtonElement;
+  exportJson: HTMLButtonElement;
   chartFile: HTMLInputElement;
   overviewCanvas: HTMLCanvasElement;
   overviewPlay: HTMLButtonElement;
@@ -130,6 +131,10 @@ export class EditorController implements EditorHost, InspectorHost {
   private readonly resizeObserver: ResizeObserver;
   private timeline: Timeline;
   private waveform: WaveformPeaks | null = null;
+  private audioFile: File | null = null;
+  private packageAssets = new Map<string, { data: Uint8Array; type: string }>();
+  private packageTheme: string | undefined;
+  private packageBackground: string | undefined;
 
   private readonly undoStack: string[] = [];
   private readonly redoStack: string[] = [];
@@ -277,7 +282,8 @@ export class EditorController implements EditorHost, InspectorHost {
     this.elements.zoomIn.addEventListener('click', () => this.zoomBy(1.35));
     this.elements.zoomOut.addEventListener('click', () => this.zoomBy(1 / 1.35));
     this.elements.newButton.addEventListener('click', () => this.newChart());
-    this.elements.exportButton.addEventListener('click', () => this.exportChart());
+    this.elements.exportButton.addEventListener('click', () => void this.exportChart());
+    this.elements.exportJson.addEventListener('click', () => this.exportJson());
     this.elements.importButton.addEventListener('click', () => this.elements.chartFile.click());
     this.elements.chartFile.addEventListener('change', () => {
       const file = this.elements.chartFile.files?.[0];
@@ -660,23 +666,41 @@ export class EditorController implements EditorHost, InspectorHost {
   }
 
   importAudio(file: File): void {
-    this.showToast(`载入音频 ${file.name} …`);
-    void (async () => {
-      try {
-        const peaks = await decodeWaveform(file);
-        const ok = await this.preview.loadTrack(file);
-        if (!ok) throw new Error(this.preview.state.error ?? '音频载入失败');
-        this.waveform = peaks;
-        this.preview.setOffset(this.chart.meta.offset);
-        this.commit({ preview: false });
-        this.showToast(`音频已载入 · ${file.name}`);
-      } catch (cause) {
-        this.showToast(cause instanceof Error ? cause.message : '音频载入失败', true);
-      }
-    })();
+    void this.loadAudioFile(file, true);
   }
 
-  exportChart(): void {
+  private async loadAudioFile(file: File, announce: boolean): Promise<boolean> {
+    if (announce) this.showToast(`载入音频 ${file.name} …`);
+    try {
+      const peaks = await decodeWaveform(file);
+      const ok = await this.preview.loadTrack(file);
+      if (!ok) throw new Error(this.preview.state.error ?? '音频载入失败');
+      this.audioFile = file;
+      this.waveform = peaks;
+      this.chart.audio = file.name;
+      this.preview.setOffset(this.chart.meta.offset);
+      this.commit({ preview: false });
+      if (announce) this.showToast(`音频已载入 · ${file.name}`);
+      return true;
+    } catch (cause) {
+      this.showToast(cause instanceof Error ? cause.message : '音频载入失败', true);
+      return false;
+    }
+  }
+
+  async exportChart(): Promise<void> {
+    try {
+      const filename = await persistence.downloadPackage(this.chart, this.audioFile, this.packageAssets, {
+        theme: this.packageTheme,
+        background: this.packageBackground,
+      });
+      this.showToast(`已导出谱面包 ${filename}`);
+    } catch (cause) {
+      this.showToast(cause instanceof Error ? cause.message : '谱面包导出失败', true);
+    }
+  }
+
+  exportJson(): void {
     persistence.downloadChart(this.chart);
     this.showToast(`已导出 ${persistence.chartFilename(this.chart)}`);
   }
@@ -688,9 +712,26 @@ export class EditorController implements EditorHost, InspectorHost {
 
   private async importChart(file: File): Promise<void> {
     try {
-      const chart = await persistence.readChartFile(file);
-      this.replaceChart(chart, true);
-      this.showToast(`已载入谱面 · ${file.name}`);
+      const loaded = await persistence.readChartFile(file);
+      this.replaceChart(loaded.chart, true);
+      this.packageAssets = loaded.assets;
+      this.packageTheme = loaded.package?.header.theme;
+      this.packageBackground = loaded.package?.header.background;
+      if (loaded.package && !loaded.audio) delete this.chart.audio;
+      let audioOk = true;
+      if (loaded.audio) {
+        const copy = new Uint8Array(loaded.audio.data);
+        const audioFile = new File([copy.buffer], loaded.audio.name, { type: loaded.audio.type });
+        audioOk = await this.loadAudioFile(audioFile, false);
+      }
+      if (loaded.package) {
+        this.showToast(
+          audioOk ? `已载入谱面包 · ${file.name}` : `谱面包已载入，音频失败 · ${file.name}`,
+          !audioOk,
+        );
+      } else {
+        this.showToast(`已载入谱面 · ${file.name}`);
+      }
     } catch (cause) {
       this.showToast(cause instanceof Error ? cause.message : '谱面载入失败', true);
     }
@@ -706,6 +747,10 @@ export class EditorController implements EditorHost, InspectorHost {
     if (resetAudio) {
       this.preview.clearTrack();
       this.waveform = null;
+      this.audioFile = null;
+      this.packageAssets.clear();
+      this.packageTheme = undefined;
+      this.packageBackground = undefined;
     }
     this.chart = chart;
     this.selection = null;

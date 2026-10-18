@@ -3,7 +3,7 @@
 VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处沿 6 条轨道滑来，用手接住；
 台面只点亮其中 4 条轨，**窗口会随谱面整体左移 / 右移一轨**（shift）。
 
-> 设计真相：[`parallax-idea.md`](parallax-idea.md) ｜ 施工协议：[`agent.md`](agent.md) ｜ 迭代记录：[`prototype/STATUS.md`](prototype/STATUS.md) ｜ 谱面格式：[`prototype/CHART.md`](prototype/CHART.md) ｜ 制谱器：[`prototype/EDITOR.md`](prototype/EDITOR.md)
+> 设计真相：[`parallax-idea.md`](parallax-idea.md) ｜ 施工协议：[`agent.md`](agent.md) ｜ 迭代记录：[`prototype/STATUS.md`](prototype/STATUS.md) ｜ 谱面格式：[`prototype/CHART.md`](prototype/CHART.md) ｜ 制谱器：[`prototype/EDITOR.md`](prototype/EDITOR.md) ｜ 谱面包：[`prototype/PACKAGE.md`](prototype/PACKAGE.md)
 
 ---
 
@@ -103,7 +103,7 @@ drag / arc / hold 没有 GOOD：接上物量就算完美，接不上就是漏。
 - **时间吸附**：3 连 / 5 连 / 附点 / 1/32 / 1/24；`Ctrl` 临时自由。
 - **预览**：直接跑游戏播放器（音频时钟 + 判定 + 自动打），支持暂停 / 0.25×–2× / 倒放。
 - **音频**：导入本地音轨、波形显示、offset ±1/±10 微调。
-- **存取**：`EXPORT` 下载 `<title>.parallax.json`；草稿自动存 localStorage；`IMPORT` 读回。
+- **存取**：`EXPORT` 下载 `<title>.parallax` 单文件谱面包；`JSON` 单独导出；草稿自动存 localStorage；`IMPORT` 两者都读。
 - 快捷键和逐项操作见 [`prototype/EDITOR.md`](prototype/EDITOR.md)。
 
 ---
@@ -151,6 +151,7 @@ cd prototype && npm run dev
 | `?chart=demo` | 切回 12s 示例谱 |
 | `?chart=/charts/example.json` | 载入制谱器导出的谱面 |
 | `?chart=/charts/air-example.json` | 空中 note + 显式 arc 物量的示例 |
+| `?pack=/packages/air-example.parallax` | 自定义谱面包示例（谱面 + 资源，一个文件） |
 | `?auto=1` | 自动演示（只是贴着目标点，不保证全接） |
 | `?warp=12.4&freeze=1` | 快进到第 12.4 秒并冻结（截图 / 检查用） |
 | `?flow=4` | 基准流速 m/s |
@@ -168,17 +169,21 @@ cd prototype && npm run dev
 parallax-idea.md     设计真相（判定、键型、shift、配色、材质隐喻）
 agent.md             施工协议（每一步做什么、验收、不做什么）
 references/          空间 / 材质参考
+resources/           作者源素材（谱面 / 音频 / 主题 / 背景；运行时不用）
 prototype/
   src/
     chart/           谱面格式、时间轴（SV 积分 / shift / 小节）、示例谱、验收谱
     game/            播放器、判定、计分、arc、hold/drag、手、粒子、弹字
     audio/           音频时钟、程序化节拍轨
+    pack/            .parallax 自定义谱面包：容器格式 + 浏览器读取
     scene/           台面、浮空显示、材质实验台、控制器
     materials/       材质库、配色、程序化贴图、视距淡出
     ui/              3D 面板、游戏内 UI、调试面板、诊断
     editor/          制谱器（时间轴 / 交互 / 预览 / 检查器 / 波形 / 存取）
   editor.html        制谱器独立入口
-  public/charts/     导出的谱面放这里（example.json / air-example.json）
+  public/charts/     旧格式谱面（example.json / air-example.json）
+  public/packages/   .parallax 谱面包（air-example.parallax）
+  PACKAGE.md         .parallax 包格式与资源约定
   CHART.md           谱面格式说明
   EDITOR.md          制谱器操作与设计说明
   STATUS.md          迭代记录（每轮改了什么、为什么、踩了什么坑）
