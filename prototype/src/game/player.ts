@@ -89,10 +89,10 @@ const BAR_HEIGHT = 0.07;
 /** 超过这个时间还没判定就记漏。 */
 const MISS_MS = 200;
 /**
- * 视距淡出：note 从台面远端到这个范围内逐渐显形（米）。
+ * 视距淡出：note 在「可见距离」内用这段距离逐渐显形（米）。
  * 台面本身吃在雾里，但 note 是自发光的小物件，直接 pop-in 很显眼。
  */
-const FAR_FADE_SPAN = 2.4;
+const FAR_FADE_SPAN = 2.0;
 
 type RuntimeNote =
   | { kind: 'hit'; chart: ChartHitNote; laneX: number; group: THREE.Group; resolved: boolean }
@@ -143,13 +143,16 @@ export function createPlayer(
   // —— 共享几何 ——
   const hitGeometry = new RoundedBoxGeometry(0.21, 0.055, 0.075, 3, 0.008);
   const dragGeometry = new RoundedBoxGeometry(0.195, 0.011, 0.022, 2, 0.0035);
-  const dragGlowGeometry = new THREE.PlaneGeometry(0.3, 0.12);
+  // 辉光片只比冰条深一点：平铺的光片在俯视时被透视拉长，
+  // 太深的话远处会变成「一团光、条子看不见」。
+  const dragGlowGeometry = new THREE.PlaneGeometry(0.28, 0.05);
   const holdSheetGeometry = new RoundedBoxGeometry(0.21, 0.006, 1, 2, 0.0025);
   const holdStripGeometry = new THREE.BoxGeometry(0.09, 0.0025, 1);
   const holdAuraGeometry = new THREE.PlaneGeometry(1, 1);
 
   // —— 共享材质（视距淡出烘进 shader，所以不用按颗克隆）——
-  const fadeFar = geometry.farZ;
+  // 视距从判定带往前算：默认 7m 之外完全不画（台面再远的部分留给氛围）。
+  const fadeFar = geometry.bandZ - params.visibleRange;
   const fadeSpan = FAR_FADE_SPAN;
   const hitMaterials = {
     left: applyDistanceFade(lib.ceramicLeft.clone(), { far: fadeFar, span: fadeSpan }),
@@ -162,6 +165,7 @@ export function createPlayer(
   // 辉光是加法混合，感知上比实体亮得多：让它淡得比条子快，
   // 否则远处会变成「只剩一团光、条子看不见」。
   const dragGlowMaterial = applyDistanceFade(lib.dragGlow.clone(), { far: fadeFar, span: fadeSpan, power: 2.4 });
+  dragGlowMaterial.opacity = 0.7;
 
   // hold 的「头」：一小段冰条，压在片子的近端。
   // 玻璃片在远处太淡，会变成「到跟前才突然出现」；有了这条亮边，
@@ -495,7 +499,7 @@ export function createPlayer(
       const tailZ = zAt(note.chart.time + note.chart.duration, clockMs);
       const nearEnd = Math.max(headZ, tailZ);
       const farEnd = Math.min(headZ, tailZ);
-      note.group.visible = nearEnd > geometry.farZ && farEnd <= geometry.nearZ;
+      note.group.visible = nearEnd > fadeFar && farEnd <= geometry.nearZ;
       return;
     }
 
@@ -505,7 +509,7 @@ export function createPlayer(
     // 淡出是 shader 逐片元做的；这里只裁掉「整颗物件已经在台面外」的情况。
     // 流速越快，note 过线后还要多留一会儿（good 窗口按时间算，不按距离）。
     const nearLimit = geometry.nearZ + 0.1 + (MISS_MS / 1000) * baseSpeed();
-    note.group.visible = z > geometry.farZ && z <= nearLimit;
+    note.group.visible = z > fadeFar && z <= nearLimit;
   }
 
   // —— 自动演示 ——

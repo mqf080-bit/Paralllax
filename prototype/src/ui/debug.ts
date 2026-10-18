@@ -44,6 +44,7 @@ export function createDebug(options: DebugOptions): DebugHandle {
   table.add(params, 'laneWidth', 0.16, 0.34, 0.005).name('轨宽 m').onChange(onChange);
   table.add(params, 'tableDepth', 1.4, 12, 0.1).name('进深 m').onChange(onChange);
   table.add(params, 'nearOffset', 0.16, 0.5, 0.01).name('近端距离 m').onChange(onChange);
+  table.add(params, 'visibleRange', 3, 10, 0.1).name('视距 m').onChange(onChange);
 
   const layout = gui.addFolder('布局');
   layout.add(params, 'showLaneNumbers').name('近端轨号').onChange(onChange);

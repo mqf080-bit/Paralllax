@@ -25,6 +25,12 @@ export interface TableParams {
   showLaneNumbers: boolean;
   /** 调试：显示判定带。 */
   showBand: boolean;
+  /**
+   * 可见距离（米，从判定带算起）：更远的 note 完全不画。
+   * 台面 10m 长，但 VR 里 7m 外的细长物件已经读不出来了 ——
+   * 与其让它们「从老远就出现」，不如把视距收短、用淡入接上。
+   */
+  visibleRange: number;
 }
 
 /** 可见轨数。这一版固定 4 条。 */
@@ -38,6 +44,7 @@ export const DEFAULT_PARAMS: TableParams = {
   plateThickness: 0.012,
   showLaneNumbers: false,
   showBand: true,
+  visibleRange: 7,
 };
 
 /** 一切尺寸的派生量集中在这里，避免各处各算一遍。 */

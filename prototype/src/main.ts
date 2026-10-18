@@ -162,6 +162,9 @@ if (import.meta.env.DEV) {
   const flow = Number(query.get('flow'));
   if (Number.isFinite(flow) && flow > 0) playSettings.flowSpeed = flow;
 
+  const range = Number(query.get('range'));
+  if (Number.isFinite(range) && range > 0) params.visibleRange = range;
+
   // 注意：Number(null) === 0 —— 没有这个参数时必须保持默认值。
   const offsetRaw = query.get('offset');
   const offset = Number(offsetRaw);

@@ -133,11 +133,10 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   const curve = new THREE.CatmullRomCurve3(samples);
 
   const clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 0, -1), spec.clipZ)];
+  // arc 比 note 长得多：淡入拉长一点，整条管子才是「慢慢长出来」而不是一闪。
+  const arcFade = { far: spec.fadeFar, span: spec.fadeSpan * 1.6 };
 
-  const shellMaterial = applyDistanceFade((spec.hand === 'left' ? lib.clearGlassLeft : lib.clearGlassRight).clone(), {
-    far: spec.fadeFar,
-    span: spec.fadeSpan,
-  });
+  const shellMaterial = applyDistanceFade((spec.hand === 'left' ? lib.clearGlassLeft : lib.clearGlassRight).clone(), arcFade);
   shellMaterial.emissive.setHex(colors.emissive);
   shellMaterial.emissiveIntensity = 0;
   shellMaterial.opacity = 0.42;
@@ -146,28 +145,19 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   const shellGeometry = new THREE.TubeGeometry(curve, CURVE_SEGMENTS, 0.018, 14, false);
   group.add(new THREE.Mesh(shellGeometry, shellMaterial));
 
-  const coreMaterial = applyDistanceFade((spec.hand === 'left' ? lib.glassCoreLeft : lib.glassCoreRight).clone(), {
-    far: spec.fadeFar,
-    span: spec.fadeSpan,
-  });
+  const coreMaterial = applyDistanceFade((spec.hand === 'left' ? lib.glassCoreLeft : lib.glassCoreRight).clone(), arcFade);
   coreMaterial.clippingPlanes = clippingPlanes;
   const coreGeometry = new THREE.TubeGeometry(curve, CURVE_SEGMENTS, 0.007, 8, false);
   group.add(new THREE.Mesh(coreGeometry, coreMaterial));
 
-  const glowMaterial = createFresnelGlowMaterial(colors.glow, 0.35, 2.2, {
-    far: spec.fadeFar,
-    span: spec.fadeSpan,
-  });
+  const glowMaterial = createFresnelGlowMaterial(colors.glow, 0.35, 2.2, arcFade);
   glowMaterial.clippingPlanes = clippingPlanes;
   const glowGeometry = new THREE.TubeGeometry(curve, CURVE_SEGMENTS, 0.032, 10, false);
   const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
   glowMesh.renderOrder = 4;
   group.add(glowMesh);
 
-  const haloMaterial = createFresnelGlowMaterial(colors.core, 0.2, 2.8, {
-    far: spec.fadeFar,
-    span: spec.fadeSpan,
-  });
+  const haloMaterial = createFresnelGlowMaterial(colors.core, 0.2, 2.8, arcFade);
   haloMaterial.clippingPlanes = clippingPlanes;
   const haloGeometry = new THREE.TubeGeometry(curve, CURVE_SEGMENTS, 0.055, 10, false);
   const haloMesh = new THREE.Mesh(haloGeometry, haloMaterial);
@@ -204,7 +194,7 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
       emissive: 0x3a2a10,
       emissiveIntensity: 0.5,
     }),
-    { far: spec.fadeFar, span: spec.fadeSpan },
+    arcFade,
   );
   beadMaterial.clippingPlanes = clippingPlanes;
   for (const key of spec.keyObjects) {
@@ -249,7 +239,7 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
       // 轨道和光点也要按距离淡出：arc 还没到的时候，光点会停在「管子的起点」，
       // 那是台面之外很远的地方 —— 不淡掉就是一颗悬在黑暗里的红点。
       const headFade = THREE.MathUtils.clamp(
-        (group.position.z + local.z - spec.fadeFar) / spec.fadeSpan,
+        (group.position.z + local.z - arcFade.far) / arcFade.span,
         0,
         1,
       );
