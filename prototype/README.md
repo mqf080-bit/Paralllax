@@ -1,6 +1,8 @@
 # Parallax — prototype
 
-Phase 1 的 WebXR 原型。**Step 0–3 已完成；Step 4 收尾中**（谱面播放 / SV / shift / 计分 / 音频时钟 / 视距淡出 / VR UI 已接上）。
+Phase 1 的 WebXR 原型。**Step 0–4 已完成，下一步 Step 5（制谱器）。**
+
+> 项目总览与进度：[`../README.md`](../README.md) ｜ 谱面格式：[`CHART.md`](CHART.md) ｜ 迭代记录：[`STATUS.md`](STATUS.md)
 
 设计真相在仓库根的 `parallax-idea.md`；施工协议在 `agent.md`。这里只放能跑的东西。
 
