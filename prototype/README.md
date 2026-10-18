@@ -59,6 +59,7 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 | 做什么 | 怎么做 |
 | --- | --- |
 | 打键 | 手扫过判定带（hit 要速度 + 位移，drag 只要扫过，hold 要按住扳机 / 侧握） |
+| 打 arc | 手跟着弧走；弧上的黄铜珠是**关键物量**，必须进体积判定 |
 | 点 UI | 手柄指向面板，**扣扳机**；靠近了直接伸手戳也行 |
 | 暂停 / 重试 / 设置 | 右前方那条 `SETTINGS / PAUSE / RETRY`（播放时会淡到 30%） |
 
@@ -68,7 +69,7 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 
 ### dev 参数
 
-`?auto=1` 自动演示 · `?freeze=1` 冻结 · `?warp=2.4` 快进 · `?flow=4` 流速 ·
+`?chart=demo` 切回 12s 示例谱 · `?auto=1` 自动演示 · `?freeze=1` 冻结 · `?warp=2.4` 快进 · `?flow=4` 流速 ·
 `?shift=left|right` · `?panel=settings|result` 摊开面板 · `?clock=0` 关掉音频时钟 ·
 `?offset=20&volume=0.6&lead=2000` 音频参数 · `?audio=/track.mp3` 真实音轨 ·
 `?aim=1&aimTarget=settings|pause|retry&click=1` 假手验证激光笔。
