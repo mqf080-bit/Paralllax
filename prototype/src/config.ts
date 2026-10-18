@@ -27,8 +27,7 @@ export interface TableParams {
   showBand: boolean;
   /**
    * 可见距离（米，从判定带算起）：更远的 note 完全不画。
-   * 台面 10m 长，但 VR 里 7m 外的细长物件已经读不出来了 ——
-   * 与其让它们「从老远就出现」，不如把视距收短、用淡入接上。
+   * 默认贴着台面远端（9m），靠一段长的淡入把它接进来。
    */
   visibleRange: number;
 }
@@ -44,7 +43,7 @@ export const DEFAULT_PARAMS: TableParams = {
   plateThickness: 0.012,
   showLaneNumbers: false,
   showBand: true,
-  visibleRange: 6.5,
+  visibleRange: 9,
 };
 
 /** 一切尺寸的派生量集中在这里，避免各处各算一遍。 */

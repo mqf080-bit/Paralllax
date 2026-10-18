@@ -134,7 +134,7 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
 
   const clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 0, -1), spec.clipZ)];
   // arc 比 note 长得多：淡入拉长一点，整条管子才是「慢慢长出来」而不是一闪。
-  const arcFade = { far: spec.fadeFar, span: spec.fadeSpan * 1.6 };
+  const arcFade = { far: spec.fadeFar, span: spec.fadeSpan * 1.2 };
 
   const shellMaterial = applyDistanceFade((spec.hand === 'left' ? lib.clearGlassLeft : lib.clearGlassRight).clone(), arcFade);
   shellMaterial.emissive.setHex(colors.emissive);
