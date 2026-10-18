@@ -3,8 +3,9 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { VRButton } from 'three/examples/jsm/webxr/VRButton.js';
 import Stats from 'three/examples/jsm/libs/stats.module.js';
 
+import { createAudioClock, type AudioSettings } from './audio/clock';
 import { DEFAULT_PARAMS, type TableParams } from './config';
-import { createHands } from './game/hands';
+import { createHands, type HandSample } from './game/hands';
 import { DEMO_CHART } from './chart/demo';
 import { createPlayer, type Player, type PlayerSettings } from './game/player';
 import { createEnvironment } from './materials/environment';
@@ -16,7 +17,7 @@ import { buildMaterialLab } from './scene/materialLab';
 import { buildNotesPreview } from './scene/notes';
 import { buildTable } from './scene/table';
 import { createDiagnostics } from './ui/diagnostics';
-import { createGameUi } from './ui/gameUi';
+import { createGameUi, type GameUiStatus } from './ui/gameUi';
 import { probeXr } from './xr/xr-support';
 import './ui/style.css';
 
@@ -35,6 +36,18 @@ const params: TableParams = { ...DEFAULT_PARAMS };
 // 键型预览与打击练习的开关；也接受 ?preview=1 / ?auto=1。
 const previewState = { visible: false };
 const playSettings: PlayerSettings = { enabled: true, flowSpeed: 3.0, auto: false };
+
+// —— 音频 ——
+// 谱面时间由音频时钟提供（见 src/audio/clock.ts）。没有音轨时它现场合成一条
+// 鼓点轨；有真实音轨时（?audio=/track.mp3）用真实音轨的时间对齐。
+const audioSettings: AudioSettings = {
+  offsetMs: DEMO_CHART.meta.offset,
+  volume: 0.8,
+  metronome: false,
+  leadInMs: 2000,
+};
+const audio = createAudioClock(audioSettings);
+audio.setTiming(DEMO_CHART.timing);
 
 // shift 状态：4 轨窗口的位置。-1 = 左移一轨，0 = 常态，1 = 右移一轨。
 // 过渡值是连续的，做淡入淡出与判定带的交叉过渡。
@@ -148,6 +161,20 @@ if (import.meta.env.DEV) {
   }
   const flow = Number(query.get('flow'));
   if (Number.isFinite(flow) && flow > 0) playSettings.flowSpeed = flow;
+
+  // 注意：Number(null) === 0 —— 没有这个参数时必须保持默认值。
+  const offsetRaw = query.get('offset');
+  const offset = Number(offsetRaw);
+  if (offsetRaw !== null && Number.isFinite(offset)) audioSettings.offsetMs = offset;
+  const volumeRaw = query.get('volume');
+  const volume = Number(volumeRaw);
+  if (volumeRaw !== null && Number.isFinite(volume) && volume >= 0) audioSettings.volume = volume;
+  const leadRaw = query.get('lead');
+  const lead = Number(leadRaw);
+  if (leadRaw !== null && Number.isFinite(lead) && lead >= 0) audioSettings.leadInMs = lead;
+  if (query.get('metronome') === '1') audioSettings.metronome = true;
+  const track = query.get('audio');
+  if (track) void audio.loadTrack(track);
 }
 
 // —— 内容 ——
@@ -191,23 +218,99 @@ const playHooks = {
 };
 
 let playfield: Player = createPlayer(params, table.geometry, lib, DEMO_CHART, playSettings, playHooks);
+// 谱面时间来自音频时钟；音频没解锁时它退回 performance.now，游戏照常能跑。
+playfield.setTimeSource(() => audio.now());
 scene.add(playfield.group);
 
-const gameUi = createGameUi(playSettings);
+const uiStatus: GameUiStatus = {
+  paused: false,
+  playing: false,
+  latencyMs: 0,
+  audioLive: false,
+  trackName: 'DRUMS',
+};
+const gameUi = createGameUi(playSettings, audioSettings, uiStatus);
 scene.add(gameUi.group);
 
 // dev：?warp=1.6 先把练习快进若干秒，配合 ?freeze=1 冻结在那一帧（headless 帧率低，等不到）。
 let frozen = false;
+let devWarped = false;
 if (import.meta.env.DEV) {
   const query = new URLSearchParams(window.location.search);
   frozen = query.get('freeze') === '1';
   const warp = Number(query.get('warp'));
   if (Number.isFinite(warp) && warp > 0) {
+    devWarped = true;
+    // 快进时用假时间源：音频时钟不能快进。
+    const fake = { t: 0 };
+    playfield.setTimeSource(() => fake.t);
     const step = 1 / 90;
     for (let t = 0; t < warp; t += step) {
       hands.update(step, camera);
       playfield.update(step, hands.samples);
+      fake.t += step * 1000;
     }
+    if (!frozen) {
+      // 快进结束后接着用音频时钟从那个时间点继续跑。
+      audio.play(fake.t);
+      playfield.setTimeSource(() => audio.now());
+    }
+  }
+}
+
+/**
+ * 从头开始一局：重置谱面、结算面板，并让音频从 lead-in 起播。
+ * lead-in 是负数时间：note 从远处滑进来，玩家有时间把手放到判定带上。
+ */
+let pausedBySettings = false;
+function restartPlayback(): void {
+  gameUi.reset();
+  playfield.restart();
+  audio.play(-audioSettings.leadInMs);
+  uiStatus.paused = false;
+  pausedBySettings = false;
+}
+
+// dev：?clock=0 完全不启动音频（headless 截图时 AudioContext 会把虚拟时间卡住）；
+// ?panel=settings|result 直接把面板摊开，方便在桌面上检查外观。
+const devFlags = import.meta.env.DEV ? new URLSearchParams(window.location.search) : null;
+const clockOff = devFlags?.get('clock') === '0';
+if (clockOff) playfield.setTimeSource(null);
+if (!devWarped && !clockOff) restartPlayback();
+
+const panelParam = devFlags?.get('panel') ?? null;
+if (panelParam === 'settings' || panelParam === 'result') gameUi.debugShowPanel(panelParam, playfield.score);
+
+// dev：?aim=1 造一只「瞄准控制条」的假手，用来在没有头显时验证激光笔交互。
+if (devFlags?.get('aim') === '1') {
+  const fakePosition = new THREE.Vector3(0.28, 1.16, 0.28);
+  // 控制条三个按钮在世界里的中心（面板朝向默认相机，所以位置是算好的）。
+  const target = devFlags.get('aimTarget') ?? 'pause';
+  const aimAt =
+    target === 'settings'
+      ? new THREE.Vector3(0.493, 1.074, -0.684)
+      : target === 'retry'
+        ? new THREE.Vector3(0.787, 1.074, -0.516)
+        : new THREE.Vector3(0.64, 1.074, -0.6);
+  const fake: HandSample = {
+    side: 'right',
+    source: 'xr',
+    position: fakePosition,
+    velocity: new THREE.Vector3(),
+    active: true,
+    pressed: false,
+    swing: 0,
+    ray: new THREE.Ray(fakePosition, aimAt.clone().sub(fakePosition).normalize()),
+  };
+  hands.samples.push(fake);
+  if (devFlags.get('click') === '1') {
+    // 无头渲染只有 ~2fps，按下至少要跨过一帧，否则「边沿」会被整段跳过。
+    window.setTimeout(() => {
+      fake.pressed = true;
+    }, 900);
+    window.setTimeout(() => {
+      fake.pressed = false;
+    }, 3600);
   }
 }
 
@@ -236,6 +339,7 @@ function rebuild(): void {
   notes.group.visible = previewState.visible;
 
   playfield = createPlayer(params, table.geometry, lib, DEMO_CHART, playSettings, playHooks);
+  playfield.setTimeSource(() => audio.now());
   scene.add(playfield.group);
 }
 
@@ -292,6 +396,10 @@ vrButton.classList.add('parallax-button');
 vrButton.style.cssText = '';
 document.body.append(vrButton);
 
+// —— 音频解锁：浏览器要求 AudioContext 必须在用户手势里启动 ——
+window.addEventListener('pointerdown', () => audio.unlock(), { passive: true });
+window.addEventListener('keydown', () => audio.unlock());
+
 // —— shift 快捷键：A 左移 / D 右移 / S 回正 ——
 window.addEventListener('keydown', (event) => {
   if (event.repeat) return;
@@ -307,12 +415,13 @@ const HINT_READY = '链路就绪 · 点下方 Enter VR 进入 immersive-vr。';
 renderer.xr.addEventListener('sessionstart', () => {
   controls.enabled = false;
   // 进头显时从干净的一波开始：桌面上积累的漏键不该带进 VR。
-  playfield.restart();
+  restartPlayback();
   diagnostics.set('session', 'immersive-vr', 'ok');
   diagnostics.setHint('VR 会话中 · 桌面镜像上的操作不影响头显。');
 });
 renderer.xr.addEventListener('sessionend', () => {
   controls.enabled = true;
+  audio.pause();
   referenceSpaceSeen = false;
   diagnostics.set('session', 'off', 'idle');
   diagnostics.set('refspace', '—', 'idle');
@@ -355,6 +464,7 @@ if (import.meta.env.DEV) {
   void import('./ui/debug').then(({ createDebug }) => {
     debugHandle = createDebug({
       params,
+      audio: audioSettings,
       display: displayPlacement,
       lab: labState,
       play: playfield.settings,
@@ -366,7 +476,7 @@ if (import.meta.env.DEV) {
       onDisplayChange: moveDisplay,
       onLabChange: applyLab,
       onPreviewChange: applyPreview,
-      onPlayRestart: () => playfield.restart(),
+      onPlayRestart: () => restartPlayback(),
     });
   });
 }
@@ -380,6 +490,9 @@ let lastFrameTime = performance.now();
 let lastDragRow = '';
 let lastJudgeRow = '';
 let lastScoreRow = -1;
+let lastAudioRow = '';
+let lastTrackRow = '';
+let lastChartRow = '';
 
 renderer.setAnimationLoop((frameTime: number) => {
   const dt = Math.min(Math.max((frameTime - lastFrameTime) / 1000, 0), 0.05);
@@ -396,12 +509,37 @@ renderer.setAnimationLoop((frameTime: number) => {
     hands.update(dt, camera);
     playfield.update(dt, hands.samples);
   }
+  audio.update();
+
+  uiStatus.paused = audio.state === 'paused';
+  uiStatus.playing = audio.state === 'playing';
+  uiStatus.latencyMs = audio.latencyMs;
+  uiStatus.audioLive = audio.live;
+  uiStatus.trackName = audio.trackName;
 
   const action = gameUi.update(camera, hands.samples, playfield.score, playfield.finished);
   if (action === 'retry') {
-    playfield.restart();
-    gameUi.reset();
+    restartPlayback();
+  } else if (action === 'pause') {
+    audio.pause();
+  } else if (action === 'resume') {
+    audio.resume();
   }
+
+  // 设置面板开着 = 暂停：不然玩家读设置的时候谱面还在走。
+  if (gameUi.settingsOpen) {
+    if (audio.state === 'playing') {
+      audio.pause();
+      pausedBySettings = true;
+    }
+  } else if (pausedBySettings) {
+    pausedBySettings = false;
+    if (audio.state === 'paused') audio.resume();
+  }
+
+  // 谱面跑完 / 血量归零 / 关掉播放：停表。
+  if (audio.state === 'playing' && (!playSettings.enabled || playfield.finished)) audio.pause();
+
   if (previewState.visible) notes.update(frameTime / 1000);
 
   // 窗口滑动：约 0.35s 的过渡，挡板 / 分割线 / 判定带一起交叉。
@@ -434,6 +572,24 @@ renderer.setAnimationLoop((frameTime: number) => {
   if (judgeRow !== lastJudgeRow) {
     lastJudgeRow = judgeRow;
     diagnostics.set('judge', judgeRow, lastGrade === 'miss' ? 'bad' : lastGrade ? 'ok' : 'idle');
+  }
+
+  const audioRow = `${audio.state}${audio.live ? ` · ${Math.round(audio.latencyMs)}ms` : ' · silent'}`;
+  if (audioRow !== lastAudioRow) {
+    lastAudioRow = audioRow;
+    diagnostics.set('audio', audioRow, audio.live ? 'ok' : audio.state === 'playing' ? 'warn' : 'idle');
+  }
+
+  const trackRow = audio.error ? `error: ${audio.error}` : audio.trackName;
+  if (trackRow !== lastTrackRow) {
+    lastTrackRow = trackRow;
+    diagnostics.set('track', trackRow, audio.error ? 'bad' : 'idle');
+  }
+
+  const chartRow = `${(playfield.timeMs / 1000).toFixed(2)} / ${(playfield.duration / 1000).toFixed(1)}s`;
+  if (chartRow !== lastChartRow) {
+    lastChartRow = chartRow;
+    diagnostics.set('chart', chartRow, 'idle');
   }
 
   if (renderer.xr.isPresenting && !referenceSpaceSeen) {
@@ -485,6 +641,7 @@ import.meta.hot?.dispose(() => {
   scene.remove(backdrop.group);
   backdrop.dispose();
   environment.dispose();
+  audio.dispose();
   displayTextures.dispose();
   lib.dispose();
   renderer.setAnimationLoop(null);

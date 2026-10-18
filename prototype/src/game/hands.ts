@@ -29,6 +29,13 @@ export interface HandSample {
   pressed: boolean;
   /** 最近 120ms 内走过的距离（米）——hit 的「挥击距离」用这个。 */
   swing: number;
+  /**
+   * 指向射线（世界空间）：
+   * - XR：控制器 target-ray 的原点，沿控制器的 -Z；
+   * - 桌面：相机穿过鼠标的射线。
+   * UI 用它做「激光笔」，判定完全不看它。
+   */
+  ray: THREE.Ray | null;
 }
 
 export interface Hands {
@@ -177,6 +184,7 @@ export function createHands(
     active: false,
     pressed: false,
     swing: 0,
+    ray: new THREE.Ray(),
   };
   samples.push(pointerSample);
   const pointerTrail = createTrail(0x9fd8ff, glowMap, scene);
@@ -207,6 +215,9 @@ export function createHands(
   }
 
   const raycaster = new THREE.Raycaster();
+  // XR 控制器指向：target-ray 空间的原点 + 绕 Y/Z 旋转后的 -Z。
+  const rayDirection = new THREE.Vector3();
+  const rayQuaternion = new THREE.Quaternion();
   // 竖直平面 z = 判定带：指针只需要控制横向位置，前后由谱面自己过来。
   const pointerPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -options.pointerZ);
   const pointerHit = new THREE.Vector3();
@@ -278,6 +289,7 @@ export function createHands(
       active: false,
       pressed: false,
       swing: 0,
+      ray: new THREE.Ray(),
     };
     samples.push(sample);
 
@@ -362,6 +374,7 @@ export function createHands(
       // —— 指针 ——
       if (!presenting && pointerSeen) {
         raycaster.setFromCamera(pointer, camera);
+        pointerSample.ray?.copy(raycaster.ray);
         const hit = raycaster.ray.intersectPlane(pointerPlane, pointerHit);
         if (hit) {
           if (pointerSample.active) {
@@ -401,6 +414,9 @@ export function createHands(
         if (!hand.sample.active) continue;
 
         hand.controller.getWorldPosition(hand.sample.position);
+        hand.controller.getWorldQuaternion(rayQuaternion);
+        rayDirection.set(0, 0, -1).applyQuaternion(rayQuaternion);
+        hand.sample.ray?.set(hand.sample.position, rayDirection);
         if (hand.hasPrev) {
           const raw = hand.sample.position.clone().sub(hand.prev).divideScalar(Math.max(dt, 1e-4));
           if (raw.length() > SPIKE_SPEED) raw.set(0, 0, 0);

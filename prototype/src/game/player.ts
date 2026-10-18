@@ -56,6 +56,12 @@ export interface Player {
   readonly finished: boolean;
   /** 当前窗口值（-1 / 0 / 1 之间），来自谱面的 shift 事件。 */
   readonly windowValue: number;
+  /** 当前谱面时间（毫秒）。 */
+  readonly timeMs: number;
+  /** 谱面总时长（毫秒）。 */
+  readonly duration: number;
+  /** 用外部时钟（音频）驱动；传 null 退回「每帧累加 dt」。 */
+  setTimeSource(source: (() => number) | null): void;
   update(dt: number, hands: HandSample[]): void;
   restart(): void;
   dispose(): void;
@@ -81,11 +87,22 @@ const HOLD_MAX_WINDOW = 0.6;
 const BAR_HEIGHT = 0.07;
 /** 超过这个时间还没判定就记漏。 */
 const MISS_MS = 200;
+/**
+ * 视距淡出：note 从台面远端到这个范围内逐渐显形（米）。
+ * 台面本身吃在雾里，但 note 是自发光的小物件，直接 pop-in 很显眼。
+ */
+const FAR_FADE_SPAN = 2.4;
+
+/** 视距淡出：材质 + 基准不透明度。每个物量单独克隆材质，才能各淡各的。 */
+interface NoteFade {
+  fade: number;
+  targets: Array<{ material: THREE.Material & { opacity: number }; base: number }>;
+}
 
 type RuntimeNote =
-  | { kind: 'hit'; chart: ChartHitNote; laneX: number; group: THREE.Group; resolved: boolean }
-  | { kind: 'drag'; chart: ChartDragNote; laneX: number; group: THREE.Group; resolved: boolean }
-  | {
+  | ({ kind: 'hit'; chart: ChartHitNote; laneX: number; group: THREE.Group; resolved: boolean } & NoteFade)
+  | ({ kind: 'drag'; chart: ChartDragNote; laneX: number; group: THREE.Group; resolved: boolean } & NoteFade)
+  | ({
       kind: 'hold';
       chart: ChartHoldNote;
       laneX: number;
@@ -100,7 +117,7 @@ type RuntimeNote =
       tickWindow: number;
       glow: number;
       resolved: boolean;
-    }
+    } & NoteFade)
   | { kind: 'arc'; chart: ChartArcNote; arc: ArcNote; resolved: boolean };
 
 export function createPlayer(
@@ -137,6 +154,8 @@ export function createPlayer(
   const runtime: RuntimeNote[] = [];
   let clockMs = 0;
   let windowValue = 0;
+  /** 外部时间源（音频时钟）。为 null 时退回每帧累加 dt。 */
+  let timeSource: (() => number) | null = null;
 
   const popupPosition = new THREE.Vector3();
   const shatterDirection = new THREE.Vector3();
@@ -155,14 +174,12 @@ export function createPlayer(
       return;
     }
     group.remove(note.group);
+    // 每颗 note 都克隆过材质（视距淡出要单独改不透明度），几何是共享的。
+    for (const target of note.targets) target.material.dispose();
     if (note.kind === 'hold') {
       note.sheetMaterial.dispose();
       note.stripMaterial.dispose();
       note.auraMaterial.dispose();
-    } else {
-      note.group.traverse((object) => {
-        if (object instanceof THREE.Mesh) object.geometry.dispose();
-      });
     }
     note.group.clear();
   }
@@ -196,22 +213,46 @@ export function createPlayer(
     group.add(noteGroup);
 
     if (note.type === 'hit') {
-      const material =
+      const source =
         note.hand === 'left' ? lib.ceramicLeft : note.hand === 'right' ? lib.ceramicRight : lib.ceramic;
+      // 单独克隆：视距淡出要按颗改不透明度，共享材质改不了。
+      const material = source.clone();
+      material.transparent = true;
       const bar = new THREE.Mesh(hitGeometry, material);
       bar.castShadow = true;
       noteGroup.add(bar);
-      runtime.push({ kind: 'hit', chart: note, laneX: x, group: noteGroup, resolved: false });
+      runtime.push({
+        kind: 'hit',
+        chart: note,
+        laneX: x,
+        group: noteGroup,
+        resolved: false,
+        fade: 1,
+        targets: [{ material, base: 1 }],
+      });
     } else if (note.type === 'drag') {
-      const bar = new THREE.Mesh(dragGeometry, lib.iceBar);
+      const barMaterial = lib.iceBar.clone();
+      const glowMaterial = lib.dragGlow.clone();
+      const bar = new THREE.Mesh(dragGeometry, barMaterial);
       bar.castShadow = true;
       noteGroup.add(bar);
-      const glow = new THREE.Mesh(dragGlowGeometry, lib.dragGlow);
+      const glow = new THREE.Mesh(dragGlowGeometry, glowMaterial);
       glow.rotation.x = -Math.PI / 2;
       glow.position.y = 0.002;
       glow.renderOrder = 4;
       noteGroup.add(glow);
-      runtime.push({ kind: 'drag', chart: note, laneX: x, group: noteGroup, resolved: false });
+      runtime.push({
+        kind: 'drag',
+        chart: note,
+        laneX: x,
+        group: noteGroup,
+        resolved: false,
+        fade: 1,
+        targets: [
+          { material: barMaterial, base: barMaterial.opacity },
+          { material: glowMaterial, base: glowMaterial.opacity },
+        ],
+      });
     } else {
       const sheetMaterial = lib.clearGlass.clone();
       sheetMaterial.emissive.setHex(0x1c6f86);
@@ -258,6 +299,8 @@ export function createPlayer(
         tickWindow,
         glow: 0,
         resolved: false,
+        fade: 1,
+        targets: [],
       });
     }
   }
@@ -365,6 +408,7 @@ export function createPlayer(
     const tailZ = zAt(note.chart.time + note.chart.duration, clockMs);
     const far = Math.min(headZ, tailZ);
     const near = Math.max(headZ, tailZ);
+    const fade = note.fade;
 
     note.group.position.set(note.laneX, params.tableHeight + 0.004, far);
     note.group.rotation.z = 0;
@@ -394,10 +438,10 @@ export function createPlayer(
     const targetGlow = contact ? 1 : 0;
     note.glow += (targetGlow - note.glow) * Math.min(1, dt * 12);
     note.sheetMaterial.emissiveIntensity = note.glow * 2.0;
-    note.sheetMaterial.opacity = 0.45 + 0.25 * note.glow;
-    note.stripMaterial.opacity = 0.5 + 0.4 * note.glow;
-    note.auraMaterial.opacity = 0.55 * note.glow;
-    note.aura.visible = note.glow > 0.02;
+    note.sheetMaterial.opacity = (0.45 + 0.25 * note.glow) * fade;
+    note.stripMaterial.opacity = (0.5 + 0.4 * note.glow) * fade;
+    note.auraMaterial.opacity = 0.55 * note.glow * fade;
+    note.aura.visible = note.glow * fade > 0.02;
     note.aura.scale.set(0.36, Math.max(visibleLength, 0.001), 1);
     note.aura.position.z = visibleLength / 2;
 
@@ -424,6 +468,12 @@ export function createPlayer(
     }
   }
 
+  /**
+   * 视距裁剪 + 淡出。
+   *
+   * - 远端：进入台面最后 2.4m 里逐渐显形，而不是凭空 pop 出来；
+   * - 近端：过了判定带、连「good」窗口都走完的物件就不再画（hold 用它自己的尾端算）。
+   */
   function updateVisibility(note: RuntimeNote): void {
     if (note.kind === 'arc') {
       note.arc.group.visible = true;
@@ -431,9 +481,25 @@ export function createPlayer(
     }
     if (note.resolved) return;
 
-    const z = note.kind === 'hold' ? zAt(note.chart.time, clockMs) : zAt(note.chart.time, clockMs);
-    if (note.kind !== 'hold') note.group.position.set(note.laneX, barY, z);
-    note.group.visible = z < geometry.nearZ + 1.2 && z > geometry.farZ - 2;
+    let z: number;
+    if (note.kind === 'hold') {
+      // 用尾端：片子的头先过线，尾端才是「它还在不在台面上」的判据。
+      const headZ = zAt(note.chart.time, clockMs);
+      const tailZ = zAt(note.chart.time + note.chart.duration, clockMs);
+      z = Math.min(headZ, tailZ);
+    } else {
+      z = zAt(note.chart.time, clockMs);
+      note.group.position.set(note.laneX, barY, z);
+    }
+
+    const fade = THREE.MathUtils.clamp((z - geometry.farZ) / FAR_FADE_SPAN, 0, 1);
+    note.fade = fade;
+    for (const target of note.targets) target.material.opacity = target.base * fade;
+
+    // 流速越快，note 过线后还要多留一会儿（good 窗口按时间算，不按距离）。
+    const nearLimit =
+      note.kind === 'hold' ? geometry.nearZ : geometry.nearZ + 0.1 + (MISS_MS / 1000) * baseSpeed();
+    note.group.visible = fade > 0.004 && z <= nearLimit;
   }
 
   // —— 自动演示 ——
@@ -454,6 +520,7 @@ export function createPlayer(
     active: true,
     pressed: true,
     swing: 0.3,
+    ray: null,
   };
 
   function updateGhost(dt: number): HandSample | null {
@@ -527,6 +594,18 @@ export function createPlayer(
       return windowValue;
     },
 
+    get timeMs(): number {
+      return clockMs;
+    },
+
+    get duration(): number {
+      return timeline.duration;
+    },
+
+    setTimeSource(source: (() => number) | null): void {
+      timeSource = source;
+    },
+
     update(dt: number, hands: HandSample[]): void {
       if (!settings.enabled) {
         finished = false;
@@ -539,7 +618,8 @@ export function createPlayer(
         return;
       }
 
-      clockMs += dt * 1000;
+      // 时间来自音频时钟（唯一权威）；没有音频时退回逐帧累加。
+      clockMs = timeSource ? timeSource() : clockMs + dt * 1000;
       windowValue = timeline.windowAt(clockMs);
       const auto = updateGhost(dt);
       const samples = auto ? [...hands, auto] : hands;

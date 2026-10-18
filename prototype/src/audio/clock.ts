@@ -1,0 +1,343 @@
+import type { TimingPoint } from '../chart/schema';
+import { collectBeats, createDrumKit, type DrumKit } from './track';
+
+/**
+ * 音频时钟：谱面时间的唯一权威来源。
+ *
+ * 之前是「假时钟」——每帧把 dt 累加到 `clockMs` 上。问题是它与声音无关：
+ * 帧率一抖，note 就晚到；而且没有音轨，也就没有「对拍」这回事。
+ *
+ * 现在的模型：
+ * - **主时钟 = AudioContext.currentTime**（浏览器不给自动播放时退回
+ *   performance.now，游戏本身仍然能跑，只是没声音）。
+ * - `now()` 返回「**正在被听到的**谱面时间」：把输出延迟算进去，
+ *   所以 0ms 判定 = 玩家耳朵里的拍点。
+ * - 音频排程用同一个 `now()` 反算：`ctx.currentTime + (t - now()) / 1000`。
+ *
+ * 谱面时间可以是负数：起播前留一段 lead-in，note 从远处滑进来。
+ *
+ * `settings.offsetMs` 是玩家校准量：**正值 = 谱面时间提前**（note 更早到）。
+ * 谱面里的 `meta.offset` 直接落在这里。
+ */
+
+export type TransportState = 'idle' | 'playing' | 'paused';
+
+export interface AudioSettings {
+  /** 校准偏移（毫秒）。正 = 谱面时间提前。 */
+  offsetMs: number;
+  /** 总音量 0–1。 */
+  volume: number;
+  /** 有真实音轨时是否额外叠一层节拍器。 */
+  metronome: boolean;
+  /** 起播前的留白（毫秒）。 */
+  leadInMs: number;
+}
+
+export interface AudioClock {
+  settings: AudioSettings;
+  readonly state: TransportState;
+  /** 音频链路是否真的在出声。 */
+  readonly live: boolean;
+  /** 估算的输出延迟（毫秒）。 */
+  readonly latencyMs: number;
+  /** 当前音轨名。没有音轨时是合成鼓组 `DRUMS`。 */
+  readonly trackName: string;
+  /** 最近一次载入 / 播放错误。 */
+  readonly error: string | null;
+  /** 正在被听到的谱面时间（毫秒）。 */
+  now(): number;
+  /** 从某个谱面时间开始播放。 */
+  play(fromMs?: number): void;
+  pause(): void;
+  resume(): void;
+  stop(): void;
+  /** 每帧调用：把未来一小段拍点排进音频时间轴。 */
+  update(): void;
+  /** 需要用户手势：解锁 / 恢复 AudioContext。 */
+  unlock(): void;
+  /** 载入真实音轨（从谱面时间 0 开始对齐）。 */
+  loadTrack(url: string): Promise<boolean>;
+  /** 设置 timing（决定节拍网格）。 */
+  setTiming(timing: TimingPoint[]): void;
+  dispose(): void;
+}
+
+/** 排程提前量：每帧往前排 300ms，主线程抖动不会变成漏拍。 */
+const LOOKAHEAD_MS = 300;
+/** 起播时给音频线程一点余量（秒）。 */
+const START_DELAY = 0.03;
+/** 输出延迟的合理上限（秒）——有些实现会报夸张的值。 */
+const MAX_LATENCY = 0.2;
+
+function clampLatency(value: number | undefined | null): number {
+  if (value === undefined || value === null || !Number.isFinite(value)) return 0;
+  return Math.min(MAX_LATENCY, Math.max(0, value));
+}
+
+export function createAudioClock(settings: AudioSettings): AudioClock {
+  let ctx: AudioContext | null = null;
+  let master: GainNode | null = null;
+  let drum: DrumKit | null = null;
+  let timing: TimingPoint[] = [];
+
+  let state: TransportState = 'idle';
+  /**
+   * 锚点：`anchorChartMs`（不含 offset 的谱面时间）对应
+   * `anchorAudioS`（音频时钟，含输出延迟）与 `anchorPerfS`（performance）。
+   * 两个锚点在同一瞬间打上，所以时间源切换 / 音频被系统挂起时都不会跳变。
+   */
+  let anchorChartMs = 0;
+  let anchorAudioS = 0;
+  let anchorPerfS = 0;
+  let anchorUsesAudio = false;
+  let pausedAtMs = 0;
+  /** 已经排到哪个谱面时间。 */
+  let scheduledToMs = 0;
+
+  let trackBuffer: AudioBuffer | null = null;
+  let trackSource: AudioBufferSourceNode | null = null;
+  let trackName = 'DRUMS';
+  let error: string | null = null;
+
+  function latencyS(): number {
+    if (!ctx) return 0;
+    const base = clampLatency(ctx.baseLatency);
+    const output = clampLatency((ctx as AudioContext & { outputLatency?: number }).outputLatency);
+    return Math.max(base, output);
+  }
+
+  function isLive(): boolean {
+    return ctx !== null && ctx.state === 'running';
+  }
+
+  /** 「正在被听到」的时间源（秒）：音频走 ctx，否则走 performance。 */
+  function heardNow(): number {
+    if (isLive()) return ctx!.currentTime + latencyS();
+    return performance.now() / 1000;
+  }
+
+  function perfNowS(): number {
+    return performance.now() / 1000;
+  }
+
+  /** 在「现在」重新打锚点，谱面时间保持连续。 */
+  function stampAnchor(chartMs: number, delayS = 0): void {
+    anchorChartMs = chartMs;
+    anchorUsesAudio = isLive();
+    anchorAudioS = heardNow() + delayS;
+    anchorPerfS = perfNowS() + delayS;
+    scheduledToMs = chartMs;
+  }
+
+  /**
+   * 不含校准偏移的谱面时间。
+   * 音频在跑就用音频时钟（不随主线程 / 显示器漂移）；否则用 performance。
+   */
+  function rawNow(): number {
+    if (state === 'paused') return pausedAtMs;
+    if (state === 'idle') return anchorChartMs;
+    if (anchorUsesAudio && isLive()) return anchorChartMs + (heardNow() - anchorAudioS) * 1000;
+    return anchorChartMs + (perfNowS() - anchorPerfS) * 1000;
+  }
+
+  /** 时间源变了（音频解锁 / 被系统挂起）就重锚一次。 */
+  function syncSource(): void {
+    if (state !== 'playing') return;
+    if (isLive() === anchorUsesAudio) return;
+    const at = rawNow();
+    stampAnchor(at);
+    if (isLive() && trackBuffer) startTrack(at);
+  }
+
+  function nowMs(): number {
+    return rawNow() + settings.offsetMs;
+  }
+
+  function buildChain(): void {
+    if (!ctx) return;
+    master = ctx.createGain();
+    master.gain.value = settings.volume;
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -8;
+    limiter.knee.value = 12;
+    limiter.ratio.value = 6;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.14;
+    master.connect(limiter).connect(ctx.destination);
+    drum = createDrumKit({ metronome: false, groove: true, level: 1 });
+  }
+
+  /** 把一个音轨缓冲区挂到当前谱面时间上。 */
+  function startTrack(chartMs: number): void {
+    if (!ctx || !master || !trackBuffer) return;
+    stopTrack();
+    const startChart = Math.max(0, chartMs);
+    if (startChart / 1000 >= trackBuffer.duration) return;
+
+    const source = ctx.createBufferSource();
+    source.buffer = trackBuffer;
+    source.connect(master);
+    source.start(Math.max(ctx.currentTime, toCtxTime(startChart)), startChart / 1000);
+    trackSource = source;
+  }
+
+  function stopTrack(): void {
+    if (!trackSource) return;
+    try {
+      trackSource.stop();
+    } catch {
+      // 已经停过就忽略。
+    }
+    trackSource.disconnect();
+    trackSource = null;
+  }
+
+  function ensureContext(): boolean {
+    if (ctx) return true;
+    const Ctor =
+      window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) {
+      error = 'WebAudio 不可用';
+      return false;
+    }
+    try {
+      ctx = new Ctor({ latencyHint: 'interactive' });
+    } catch {
+      error = 'AudioContext 创建失败';
+      return false;
+    }
+    buildChain();
+    return true;
+  }
+
+  /** 谱面时间 → AudioContext 时间。 */
+  function toCtxTime(chartMs: number): number {
+    if (!ctx) return 0;
+    return ctx.currentTime + (chartMs - nowMs()) / 1000;
+  }
+
+  return {
+    settings,
+
+    get state(): TransportState {
+      return state;
+    },
+
+    get live(): boolean {
+      return isLive();
+    },
+
+    get latencyMs(): number {
+      return latencyS() * 1000;
+    },
+
+    get trackName(): string {
+      return trackName;
+    },
+
+    get error(): string | null {
+      return error;
+    },
+
+    now: nowMs,
+
+    play(fromMs = 0): void {
+      ensureContext();
+      if (ctx && ctx.state === 'suspended') void ctx.resume();
+      state = 'playing';
+      stampAnchor(fromMs, isLive() ? START_DELAY : 0);
+      pausedAtMs = fromMs;
+      if (trackBuffer && isLive()) startTrack(fromMs);
+    },
+
+    pause(): void {
+      if (state !== 'playing') return;
+      pausedAtMs = rawNow();
+      state = 'paused';
+      stopTrack();
+      if (ctx && ctx.state === 'running') void ctx.suspend();
+    },
+
+    resume(): void {
+      if (state !== 'paused') return;
+      if (ctx && ctx.state === 'suspended') void ctx.resume();
+      state = 'playing';
+      stampAnchor(pausedAtMs, isLive() ? START_DELAY : 0);
+      // 暂停前已经排进音频图的那一小段（最多 LOOKAHEAD）会继续播，别重复排。
+      scheduledToMs = pausedAtMs + LOOKAHEAD_MS;
+      if (trackBuffer && isLive()) startTrack(pausedAtMs);
+    },
+
+    stop(): void {
+      state = 'idle';
+      anchorChartMs = 0;
+      pausedAtMs = 0;
+      scheduledToMs = 0;
+      stopTrack();
+      if (ctx && ctx.state === 'running') void ctx.suspend();
+    },
+
+    update(): void {
+      if (master && master.gain.value !== settings.volume) master.gain.value = settings.volume;
+      if (state !== 'playing') return;
+      if (!ctx || !master || !drum) return;
+      syncSource();
+      if (!isLive()) return;
+
+      drum.options.metronome = settings.metronome;
+      drum.options.groove = trackBuffer === null;
+      drum.options.level = 1;
+
+      const target = nowMs() + LOOKAHEAD_MS;
+      if (target <= scheduledToMs) return;
+      const from = Math.max(scheduledToMs, nowMs() - 4);
+      if (from < target) {
+        const beats = collectBeats(timing, from, target);
+        drum.schedule(ctx, master, beats, toCtxTime);
+      }
+      scheduledToMs = target;
+    },
+
+    unlock(): void {
+      if (!ensureContext()) return;
+      if (!ctx) return;
+      if (ctx.state === 'suspended') void ctx.resume();
+      // 真正的时间源切换在 update() 的 syncSource 里做（resume 是异步的）。
+    },
+
+    async loadTrack(url: string): Promise<boolean> {
+      ensureContext();
+      if (!ctx) return false;
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.arrayBuffer();
+        trackBuffer = await ctx.decodeAudioData(data);
+        trackName = url.split('/').pop()?.split('?')[0] ?? url;
+        if (state === 'playing' && isLive()) startTrack(rawNow());
+        error = null;
+        return true;
+      } catch (cause) {
+        error = cause instanceof Error ? cause.message : '音轨载入失败';
+        return false;
+      }
+    },
+
+    setTiming(next: TimingPoint[]): void {
+      timing = next;
+    },
+
+    dispose(): void {
+      stopTrack();
+      drum?.dispose();
+      drum = null;
+      trackBuffer = null;
+      if (ctx) {
+        void ctx.close();
+        ctx = null;
+      }
+      master = null;
+      state = 'idle';
+    },
+  };
+}

@@ -1,6 +1,7 @@
 import GUI from 'lil-gui';
 import type * as THREE from 'three';
 
+import type { AudioSettings } from '../audio/clock';
 import { DEFAULT_PARAMS, type TableParams } from '../config';
 import type { PlayerSettings } from '../game/player';
 import { DEFAULT_DISPLAY, type DisplayPlacement } from '../scene/display';
@@ -14,6 +15,7 @@ import { DEFAULT_DISPLAY, type DisplayPlacement } from '../scene/display';
 
 export interface DebugOptions {
   params: TableParams;
+  audio: AudioSettings;
   display: DisplayPlacement;
   lab: { visible: boolean };
   play: PlayerSettings;
@@ -33,7 +35,7 @@ export interface DebugHandle {
 }
 
 export function createDebug(options: DebugOptions): DebugHandle {
-  const { params, display, lab, play, preview, shift, renderer, scene } = options;
+  const { params, audio, display, lab, play, preview, shift, renderer, scene } = options;
   const { onChange, onDisplayChange, onLabChange, onPreviewChange, onPlayRestart } = options;
   const gui = new GUI({ title: 'PARALLAX · STEP 1', width: 288 });
 
@@ -54,6 +56,13 @@ export function createDebug(options: DebugOptions): DebugHandle {
   playFolder.add(play, 'flowSpeed', 1, 6, 0.1).name('基准流速 m/s');
   playFolder.add(play, 'auto').name('自动打（演示）');
   playFolder.add({ restart: onPlayRestart }, 'restart').name('重开谱面');
+
+  const audioFolder = gui.addFolder('音频');
+  audioFolder.add(audio, 'leadInMs', 0, 6000, 100).name('起播留白 ms');
+  audioFolder.add(audio, 'offsetMs', -200, 200, 1).name('校准偏移 ms');
+  audioFolder.add(audio, 'volume', 0, 1, 0.05).name('音量');
+  audioFolder.add(audio, 'metronome').name('节拍器');
+  audioFolder.add({ restart: onPlayRestart }, 'restart').name('从头播放');
 
   const floating = gui.addFolder('浮空显示');
   floating.add(display, 'x', -1, 1, 0.01).name('X 偏移').onChange(onDisplayChange);

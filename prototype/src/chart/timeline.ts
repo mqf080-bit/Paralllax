@@ -160,6 +160,9 @@ export function createTimeline(chart: Chart): Timeline {
   const timing = [...chart.timing].sort((a, b) => a.time - b.time);
 
   function speedAt(time: number): number {
+    const first = speedSegments[0];
+    // lead-in：谱面从负数时间起播时，按第一档速度往前推。
+    if (first && time < first.start) return first.from;
     for (const segment of speedSegments) {
       if (time < segment.start) continue;
       if (time >= segment.end) continue;
@@ -172,6 +175,9 @@ export function createTimeline(chart: Chart): Timeline {
   }
 
   function scrollDistance(time: number): number {
+    const first = speedSegments[0];
+    // 负数时间（lead-in）：从 0 按第一档速度反向外推。
+    if (first && time < first.start) return (time - first.start) * first.from;
     let total = 0;
     for (const segment of speedSegments) {
       if (time <= segment.start) break;
@@ -186,6 +192,8 @@ export function createTimeline(chart: Chart): Timeline {
   }
 
   function windowAt(time: number): number {
+    const first = windowSegments[0];
+    if (first && time < first.start) return first.from;
     for (const segment of windowSegments) {
       if (time < segment.start) continue;
       if (time >= segment.end) continue;

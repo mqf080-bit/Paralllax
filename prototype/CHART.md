@@ -8,15 +8,18 @@
 ## 1. 时间基
 
 - 一切都用**毫秒**，绝对时间（和 AFF 一样）。
-- `meta.offset`：音频偏移，和 AFF 的 `AudioOffset` 同义。
+- `meta.offset`：音频偏移，和 AFF 的 `AudioOffset` 同义（**正值 = 谱面时间比音频提前**）。
 - **判定只看 note 的 `time`**，不看位置——这是前几轮定下的规则，谱面格式必须配合它。
+- **时钟是音频时钟**：运行时读的是 `AudioContext.currentTime`（含输出延迟补偿），不是逐帧累加。
+  所以谱面必须写在 `timing` 的拍点上，否则音轨与键会各走各的。
+- 起播前留 `leadInMs`（默认 2000ms）的空拍：这段里**谱面时间是负数**，键从远处滑进来。
 
 ## 2. 结构
 
 ```jsonc
 {
   "meta":    { "title": "…", "offset": 0, "difficulty": "IN 7", … },
-  "timing":  [ { "time": 0, "bpm": 180, "beats": 4 } ],
+  "timing":  [ { "time": 0, "bpm": 150, "beats": 4 } ],
   "sections":[ { "time": 0, "label": "A" }, … ],           // 制谱器对齐用
   "speed":   [ { "time": 0, "multiplier": 1 }, … ],         // SV
   "shift":   [ { "time": 4000, "target": "left", "duration": 350 }, … ],
@@ -26,7 +29,7 @@
 
 | 段 | 作用 | 备注 |
 | --- | --- | --- |
-| `timing` | BPM + 每小节拍数 | **只用来画小节 / 对齐**，不参与滚动速度 |
+| `timing` | BPM + 每小节拍数 | 画小节 / 对齐；**也是合成音轨的拍点**；不参与滚动速度 |
 | `sections` | 段落标记 | 纯制谱器信息 |
 | `speed` | 视觉流速（SV） | 支持 0 / 负数 / 极端值 |
 | `shift` | 4 轨窗口滑动 | `duration` = shift 的速度 |
@@ -120,7 +123,22 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
 
 参考：[Arcaea 谱面格式（wiki）](https://wiki.arcaea.cn/index.php?title=%E8%B0%B1%E9%9D%A2%E6%A0%BC%E5%BC%8F)、[arcfutil 文档：aff 编辑](https://docs.arcaea.icu/guide/package-aff.html)、[arcfutil 文档：缓动](https://docs.arcaea.icu/guide/easing.html)。
 
-## 8. 校验
+## 8. 音频与时钟
+
+运行时（`src/audio/`）：
+
+| 文件 | 作用 |
+| --- | --- |
+| `clock.ts` | 音频时钟：`now()` 返回「正在被听到的」谱面时间；play / pause / resume / 校准偏移；可选载入真实音轨 |
+| `track.ts` | 从 `timing` 生成拍点，并用 WebAudio 现场合成鼓组 / 贝斯 / 节拍器 |
+
+- 没有音轨时，合成轨就是音轨（`DRUMS`），它和谱面共用同一张 `timing`，天然对齐。
+- 有真实音轨时（`?audio=/track.mp3`，文件放 `prototype/public/`），合成轨退化成可选节拍器（设置面板 / 调试面板）。
+- 主时钟优先用音频时钟；浏览器没给自动播放权限时退回 `performance.now()`，游戏照常跑，只是没声音。
+- 音频被系统挂起、或从 `performance` 切到音频时钟时，会**重打锚点**，谱面时间保持连续。
+- 校准：`meta.offset` 落到玩家的 offset 设置上，设置面板里可以 ±5ms 微调。
+
+## 9. 校验
 
 `validateChart(chart)` 返回问题列表，已经覆盖：
 
@@ -128,9 +146,11 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
 - 地面键 lane 必须是 0–5 的整数、并且落在当时的窗口里；
 - arc 至少两个点、首个点 time = 0、点时间递增、x / y 范围、关键物量在弧长内。
 
-## 9. 状态
+## 10. 状态
 
 - ✅ **播放器**：`src/game/player.ts` 已按本格式读谱面（hit / drag / hold / arc、SV 积分、shift 窗口）。
+- ✅ **音频时钟**：以 `AudioContext` 为准，带 lead-in、暂停 / 恢复、offset 校准、可选真实音轨。
+- ✅ **视距淡出**：note 只在台面最后 2.4m 里显形，远端不再 pop-in。
 - ⬜ **制谱器辅助**：小节 / 拍线、SV 曲线预览、shift 时间轴、arc 点编辑。
 - ⬜ **极端 SV 的可读性**：负 SV 时键往后退，需要确认不会和「漏键」的视觉混淆。
-- ⬜ **音频**：目前谱面时间是「假时钟」，还没有和音轨对齐。
+- ⬜ **长测试谱**：示例谱 12 秒，Step 4 要求 30–60 秒、两次 shift。
