@@ -68,6 +68,16 @@ export interface Player {
   dispose(): void;
 }
 
+/**
+ * 渲染顺序。台面 / 分割线 / 判定带都是 transparent（shift 时要交叉淡入淡出），
+ * 而它们的 mesh 位置在原点（几何被 translate 过），按距离排序时会被当成「离相机最近」，
+ * 于是排在所有 note 之后画 —— 不写深度的冰条 / 玻璃片就被台面整个盖掉了。
+ * 把 note 抬到它们上面；glow 再高一层，保证光在实体之上。
+ */
+const ORDER_BODY = 5;
+const ORDER_GLOW = 6;
+const ORDER_AURA = 7;
+
 /** 判定窗口（毫秒）——与流速无关。 */
 const HIT_PERFECT_MS = 80;
 const HIT_GOOD_MS = 160;
@@ -163,11 +173,11 @@ export function createPlayer(
   const fadeFar = geometry.bandZ - params.visibleRange;
   const fadeSpan = FAR_FADE_SPAN;
   const hitMaterials = {
-    left: applyDistanceFade(lib.ceramicLeft.clone(), { far: fadeFar, span: fadeSpan }),
-    right: applyDistanceFade(lib.ceramicRight.clone(), { far: fadeFar, span: fadeSpan }),
-    neutral: applyDistanceFade(lib.ceramic.clone(), { far: fadeFar, span: fadeSpan }),
+    left: applyDistanceFade(lib.ceramicLeft.clone(), { far: fadeFar, span: fadeSpan, power: 0.8 }),
+    right: applyDistanceFade(lib.ceramicRight.clone(), { far: fadeFar, span: fadeSpan, power: 0.8 }),
+    neutral: applyDistanceFade(lib.ceramic.clone(), { far: fadeFar, span: fadeSpan, power: 0.8 }),
   };
-  const dragBarMaterial = applyDistanceFade(lib.iceBar.clone(), { far: fadeFar, span: fadeSpan });
+  const dragBarMaterial = applyDistanceFade(lib.iceBar.clone(), { far: fadeFar, span: fadeSpan, power: 0.65 });
   // 冰条在远处只剩 1–2 px：自发光调成偏白青、亮度抬高，别被加法辉光盖过去。
   dragBarMaterial.emissive.setHex(0x9fe4ff);
   dragBarMaterial.emissiveIntensity = 1.1;
@@ -180,16 +190,16 @@ export function createPlayer(
   // 玻璃片在远处太淡，会变成「到跟前才突然出现」；有了这条亮边，
   // hold 在远端就能读成「一条线 + 一条拖尾」，也顺便标出该从哪里按下去。
   const holdHeadGeometry = new RoundedBoxGeometry(0.2, 0.014, 0.034, 2, 0.004);
-  const holdHeadMaterialBase = applyDistanceFade(lib.iceBar.clone(), { far: fadeFar, span: fadeSpan });
+  const holdHeadMaterialBase = applyDistanceFade(lib.iceBar.clone(), { far: fadeFar, span: fadeSpan, power: 0.6 });
   holdHeadMaterialBase.emissive.setHex(0x9fe4ff);
   holdHeadMaterialBase.emissiveIntensity = 1.3;
 
   // 片子的两条侧边（亮线）。玻璃片本身在远处对比度太低，
   // 只靠「头」会读成「一条线突然变成一片」；两条边从远处就把这片的结构交代清楚。
-  const holdRailGeometry = new THREE.BoxGeometry(0.02, 0.022, 1);
-  const holdRailMaterial = applyDistanceFade(lib.iceBar.clone(), { far: fadeFar, span: fadeSpan });
+  const holdRailGeometry = new THREE.BoxGeometry(0.03, 0.03, 1);
+  const holdRailMaterial = applyDistanceFade(lib.iceBar.clone(), { far: fadeFar, span: fadeSpan, power: 0.6 });
   holdRailMaterial.emissive.setHex(0x9fe4ff);
-  holdRailMaterial.emissiveIntensity = 1.8;
+  holdRailMaterial.emissiveIntensity = 2.2;
 
   const runtime: RuntimeNote[] = [];
   let clockMs = 0;
@@ -257,44 +267,62 @@ export function createPlayer(
       const material =
         note.hand === 'left' ? hitMaterials.left : note.hand === 'right' ? hitMaterials.right : hitMaterials.neutral;
       const bar = new THREE.Mesh(hitGeometry, material);
+      bar.renderOrder = ORDER_BODY;
+      bar.frustumCulled = false;
       // 不投影：影子不会跟着淡出，远处会变成一条黑杠（比 note 本身还显眼）。
       noteGroup.add(bar);
       runtime.push({ kind: 'hit', chart: note, laneX: x, group: noteGroup, resolved: false });
     } else if (note.type === 'drag') {
       const bar = new THREE.Mesh(dragGeometry, dragBarMaterial);
+      bar.renderOrder = ORDER_BODY;
+      bar.frustumCulled = false;
       noteGroup.add(bar);
       const glow = new THREE.Mesh(dragGlowGeometry, dragGlowMaterial);
       glow.rotation.x = -Math.PI / 2;
       glow.position.y = 0.002;
-      glow.renderOrder = 4;
+      glow.renderOrder = ORDER_GLOW;
+      glow.frustumCulled = false;
       noteGroup.add(glow);
       runtime.push({ kind: 'drag', chart: note, laneX: x, group: noteGroup, bar, resolved: false });
     } else {
       // 片子和亮边用同一个淡入长度：远处整条一起渐显，不会「只有头、身体后出现」。
       const holdSpan = fadeSpan;
-      const sheetMaterial = applyDistanceFade(lib.clearGlass.clone(), { far: fadeFar, span: holdSpan });
-      sheetMaterial.emissive.setHex(0x1c6f86);
+      // power < 1：先保持不透明、快到视距边缘才掉下去。
+      // 「远处的物件应该看得见，只是渐隐」——而不是一路半透明到化掉。
+      const holdFade = { far: fadeFar, span: holdSpan, power: 0.6 };
+      const sheetMaterial = applyDistanceFade(lib.clearGlass.clone(), holdFade);
+      // 玻璃片贴着台面，颜色和台面太接近；稍微提亮 + 一点冷色自发光，远处才有对比度。
+      sheetMaterial.color.setHex(0xe4f4ff);
+      sheetMaterial.emissive.setHex(0x2c7f9e);
       sheetMaterial.emissiveIntensity = 0;
       const sheet = new THREE.Mesh(holdSheetGeometry, sheetMaterial);
+      sheet.renderOrder = ORDER_BODY;
+      sheet.frustumCulled = false;
       noteGroup.add(sheet);
 
       const headBarMaterial = holdHeadMaterialBase;
       const headBar = new THREE.Mesh(holdHeadGeometry, headBarMaterial);
       headBar.position.y = 0.004;
+      headBar.renderOrder = ORDER_BODY;
+      headBar.frustumCulled = false;
       noteGroup.add(headBar);
 
       const rails: THREE.Mesh[] = [];
       for (const side of [-1, 1]) {
         const rail = new THREE.Mesh(holdRailGeometry, holdRailMaterial);
         rail.position.set(side * 0.095, 0.008, 0);
+        rail.renderOrder = ORDER_BODY;
+        rail.frustumCulled = false;
         noteGroup.add(rail);
         rails.push(rail);
       }
 
-      const stripMaterial = applyDistanceFade(lib.holdFill.clone(), { far: fadeFar, span: holdSpan });
+      const stripMaterial = applyDistanceFade(lib.holdFill.clone(), holdFade);
       const strip = new THREE.Mesh(holdStripGeometry, stripMaterial);
       strip.position.y = 0.0045;
       strip.visible = false;
+      strip.renderOrder = ORDER_GLOW;
+      strip.frustumCulled = false;
       noteGroup.add(strip);
 
       const auraMaterial = applyDistanceFade(lib.glowLeft.clone(), { far: fadeFar, span: holdSpan, power: 1.6 });
@@ -303,6 +331,8 @@ export function createPlayer(
       aura.rotation.x = -Math.PI / 2;
       aura.position.y = 0.002;
       aura.visible = false;
+      aura.renderOrder = ORDER_AURA;
+      aura.frustumCulled = false;
       noteGroup.add(aura);
 
       const duration = note.duration;
@@ -482,8 +512,8 @@ export function createPlayer(
     note.glow += (targetGlow - note.glow) * Math.min(1, dt * 12);
     // 底光 + 底不透明度：hold 是一整片玻璃，太透的话远处几乎看不见，
     // 会变成「到跟前才突然出现」。留一点自发光，它在远端就能读成一条片子。
-    note.sheetMaterial.emissiveIntensity = 0.55 + note.glow * 2.0;
-    note.sheetMaterial.opacity = 0.52 + 0.25 * note.glow;
+    note.sheetMaterial.emissiveIntensity = 0.85 + note.glow * 2.0;
+    note.sheetMaterial.opacity = 0.62 + 0.2 * note.glow;
     note.stripMaterial.opacity = 0.5 + 0.4 * note.glow;
     note.auraMaterial.opacity = 0.55 * note.glow;
     note.aura.visible = note.glow > 0.02;

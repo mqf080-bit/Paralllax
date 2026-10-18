@@ -8,6 +8,10 @@ import { HAND_LEFT, HAND_RIGHT } from '../materials/palette';
 import { createGlowTexture } from '../materials/textures';
 import type { HandSample, HandSide } from './hands';
 
+/** 和 player 一样：note 必须画在台面（transparent、mesh 在原点、排序偏前）之后。 */
+const ORDER_BODY = 5;
+const ORDER_GLOW = 6;
+
 /**
  * 谱面驱动的 arc：形状来自谱面的点列，位置由**速度积分**决定。
  *
@@ -134,7 +138,7 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
 
   const clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 0, -1), spec.clipZ)];
   // arc 比 note 长得多：淡入拉长一点，整条管子才是「慢慢长出来」而不是一闪。
-  const arcFade = { far: spec.fadeFar, span: spec.fadeSpan * 1.2 };
+  const arcFade = { far: spec.fadeFar, span: spec.fadeSpan * 1.2, power: 0.8 };
 
   const shellMaterial = applyDistanceFade((spec.hand === 'left' ? lib.clearGlassLeft : lib.clearGlassRight).clone(), arcFade);
   shellMaterial.emissive.setHex(colors.emissive);
@@ -143,31 +147,36 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   shellMaterial.clippingPlanes = clippingPlanes;
 
   const shellGeometry = new THREE.TubeGeometry(curve, CURVE_SEGMENTS, 0.018, 14, false);
-  group.add(new THREE.Mesh(shellGeometry, shellMaterial));
+  const shellMesh = new THREE.Mesh(shellGeometry, shellMaterial);
+  shellMesh.renderOrder = ORDER_BODY;
+  group.add(shellMesh);
 
   const coreMaterial = applyDistanceFade((spec.hand === 'left' ? lib.glassCoreLeft : lib.glassCoreRight).clone(), arcFade);
   coreMaterial.clippingPlanes = clippingPlanes;
   const coreGeometry = new THREE.TubeGeometry(curve, CURVE_SEGMENTS, 0.007, 8, false);
-  group.add(new THREE.Mesh(coreGeometry, coreMaterial));
+  const coreMesh = new THREE.Mesh(coreGeometry, coreMaterial);
+  coreMesh.renderOrder = ORDER_BODY;
+  group.add(coreMesh);
 
   const glowMaterial = createFresnelGlowMaterial(colors.glow, 0.35, 2.2, arcFade);
   glowMaterial.clippingPlanes = clippingPlanes;
   const glowGeometry = new THREE.TubeGeometry(curve, CURVE_SEGMENTS, 0.032, 10, false);
   const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-  glowMesh.renderOrder = 4;
+  glowMesh.renderOrder = ORDER_GLOW;
   group.add(glowMesh);
 
   const haloMaterial = createFresnelGlowMaterial(colors.core, 0.2, 2.8, arcFade);
   haloMaterial.clippingPlanes = clippingPlanes;
   const haloGeometry = new THREE.TubeGeometry(curve, CURVE_SEGMENTS, 0.055, 10, false);
   const haloMesh = new THREE.Mesh(haloGeometry, haloMaterial);
-  haloMesh.renderOrder = 3;
+  haloMesh.renderOrder = ORDER_GLOW;
   group.add(haloMesh);
 
   // —— 光点 ——
   const headGeometry = new THREE.SphereGeometry(0.02, 16, 16);
   const headMaterial = new THREE.MeshBasicMaterial({ color: colors.core, toneMapped: false, transparent: true });
   const head = new THREE.Mesh(headGeometry, headMaterial);
+  head.renderOrder = ORDER_BODY;
   group.add(head);
 
   const headGlowTexture = createGlowTexture(128);
@@ -182,6 +191,7 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   });
   const headHalo = new THREE.Sprite(headHaloMaterial);
   headHalo.scale.set(0.15, 0.15, 1);
+  headHalo.renderOrder = ORDER_GLOW + 1;
   group.add(headHalo);
 
   // —— 关键物量的黄铜珠 ——
@@ -199,6 +209,7 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   beadMaterial.clippingPlanes = clippingPlanes;
   for (const key of spec.keyObjects) {
     const bead = new THREE.Mesh(beadGeometry, beadMaterial);
+    bead.renderOrder = ORDER_BODY;
     bead.position.copy(localAt(key));
     group.add(bead);
   }
