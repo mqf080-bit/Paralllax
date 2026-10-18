@@ -11,6 +11,7 @@ import {
 } from '../chart/schema';
 import { createTimeline, type Timeline } from '../chart/timeline';
 import type { TableGeometry, TableParams } from '../config';
+import { applyDistanceFade } from '../materials/distanceFade';
 import type { MaterialLibrary } from '../materials/library';
 import { createArcNote, type ArcEvent, type ArcNote } from './arc';
 import type { HandSample, HandSide } from './hands';
@@ -93,22 +94,18 @@ const MISS_MS = 200;
  */
 const FAR_FADE_SPAN = 2.4;
 
-/** 视距淡出：材质 + 基准不透明度。每个物量单独克隆材质，才能各淡各的。 */
-interface NoteFade {
-  fade: number;
-  targets: Array<{ material: THREE.Material & { opacity: number }; base: number }>;
-}
-
 type RuntimeNote =
-  | ({ kind: 'hit'; chart: ChartHitNote; laneX: number; group: THREE.Group; resolved: boolean } & NoteFade)
-  | ({ kind: 'drag'; chart: ChartDragNote; laneX: number; group: THREE.Group; resolved: boolean } & NoteFade)
-  | ({
+  | { kind: 'hit'; chart: ChartHitNote; laneX: number; group: THREE.Group; resolved: boolean }
+  | { kind: 'drag'; chart: ChartDragNote; laneX: number; group: THREE.Group; resolved: boolean }
+  | {
       kind: 'hold';
       chart: ChartHoldNote;
       laneX: number;
       group: THREE.Group;
       sheet: THREE.Mesh;
       sheetMaterial: THREE.MeshPhysicalMaterial;
+      headBar: THREE.Mesh;
+      headBarMaterial: THREE.MeshPhysicalMaterial;
       strip: THREE.Mesh;
       stripMaterial: THREE.MeshBasicMaterial;
       aura: THREE.Mesh;
@@ -117,7 +114,7 @@ type RuntimeNote =
       tickWindow: number;
       glow: number;
       resolved: boolean;
-    } & NoteFade)
+    }
   | { kind: 'arc'; chart: ChartArcNote; arc: ArcNote; resolved: boolean };
 
 export function createPlayer(
@@ -151,6 +148,28 @@ export function createPlayer(
   const holdStripGeometry = new THREE.BoxGeometry(0.09, 0.0025, 1);
   const holdAuraGeometry = new THREE.PlaneGeometry(1, 1);
 
+  // —— 共享材质（视距淡出烘进 shader，所以不用按颗克隆）——
+  const fadeFar = geometry.farZ;
+  const fadeSpan = FAR_FADE_SPAN;
+  const hitMaterials = {
+    left: applyDistanceFade(lib.ceramicLeft.clone(), { far: fadeFar, span: fadeSpan }),
+    right: applyDistanceFade(lib.ceramicRight.clone(), { far: fadeFar, span: fadeSpan }),
+    neutral: applyDistanceFade(lib.ceramic.clone(), { far: fadeFar, span: fadeSpan }),
+  };
+  const dragBarMaterial = applyDistanceFade(lib.iceBar.clone(), { far: fadeFar, span: fadeSpan });
+  // 冰条在远处只剩 1–2 px：抬一点自发光，让它别被辉光盖过去。
+  dragBarMaterial.emissiveIntensity = 3.4;
+  // 辉光是加法混合，感知上比实体亮得多：让它淡得比条子快，
+  // 否则远处会变成「只剩一团光、条子看不见」。
+  const dragGlowMaterial = applyDistanceFade(lib.dragGlow.clone(), { far: fadeFar, span: fadeSpan, power: 2.4 });
+
+  // hold 的「头」：一小段冰条，压在片子的近端。
+  // 玻璃片在远处太淡，会变成「到跟前才突然出现」；有了这条亮边，
+  // hold 在远端就能读成「一条线 + 一条拖尾」，也顺便标出该从哪里按下去。
+  const holdHeadGeometry = new RoundedBoxGeometry(0.2, 0.014, 0.034, 2, 0.004);
+  const holdHeadMaterialBase = applyDistanceFade(lib.iceBar.clone(), { far: fadeFar, span: fadeSpan });
+  holdHeadMaterialBase.emissiveIntensity = 3.0;
+
   const runtime: RuntimeNote[] = [];
   let clockMs = 0;
   let windowValue = 0;
@@ -174,8 +193,7 @@ export function createPlayer(
       return;
     }
     group.remove(note.group);
-    // 每颗 note 都克隆过材质（视距淡出要单独改不透明度），几何是共享的。
-    for (const target of note.targets) target.material.dispose();
+    // hit / drag 用共享材质（视距淡出在 shader 里），只有 hold 每颗自己克隆。
     if (note.kind === 'hold') {
       note.sheetMaterial.dispose();
       note.stripMaterial.dispose();
@@ -199,6 +217,8 @@ export function createPlayer(
           bandZ: geometry.bandZ,
           clipZ: geometry.bandZ + 0.1,
           baseSpeed: baseSpeed(),
+          fadeFar,
+          fadeSpan,
           scroll: (ms) => timeline.scrollDistance(ms),
         },
         lib,
@@ -213,60 +233,41 @@ export function createPlayer(
     group.add(noteGroup);
 
     if (note.type === 'hit') {
-      const source =
-        note.hand === 'left' ? lib.ceramicLeft : note.hand === 'right' ? lib.ceramicRight : lib.ceramic;
-      // 单独克隆：视距淡出要按颗改不透明度，共享材质改不了。
-      const material = source.clone();
-      material.transparent = true;
+      const material =
+        note.hand === 'left' ? hitMaterials.left : note.hand === 'right' ? hitMaterials.right : hitMaterials.neutral;
       const bar = new THREE.Mesh(hitGeometry, material);
       bar.castShadow = true;
       noteGroup.add(bar);
-      runtime.push({
-        kind: 'hit',
-        chart: note,
-        laneX: x,
-        group: noteGroup,
-        resolved: false,
-        fade: 1,
-        targets: [{ material, base: 1 }],
-      });
+      runtime.push({ kind: 'hit', chart: note, laneX: x, group: noteGroup, resolved: false });
     } else if (note.type === 'drag') {
-      const barMaterial = lib.iceBar.clone();
-      const glowMaterial = lib.dragGlow.clone();
-      const bar = new THREE.Mesh(dragGeometry, barMaterial);
+      const bar = new THREE.Mesh(dragGeometry, dragBarMaterial);
       bar.castShadow = true;
       noteGroup.add(bar);
-      const glow = new THREE.Mesh(dragGlowGeometry, glowMaterial);
+      const glow = new THREE.Mesh(dragGlowGeometry, dragGlowMaterial);
       glow.rotation.x = -Math.PI / 2;
       glow.position.y = 0.002;
       glow.renderOrder = 4;
       noteGroup.add(glow);
-      runtime.push({
-        kind: 'drag',
-        chart: note,
-        laneX: x,
-        group: noteGroup,
-        resolved: false,
-        fade: 1,
-        targets: [
-          { material: barMaterial, base: barMaterial.opacity },
-          { material: glowMaterial, base: glowMaterial.opacity },
-        ],
-      });
+      runtime.push({ kind: 'drag', chart: note, laneX: x, group: noteGroup, resolved: false });
     } else {
-      const sheetMaterial = lib.clearGlass.clone();
+      const sheetMaterial = applyDistanceFade(lib.clearGlass.clone(), { far: fadeFar, span: fadeSpan });
       sheetMaterial.emissive.setHex(0x1c6f86);
       sheetMaterial.emissiveIntensity = 0;
       const sheet = new THREE.Mesh(holdSheetGeometry, sheetMaterial);
       noteGroup.add(sheet);
 
-      const stripMaterial = lib.holdFill.clone();
+      const headBarMaterial = holdHeadMaterialBase;
+      const headBar = new THREE.Mesh(holdHeadGeometry, headBarMaterial);
+      headBar.position.y = 0.004;
+      noteGroup.add(headBar);
+
+      const stripMaterial = applyDistanceFade(lib.holdFill.clone(), { far: fadeFar, span: fadeSpan });
       const strip = new THREE.Mesh(holdStripGeometry, stripMaterial);
       strip.position.y = 0.0045;
       strip.visible = false;
       noteGroup.add(strip);
 
-      const auraMaterial = lib.glowLeft.clone();
+      const auraMaterial = applyDistanceFade(lib.glowLeft.clone(), { far: fadeFar, span: fadeSpan, power: 1.6 });
       auraMaterial.opacity = 0;
       const aura = new THREE.Mesh(holdAuraGeometry, auraMaterial);
       aura.rotation.x = -Math.PI / 2;
@@ -291,6 +292,8 @@ export function createPlayer(
         group: noteGroup,
         sheet,
         sheetMaterial,
+        headBar,
+        headBarMaterial,
         strip,
         stripMaterial,
         aura,
@@ -299,8 +302,6 @@ export function createPlayer(
         tickWindow,
         glow: 0,
         resolved: false,
-        fade: 1,
-        targets: [],
       });
     }
   }
@@ -408,7 +409,6 @@ export function createPlayer(
     const tailZ = zAt(note.chart.time + note.chart.duration, clockMs);
     const far = Math.min(headZ, tailZ);
     const near = Math.max(headZ, tailZ);
-    const fade = note.fade;
 
     note.group.position.set(note.laneX, params.tableHeight + 0.004, far);
     note.group.rotation.z = 0;
@@ -418,6 +418,11 @@ export function createPlayer(
     const visibleLength = Math.max(visibleNear - far, 0.001);
     note.sheet.scale.z = visibleLength;
     note.sheet.position.z = visibleLength / 2;
+
+    // 亮边压在片子靠近玩家的那一端；片子被近端裁掉时，亮边跟着留在裁剪边上。
+    const headBarZ = Math.min(near, visibleNear) - 0.012;
+    note.headBar.visible = headBarZ > far + 0.005;
+    note.headBar.position.z = Math.max(headBarZ - far, 0.012);
 
     const litStart = Math.max(geometry.bandZ, far);
     const litLength = Math.max(visibleNear - litStart, 0);
@@ -437,11 +442,13 @@ export function createPlayer(
 
     const targetGlow = contact ? 1 : 0;
     note.glow += (targetGlow - note.glow) * Math.min(1, dt * 12);
-    note.sheetMaterial.emissiveIntensity = note.glow * 2.0;
-    note.sheetMaterial.opacity = (0.45 + 0.25 * note.glow) * fade;
-    note.stripMaterial.opacity = (0.5 + 0.4 * note.glow) * fade;
-    note.auraMaterial.opacity = 0.55 * note.glow * fade;
-    note.aura.visible = note.glow * fade > 0.02;
+    // 底光 + 底不透明度：hold 是一整片玻璃，太透的话远处几乎看不见，
+    // 会变成「到跟前才突然出现」。留一点自发光，它在远端就能读成一条片子。
+    note.sheetMaterial.emissiveIntensity = 0.22 + note.glow * 2.0;
+    note.sheetMaterial.opacity = 0.52 + 0.25 * note.glow;
+    note.stripMaterial.opacity = 0.5 + 0.4 * note.glow;
+    note.auraMaterial.opacity = 0.55 * note.glow;
+    note.aura.visible = note.glow > 0.02;
     note.aura.scale.set(0.36, Math.max(visibleLength, 0.001), 1);
     note.aura.position.z = visibleLength / 2;
 
@@ -481,25 +488,24 @@ export function createPlayer(
     }
     if (note.resolved) return;
 
-    let z: number;
     if (note.kind === 'hold') {
-      // 用尾端：片子的头先过线，尾端才是「它还在不在台面上」的判据。
+      // hold 是一张长片：只要**靠近玩家的那一端**还在台面上就该画。
+      // （远端那半截由 shader 按世界 z 淡掉，所以整片不能因为尾端越界就整条消失。）
       const headZ = zAt(note.chart.time, clockMs);
       const tailZ = zAt(note.chart.time + note.chart.duration, clockMs);
-      z = Math.min(headZ, tailZ);
-    } else {
-      z = zAt(note.chart.time, clockMs);
-      note.group.position.set(note.laneX, barY, z);
+      const nearEnd = Math.max(headZ, tailZ);
+      const farEnd = Math.min(headZ, tailZ);
+      note.group.visible = nearEnd > geometry.farZ && farEnd <= geometry.nearZ;
+      return;
     }
 
-    const fade = THREE.MathUtils.clamp((z - geometry.farZ) / FAR_FADE_SPAN, 0, 1);
-    note.fade = fade;
-    for (const target of note.targets) target.material.opacity = target.base * fade;
+    const z = zAt(note.chart.time, clockMs);
+    note.group.position.set(note.laneX, barY, z);
 
+    // 淡出是 shader 逐片元做的；这里只裁掉「整颗物件已经在台面外」的情况。
     // 流速越快，note 过线后还要多留一会儿（good 窗口按时间算，不按距离）。
-    const nearLimit =
-      note.kind === 'hold' ? geometry.nearZ : geometry.nearZ + 0.1 + (MISS_MS / 1000) * baseSpeed();
-    note.group.visible = fade > 0.004 && z <= nearLimit;
+    const nearLimit = geometry.nearZ + 0.1 + (MISS_MS / 1000) * baseSpeed();
+    note.group.visible = z > geometry.farZ && z <= nearLimit;
   }
 
   // —— 自动演示 ——

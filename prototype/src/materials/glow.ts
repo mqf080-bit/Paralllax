@@ -1,12 +1,23 @@
 import * as THREE from 'three';
 
+import { distanceFadeGLSL, type DistanceFadeOptions } from './distanceFade';
+
 /**
  * 菲涅耳加法壳：只在轮廓附近亮，用来给管状物做「假 bloom」。
  *
  * 不是后处理 bloom，是几何上的 halo：`pow(1 - |N·V|, power)` 控制强度，
  * 所以它只勾边、不会把管子糊成一团。
+ *
+ * `fade` 是视距淡出：给 arc 用，远端整段管子一起淡掉。
  */
-export function createFresnelGlowMaterial(color: number, intensity: number, power: number): THREE.ShaderMaterial {
+export function createFresnelGlowMaterial(
+  color: number,
+  intensity: number,
+  power: number,
+  fade?: DistanceFadeOptions,
+): THREE.ShaderMaterial {
+  const fadeCode = fade ? distanceFadeGLSL(fade) : null;
+
   return new THREE.ShaderMaterial({
     uniforms: {
       uColor: { value: new THREE.Color(color) },
@@ -16,10 +27,12 @@ export function createFresnelGlowMaterial(color: number, intensity: number, powe
     vertexShader: /* glsl */ `
       varying vec3 vNormalV;
       varying vec3 vViewDir;
+      ${fadeCode ? fadeCode.vertexDecl : ''}
       void main() {
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         vNormalV = normalize(normalMatrix * normal);
         vViewDir = normalize(-mv.xyz);
+        ${fadeCode ? fadeCode.vertexBody : ''}
         gl_Position = projectionMatrix * mv;
       }
     `,
@@ -29,9 +42,11 @@ export function createFresnelGlowMaterial(color: number, intensity: number, powe
       uniform float uPower;
       varying vec3 vNormalV;
       varying vec3 vViewDir;
+      ${fadeCode ? fadeCode.fragmentDecl : ''}
       void main() {
         float fresnel = pow(1.0 - abs(dot(normalize(vNormalV), normalize(vViewDir))), uPower);
         gl_FragColor = vec4(uColor * fresnel * uIntensity, fresnel);
+        ${fadeCode ? fadeCode.fragmentBody : ''}
       }
     `,
     transparent: true,
