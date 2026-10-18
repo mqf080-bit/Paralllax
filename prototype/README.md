@@ -1,6 +1,6 @@
 # Parallax — prototype
 
-Phase 1 的 WebXR 原型。**当前完成 Step 0（链路）与 Step 1（台面与布局）。**
+Phase 1 的 WebXR 原型。**Step 0–3 已完成；Step 4 收尾中**（谱面播放 / SV / shift / 计分 / 音频时钟 / 视距淡出 / VR UI 已接上）。
 
 设计真相在仓库根的 `parallax-idea.md`；施工协议在 `agent.md`。这里只放能跑的东西。
 
@@ -53,6 +53,25 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 
 - **adb 在 WSL 里**：WSL 默认看不到 USB 设备，需要 Windows 侧装 `usbipd-win` 并 `usbipd attach --wsl` 把 Quest 接进来。成功后 `adb reverse` 落在 WSL 的 loopback，服务也在 WSL 里，直接可用。
 - **adb 在 Windows 里**：`adb reverse` 落在 **Windows** 的 loopback。WSL2 的 localhost 转发通常能把 Windows 的 `127.0.0.1:5173` 转到 WSL 内的服务；如果转不过来，用 `npm run dev:lan` 让 Vite 监听 `0.0.0.0`。Quest 仍然打开 `http://localhost:5173` —— **secure context 由 URL 决定，不受监听地址影响**。
+
+### 耳机里的操作
+
+| 做什么 | 怎么做 |
+| --- | --- |
+| 打键 | 手扫过判定带（hit 要速度 + 位移，drag 只要扫过，hold 要按住扳机 / 侧握） |
+| 点 UI | 手柄指向面板，**扣扳机**；靠近了直接伸手戳也行 |
+| 暂停 / 重试 / 设置 | 右前方那条 `SETTINGS / PAUSE / RETRY`（播放时会淡到 30%） |
+
+音频：没有音轨资产，默认按谱面的 `timing` **现场合成鼓组**。想听真曲子，把文件放到
+`prototype/public/`，用 `?audio=/track.mp3` 打开；`meta.offset` 与设置面板的 `AUDIO OFFSET`
+用来校准「键比声音早 / 晚」。
+
+### dev 参数
+
+`?auto=1` 自动演示 · `?freeze=1` 冻结 · `?warp=2.4` 快进 · `?flow=4` 流速 ·
+`?shift=left|right` · `?panel=settings|result` 摊开面板 · `?clock=0` 关掉音频时钟 ·
+`?offset=20&volume=0.6&lead=2000` 音频参数 · `?audio=/track.mp3` 真实音轨 ·
+`?aim=1&aimTarget=settings|pause|retry&click=1` 假手验证激光笔。
 
 ### 方案 B — 隧道（备选）
 
