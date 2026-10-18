@@ -123,7 +123,21 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
 
 参考：[Arcaea 谱面格式（wiki）](https://wiki.arcaea.cn/index.php?title=%E8%B0%B1%E9%9D%A2%E6%A0%BC%E5%BC%8F)、[arcfutil 文档：aff 编辑](https://docs.arcaea.icu/guide/package-aff.html)、[arcfutil 文档：缓动](https://docs.arcaea.icu/guide/easing.html)。
 
-## 8. 音频与时钟
+## 8. 高度上限（谱面硬性限制）
+
+台面是 0.95m，玩家站在前面、手能稳定挥到的高度大约 1.55m；再高就要抬手 / 伸肩，连续交互会明显掉速。
+所以谱面有一条**硬性高度上限**：
+
+```jsonc
+"limits": { "maxHeight": 0.6 }   // 米，相对台面；默认 0.6，可覆盖
+```
+
+- **超过上限的 note 不生成**：不参与判定、不计入物量、不参与回收（`player.ts` 在构建时跳过）。
+- `validateChart()` 会把它报成错误：`arc@6400: 最高点 0.7m 超过上限 0.6m（不会生成）`。
+- v0 里唯一带高度的是 **arc 的 `y`**（地面键都贴在台面上，高度 = 0）；将来看加高度的键，同一条规则适用。
+- 0.6m 是「还能当正常动作打」的上限；再高不是不能画，而是不该出现在正常谱面里。
+
+## 9. 音频与时钟
 
 运行时（`src/audio/`）：
 
@@ -138,19 +152,29 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
 - 音频被系统挂起、或从 `performance` 切到音频时钟时，会**重打锚点**，谱面时间保持连续。
 - 校准：`meta.offset` 落到玩家的 offset 设置上，设置面板里可以 ±5ms 微调。
 
-## 9. 校验
+## 10. 校验
 
 `validateChart(chart)` 返回问题列表，已经覆盖：
 
 - timing / speed / shift 的排序与取值范围；
+- **arc 的最高点不超过 `limits.maxHeight`**；
 - 地面键 lane 必须是 0–5 的整数、并且落在当时的窗口里；
 - arc 至少两个点、首个点 time = 0、点时间递增、x / y 范围、关键物量在弧长内。
 
-## 10. 状态
+## 11. 示例谱
+
+| 文件 | 时长 | 内容 |
+| --- | --- | --- |
+| `src/chart/test.ts`（默认） | **41.6s** | 79 notes：四种键型、**两次 shift**（12s 左 / 30s 右）、SV 慢速 / 停表 / 倒流、4 条 arc |
+| `src/chart/demo.ts` | 12s | 格式示例，`?chart=demo` 切回 |
+
+## 12. 状态
 
 - ✅ **播放器**：`src/game/player.ts` 已按本格式读谱面（hit / drag / hold / arc、SV 积分、shift 窗口）。
+- ✅ **高度上限**：`limits.maxHeight`（默认 0.6m），超限的 note 不生成，校验器报错。
+- ✅ **30–60s 测试谱**：`src/chart/test.ts`，41.6s、两次 shift。
 - ✅ **音频时钟**：以 `AudioContext` 为准，带 lead-in、暂停 / 恢复、offset 校准、可选真实音轨。
 - ✅ **视距淡出**：note 只在台面最后 2.4m 里显形，远端不再 pop-in。
 - ⬜ **制谱器辅助**：小节 / 拍线、SV 曲线预览、shift 时间轴、arc 点编辑。
 - ⬜ **极端 SV 的可读性**：负 SV 时键往后退，需要确认不会和「漏键」的视觉混淆。
-- ⬜ **长测试谱**：示例谱 12 秒，Step 4 要求 30–60 秒、两次 shift。
+

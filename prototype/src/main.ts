@@ -7,6 +7,7 @@ import { createAudioClock, type AudioSettings } from './audio/clock';
 import { DEFAULT_PARAMS, type TableParams } from './config';
 import { createHands, type HandSample } from './game/hands';
 import { DEMO_CHART } from './chart/demo';
+import { TEST_CHART } from './chart/test';
 import { createPlayer, type Player, type PlayerSettings } from './game/player';
 import { createEnvironment } from './materials/environment';
 import { createMaterialLibrary } from './materials/library';
@@ -33,6 +34,9 @@ if (!container) throw new Error('#app container is missing');
 
 const params: TableParams = { ...DEFAULT_PARAMS };
 
+// 默认跑 42 秒的验收谱；`?chart=demo` 切回 12 秒的格式示例。
+const activeChart = new URLSearchParams(window.location.search).get('chart') === 'demo' ? DEMO_CHART : TEST_CHART;
+
 // 键型预览与打击练习的开关；也接受 ?preview=1 / ?auto=1。
 const previewState = { visible: false };
 const playSettings: PlayerSettings = { enabled: true, flowSpeed: 3.0, auto: false };
@@ -41,13 +45,13 @@ const playSettings: PlayerSettings = { enabled: true, flowSpeed: 3.0, auto: fals
 // 谱面时间由音频时钟提供（见 src/audio/clock.ts）。没有音轨时它现场合成一条
 // 鼓点轨；有真实音轨时（?audio=/track.mp3）用真实音轨的时间对齐。
 const audioSettings: AudioSettings = {
-  offsetMs: DEMO_CHART.meta.offset,
+  offsetMs: activeChart.meta.offset,
   volume: 0.8,
   metronome: false,
   leadInMs: 2000,
 };
 const audio = createAudioClock(audioSettings);
-audio.setTiming(DEMO_CHART.timing);
+audio.setTiming(activeChart.timing);
 
 // shift 状态：4 轨窗口的位置。-1 = 左移一轨，0 = 常态，1 = 右移一轨。
 // 过渡值是连续的，做淡入淡出与判定带的交叉过渡。
@@ -165,6 +169,12 @@ if (import.meta.env.DEV) {
   const range = Number(query.get('range'));
   if (Number.isFinite(range) && range > 0) params.visibleRange = range;
 
+  // dev：临时压低高度上限，用来验证「超限的 note 不生成」。
+  const maxHeight = Number(query.get('maxheight'));
+  if (Number.isFinite(maxHeight) && maxHeight > 0) {
+    activeChart.limits = { ...activeChart.limits, maxHeight };
+  }
+
   // 注意：Number(null) === 0 —— 没有这个参数时必须保持默认值。
   const offsetRaw = query.get('offset');
   const offset = Number(offsetRaw);
@@ -183,7 +193,10 @@ if (import.meta.env.DEV) {
 // —— 内容 ——
 // 浮空显示属于世界，不挂相机；位置可由调试面板调整（x / y / z）。
 const displayPlacement: DisplayPlacement = { ...DEFAULT_DISPLAY };
-const displayTextures = createDisplayTextures();
+const displayTextures = createDisplayTextures({
+  title: activeChart.meta.title,
+  difficulty: activeChart.meta.difficulty,
+});
 const display = buildDisplay(displayTextures, displayPlacement);
 scene.add(display.group);
 
@@ -220,7 +233,7 @@ const playHooks = {
   },
 };
 
-let playfield: Player = createPlayer(params, table.geometry, lib, DEMO_CHART, playSettings, playHooks);
+let playfield: Player = createPlayer(params, table.geometry, lib, activeChart, playSettings, playHooks);
 // 谱面时间来自音频时钟；音频没解锁时它退回 performance.now，游戏照常能跑。
 playfield.setTimeSource(() => audio.now());
 scene.add(playfield.group);
@@ -341,7 +354,7 @@ function rebuild(): void {
   scene.add(notes.group);
   notes.group.visible = previewState.visible;
 
-  playfield = createPlayer(params, table.geometry, lib, DEMO_CHART, playSettings, playHooks);
+  playfield = createPlayer(params, table.geometry, lib, activeChart, playSettings, playHooks);
   playfield.setTimeSource(() => audio.now());
   scene.add(playfield.group);
 }
@@ -383,10 +396,9 @@ updateHandsRow();
 // —— 谱面自检（dev）：先验证示例谱面能被格式与校验器接受 ——
 if (import.meta.env.DEV) {
   void import('./chart/timeline').then(async ({ validateChart }) => {
-    const { DEMO_CHART } = await import('./chart/demo');
-    const issues = validateChart(DEMO_CHART);
-    if (issues.length > 0) console.warn('[chart] demo issues:', issues);
-    else console.info('[chart] demo chart ok');
+    const issues = validateChart(activeChart);
+    if (issues.length > 0) console.warn('[chart] issues:', issues);
+    else console.info(`[chart] ok · ${activeChart.meta.title} · ${activeChart.notes.length} notes`);
   });
 }
 
@@ -555,7 +567,12 @@ renderer.setAnimationLoop((frameTime: number) => {
   moveDisplay();
 
   const scoreView = playfield.score;
-  displayTextures.update({ score: scoreView.score, combo: scoreView.combo, health: scoreView.health });
+  displayTextures.update({
+    score: scoreView.score,
+    combo: scoreView.combo,
+    health: scoreView.health,
+    objects: playfield.totalObjects,
+  });
 
   const { perfect, good, miss, lastGrade, lastOffsetMs } = playfield.stats;
   const gradeRow = `${perfect} / ${good} / ${miss}`;

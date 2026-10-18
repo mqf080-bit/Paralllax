@@ -23,6 +23,13 @@ export interface DisplayState {
   score: number;
   combo: number;
   health: number;
+  /** 物量总数；0 = 还没创建播放器。 */
+  objects: number;
+}
+
+export interface DisplayMeta {
+  title: string;
+  difficulty: string;
 }
 
 export interface DisplayBuild {
@@ -50,7 +57,7 @@ export const DISPLAY_GAP = 0.3;
 const PLANE_WIDTH = DISPLAY_WIDTH;
 const PLANE_HEIGHT = (PLANE_WIDTH * TEXTURE_HEIGHT) / TEXTURE_WIDTH;
 
-export function createDisplayTextures(): DisplayTextures {
+export function createDisplayTextures(meta: DisplayMeta): DisplayTextures {
   const panel = drawToTexture(TEXTURE_WIDTH, TEXTURE_HEIGHT, () => {});
   const canvas = panel.image as HTMLCanvasElement;
   const context = canvas.getContext('2d');
@@ -60,6 +67,7 @@ export function createDisplayTextures(): DisplayTextures {
   let lastScore = -1;
   let lastCombo = -1;
   let lastHealth = -1;
+  let lastObjects = -1;
 
   function draw(state: DisplayState): void {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -72,7 +80,7 @@ export function createDisplayTextures(): DisplayTextures {
     // 曲名
     ctx.font = '500 34px ui-monospace, Menlo, monospace';
     ctx.fillStyle = 'rgba(196,210,226,0.82)';
-    ctx.fillText('ANTAGONISM', 8, 72);
+    ctx.fillText(meta.title, 8, 72);
 
     // 黄铜细线：唯一的暖色。
     ctx.fillStyle = 'rgba(176,141,87,0.55)';
@@ -103,14 +111,16 @@ export function createDisplayTextures(): DisplayTextures {
     // 副信息
     ctx.font = '500 24px ui-monospace, Menlo, monospace';
     ctx.fillStyle = 'rgba(122,136,152,0.9)';
-    ctx.fillText('IN 7   ·   1,024 NOTES', 8, 296);
+    const notes = state.objects > 0 ? `${state.objects.toLocaleString('en-US')} NOTES` : '—';
+    ctx.fillText(`${meta.difficulty}   ·   ${notes}`, 8, 296);
   }
 
-  const initial: DisplayState = { score: 0, combo: 0, health: 100 };
+  const initial: DisplayState = { score: 0, combo: 0, health: 100, objects: 0 };
   draw(initial);
   lastScore = initial.score;
   lastCombo = initial.combo;
   lastHealth = initial.health;
+  lastObjects = initial.objects;
 
   return {
     panel,
@@ -118,11 +128,13 @@ export function createDisplayTextures(): DisplayTextures {
       const score = Math.round(state.score);
       const combo = Math.round(state.combo);
       const health = Math.round(state.health);
-      if (score === lastScore && combo === lastCombo && health === lastHealth) return;
+      const objects = Math.round(state.objects);
+      if (score === lastScore && combo === lastCombo && health === lastHealth && objects === lastObjects) return;
       lastScore = score;
       lastCombo = combo;
       lastHealth = health;
-      draw({ score, combo, health });
+      lastObjects = objects;
+      draw({ score, combo, health, objects });
       panel.needsUpdate = true;
     },
     dispose(): void {

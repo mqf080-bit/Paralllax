@@ -131,6 +131,18 @@ export interface ArcNote extends TimedNote {
 
 export type Note = HitNote | DragNote | HoldNote | ArcNote;
 
+/**
+ * 谱面硬性限制：运行时会据此裁剪 —— **不满足的 note 不生成**。
+ *
+ * 高度上限存在的理由：玩家站在台面前，手能舒服够到的高度是有限的。
+ * 台面 0.95m，手能稳定挥到 1.55m 左右，再高就要抬手 / 伸肩，
+ * 连续交互会明显掉速。0.6m 是「还能当做正常动作」的上限。
+ */
+export interface ChartLimits {
+  /** note 的最大高度（米，相对台面）。默认 0.6。 */
+  maxHeight: number;
+}
+
 export interface Chart {
   meta: ChartMeta;
   timing: TimingPoint[];
@@ -138,6 +150,18 @@ export interface Chart {
   speed: SpeedEvent[];
   shift: ShiftEvent[];
   notes: Note[];
+  /** 覆盖默认限制（一般不用写；写错会被校验器拦下）。 */
+  limits?: Partial<ChartLimits>;
+}
+
+/** 默认限制。制谱器、校验器、运行时共用。 */
+export const CHART_LIMITS: ChartLimits = {
+  maxHeight: 0.6,
+};
+
+/** 谱面实际生效的限制 = 默认值 + 谱面覆盖。 */
+export function chartLimits(chart: Chart): ChartLimits {
+  return { ...CHART_LIMITS, ...chart.limits };
 }
 
 /** 默认值集中在这里，制谱器和运行时都用同一套。 */

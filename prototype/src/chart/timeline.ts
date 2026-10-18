@@ -1,4 +1,4 @@
-import { CHART_DEFAULTS, type Chart, type Easing, type Section } from './schema';
+import { CHART_DEFAULTS, chartLimits, type Chart, type Easing, type Section } from './schema';
 
 /**
  * 谱面时间轴：把「时间」翻译成运行时要用的量。
@@ -237,6 +237,7 @@ export function createTimeline(chart: Chart): Timeline {
 export function validateChart(chart: Chart): string[] {
   const issues: string[] = [];
   const timeline = createTimeline(chart);
+  const limits = chartLimits(chart);
 
   const timing = [...chart.timing].sort((a, b) => a.time - b.time);
   if (timing.length === 0) issues.push('timing: 至少要有一个 TimingPoint');
@@ -268,6 +269,10 @@ export function validateChart(chart: Chart): string[] {
         if (i > 0 && point.time <= points[i - 1]!.time) issues.push(`arc@${note.time}: 点的 time 必须递增`);
         if (point.x < -0.5 || point.x > 5.5) issues.push(`arc@${note.time}: x 超出 0–5`);
         if (point.y < 0) issues.push(`arc@${note.time}: y 不能为负`);
+      }
+      const arcHeight = points.reduce((max, point) => Math.max(max, point.y), 0);
+      if (arcHeight > limits.maxHeight) {
+        issues.push(`arc@${note.time}: 最高点 ${arcHeight}m 超过上限 ${limits.maxHeight}m（不会生成）`);
       }
       for (const key of note.keyObjects ?? []) {
         const last = points[points.length - 1];

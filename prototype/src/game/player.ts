@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 
 import {
   CHART_DEFAULTS,
+  chartLimits,
   type ArcNote as ChartArcNote,
   type Chart,
   type DragNote as ChartDragNote,
@@ -61,6 +62,8 @@ export interface Player {
   readonly timeMs: number;
   /** 谱面总时长（毫秒）。 */
   readonly duration: number;
+  /** 物量总数（hit / drag 各 1，hold 与 arc 按 tick 数）。 */
+  readonly totalObjects: number;
   /** 用外部时钟（音频）驱动；传 null 退回「每帧累加 dt」。 */
   setTimeSource(source: (() => number) | null): void;
   update(dt: number, hands: HandSample[]): void;
@@ -144,6 +147,7 @@ export function createPlayer(
   hooks: PlayerHooks = {},
 ): Player {
   const timeline: Timeline = createTimeline(chart);
+  const limits = chartLimits(chart);
   const group = new THREE.Group();
   group.name = 'player';
   const barY = params.tableHeight + BAR_HEIGHT;
@@ -236,6 +240,17 @@ export function createPlayer(
   // —— 从谱面构建全部运行时物件 ——
   for (const note of chart.notes) {
     if (note.type === 'arc') {
+      // 高度上限：超出的 note 不生成（判定、物量、回收都不参与）。
+      const arcHeight = note.points.reduce((max, point) => Math.max(max, point.y), 0);
+      if (arcHeight > limits.maxHeight) {
+        if (import.meta.env.DEV) {
+          console.warn(
+            `[chart] arc@${note.time} 高度 ${arcHeight.toFixed(2)}m 超过上限 ${limits.maxHeight}m，跳过`,
+          );
+        }
+        continue;
+      }
+
       const arc = createArcNote(
         {
           points: note.points,
@@ -680,6 +695,10 @@ export function createPlayer(
 
     get duration(): number {
       return timeline.duration;
+    },
+
+    get totalObjects(): number {
+      return totalObjects;
     },
 
     setTimeSource(source: (() => number) | null): void {
