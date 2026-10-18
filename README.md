@@ -3,7 +3,72 @@
 VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处沿 6 条轨道滑来，用手接住；
 台面只点亮其中 4 条轨，**窗口会随谱面整体左移 / 右移一轨**（shift）。
 
-> 设计真相：[`parallax-idea.md`](parallax-idea.md) ｜ 施工协议：[`agent.md`](agent.md) ｜ 迭代记录：[`prototype/STATUS.md`](prototype/STATUS.md) ｜ 谱面格式：[`prototype/CHART.md`](prototype/CHART.md) ｜ 制谱器：[`prototype/EDITOR.md`](prototype/EDITOR.md) ｜ 谱面包：[`prototype/PACKAGE.md`](prototype/PACKAGE.md)
+> 版本：[`CHANGELOG.md`](CHANGELOG.md) ｜ 设计真相：[`parallax-idea.md`](parallax-idea.md) ｜ 施工协议：[`agent.md`](agent.md) ｜ 迭代记录：[`prototype/STATUS.md`](prototype/STATUS.md) ｜ 谱面格式：[`prototype/CHART.md`](prototype/CHART.md) ｜ 制谱器：[`prototype/EDITOR.md`](prototype/EDITOR.md) ｜ 谱面包：[`prototype/PACKAGE.md`](prototype/PACKAGE.md)
+
+---
+
+## 快速使用（v0.2.0）
+
+### 1. 启动
+
+```bash
+cd prototype
+npm install
+npm run dev
+```
+
+- 游戏：<http://127.0.0.1:5173>
+- 制谱器：<http://127.0.0.1:5173/editor.html>（桌面浏览器，不进 VR）
+
+Quest 3 用 USB + `adb reverse tcp:5173 tcp:5173`，然后在头显浏览器打开
+`http://127.0.0.1:5173`。
+
+### 2. 写一张谱
+
+1. 打开制谱器，`AUDIO → TRACK` 选本地音频；
+   FLAC / MP3 会自动读标题、作者、内嵌封面，并把 `DURATION` 设为音频长度。
+2. 用 `HIT / DRAG / HOLD / ARC` 在 2D 主视图或 3D 视图放置 note。
+   - 地面键默认吸整轨；空中 hit/drag（z > 0.07m）和 arc 点一样 1/4 轨；
+   - `Shift + 点击` 多选 note，拖任意选中项整组移动；
+   - `Ctrl / Cmd` 临时关闭时间 / x / z 吸附；
+   - 选中 arc 后，3D 白球 = 自由 x/z，青球 = 只改 x，黄铜球 = 只改 z；
+     ARC 工具点弧身加节点，点物量珠切 KEY。
+3. 在检查器改 `TITLE / ARTIST / DURATION / OFFSET`，没有内嵌封面时在
+   `AUDIO → COVER` 手动选图。
+4. `EXPORT` 导出 `<title>.parallax`（谱面 + 音轨 + 封面 + 包内资源）。
+   `JSON` 只导出旧谱面 JSON，用于调试。
+
+### 3. 玩导出的谱
+
+**最快：不复制文件**
+
+1. 打开游戏页 <http://127.0.0.1:5173/>；
+2. 左下角 `LOAD .parallax`，选择刚导出的包，或直接把文件拖进页面；
+3. 页面会自动 reload 并开始播放（文件暂存在浏览器 IndexedDB）。
+
+**也可以放到 public**
+
+```bash
+cp xxx.parallax prototype/public/packages/
+```
+
+```text
+http://127.0.0.1:5173/?pack=/packages/xxx.parallax
+```
+
+Quest 3 用同一个 URL；`adb reverse` 已配好时无需再传文件。
+包格式、主题 / 背景预留字段见 [`prototype/PACKAGE.md`](prototype/PACKAGE.md)。
+
+### 4. 包内有什么
+
+```text
+chart.json           谱面
+audio/<track>        音轨（可选）
+cover/<image>        封面（可选）
+theme/ background/   提前预留的资源（游戏暂未消费）
+```
+
+一个 `.parallax` 就是一张谱的完整发行物；旧的 `?chart=` / `?audio=` 仍兼容。
 
 ---
 
@@ -16,7 +81,7 @@ VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处�
 | 2 | 四种键型 + 判定 | ✅ |
 | 3 | shift（4 轨窗口整体滑动） | ✅ |
 | 4 | 谱面播放 / 流速 / 渲染裁剪 / 音频 / UI | ✅ 只剩「72fps 实测」未记录 |
-| 5 | 简易制谱器 | ✅ 独立页面 `/editor.html`；支持空中 note / x,z 位置、3D 直接编辑、显式 arc 物量、底部 Blender 时间线，待验收 |
+| 5 | 简易制谱器 | ✅ **v0.2.0** 独立页面 `/editor.html`；支持空中 note / x,z、3D arc 编辑、多选、封面 / 时长、单文件 `.parallax`，待验收 |
 
 已经能完整打一首 41.6 秒的谱（两次 shift、四种键型、SV 变速），有计分、血条、结算、暂停和设置；
 也能在桌面制谱器里写谱、导入音频对 offset、用同一个播放器预览并导出单文件 `.parallax`。

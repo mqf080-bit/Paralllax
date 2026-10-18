@@ -47,6 +47,7 @@ import {
   type WaveformPeaks,
 } from './timelineView';
 import { decodeWaveform } from './waveform';
+import { EDITOR_VERSION } from './version';
 
 /**
  * 制谱器主控：把「谱面数据 / 时间轴画布 / 3D 预览 / 检查器 / 草稿」接在一起。
@@ -961,7 +962,7 @@ export class EditorController implements EditorHost, InspectorHost {
     }
 
     this.elements.status.textContent = `${TOOL_LABELS[this.tool]} · SNAP ${snapLabel(this.snap)} · ${this.chart.notes.length} NOTES · ${countObjects(this.chart)} OBJECTS · ${formatTime(chartDuration(this.chart))}`;
-    document.title = `${this.chart.meta.title || 'UNTITLED'} — Parallax Editor`;
+    document.title = `${this.chart.meta.title || 'UNTITLED'} — Parallax Editor v${EDITOR_VERSION}`;
   }
 
   private updateTransportUi(): void {
