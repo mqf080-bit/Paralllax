@@ -2,7 +2,7 @@ import { CHART_DEFAULTS, chartLimits, type ArcNote, type Chart, type Note, type 
 import { DEMO_CHART } from '../chart/demo';
 import { TEST_CHART } from '../chart/test';
 import { createTimeline, validateChart, type Timeline } from '../chart/timeline';
-import { extractAudioMetadata } from '../audio/metadata';
+import { extractAudioMetadata, type AudioMetadata } from '../audio/metadata';
 import { deleteSelection as deleteSelectionImpl, attachInteraction, type EditorHost } from './interaction';
 import { Inspector, type InspectorHost } from './inspector';
 import { OverviewTimeline } from './overview';
@@ -698,7 +698,10 @@ export class EditorController implements EditorHost, InspectorHost {
   ): Promise<boolean> {
     if (announce) this.showToast(`载入音频 ${file.name} …`);
     try {
-      const [peaks, metadata] = await Promise.all([decodeWaveform(file), extractAudioMetadata(file)]);
+      const [peaks, metadata] = await Promise.all([
+        decodeWaveform(file),
+        extractAudioMetadata(file).catch((): AudioMetadata => ({})),
+      ]);
       const ok = await this.preview.loadTrack(file);
       if (!ok) throw new Error(this.preview.state.error ?? '音频载入失败');
       this.audioFile = file;

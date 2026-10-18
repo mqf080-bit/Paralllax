@@ -90,7 +90,14 @@ const packParam = bootQuery.get('pack');
 let activeChart: Chart = TEST_CHART;
 let packedAudio: PackedAudio | null = null;
 let packedCover: PackedAudio | null = null;
-const localPack = bootQuery.get('localPack') === '1' ? await readLocalPackage() : null;
+let localPack: ArrayBuffer | null = null;
+if (bootQuery.get('localPack') === '1') {
+  try {
+    localPack = await readLocalPackage();
+  } catch (cause) {
+    console.warn('[pack] 本地包读取失败', cause);
+  }
+}
 if (localPack) {
   try {
     const pkg = unpackPackage(localPack);
