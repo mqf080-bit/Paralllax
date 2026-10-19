@@ -15,6 +15,8 @@ export interface SpectrumHost {
   readonly playhead: number;
   readonly audioFile: File | null;
   readonly audioDurationMs: number | null;
+  /** 谱面 offset：正 = 音频内容相对谱面向左 / 提前。 */
+  readonly audioOffsetMs: number;
   /** 主 2D 时间轴当前可见的毫秒数；频谱把它铺满自己的宽度。 */
   readonly viewSpanMs: number;
   seek(timeMs: number): void;
@@ -271,9 +273,11 @@ export class SpectrumPanel {
     const source = this.source;
     if (!data || !source) return;
     const duration = Math.max(1, data.durationMs);
-    if (viewEnd <= 0 || viewStart >= duration) return;
+    const offset = this.host.audioOffsetMs;
+    const axisEnd = offset + duration;
+    if (viewEnd <= offset || viewStart >= axisEnd) return;
 
-    const scale = `${localPx.toFixed(6)}|${plotHeight.toFixed(2)}|${data.frames}|${data.bins}|${data.durationMs}`;
+    const scale = `${localPx.toFixed(6)}|${plotHeight.toFixed(2)}|${data.frames}|${data.bins}|${data.durationMs}|${offset}`;
     if (scale !== this.tileScale || data !== this.tileData) {
       this.tiles.clear();
       this.tileScale = scale;
@@ -281,11 +285,8 @@ export class SpectrumPanel {
     }
 
     const tileMs = TILE_PX / Math.max(1e-6, localPx);
-    const first = Math.max(0, Math.floor(Math.max(0, viewStart) / tileMs));
-    const last = Math.min(
-      Math.max(0, Math.ceil(duration / tileMs) - 1),
-      Math.floor(Math.min(duration, viewEnd) / tileMs),
-    );
+    const first = Math.floor(viewStart / tileMs);
+    const last = Math.floor(Math.min(axisEnd, viewEnd) / tileMs);
     for (let index = first; index <= last; index += 1) {
       const tile = this.tileAt(index, tileMs, plotHeight);
       if (!tile) continue;
@@ -304,10 +305,14 @@ export class SpectrumPanel {
     if (cached) return cached;
 
     const duration = Math.max(1, data.durationMs);
+    const offset = this.host.audioOffsetMs;
     const tileStart = index * tileMs;
-    const tileEnd = Math.min(duration, tileStart + tileMs);
-    if (tileEnd <= tileStart) return null;
-    const widthPx = (tileEnd - tileStart) / tileMs * TILE_PX;
+    const tileEnd = tileStart + tileMs;
+    const audioStart = Math.max(0, tileStart - offset);
+    const audioEnd = Math.min(duration, tileEnd - offset);
+    if (audioEnd <= audioStart) return null;
+    const xInTile = ((audioStart + offset - tileStart) / tileMs) * TILE_PX;
+    const widthPx = ((audioEnd - audioStart) / tileMs) * TILE_PX;
     const tile = document.createElement('canvas');
     tile.width = Math.max(1, Math.round(TILE_PX * DPR));
     tile.height = Math.max(1, Math.round(plotHeight * DPR));
@@ -317,9 +322,9 @@ export class SpectrumPanel {
     ctx.clearRect(0, 0, TILE_PX, plotHeight);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    const sx = (tileStart / duration) * data.frames;
-    const sw = Math.max(1, ((tileEnd - tileStart) / duration) * data.frames);
-    ctx.drawImage(source, sx, 0, sw, data.bins, 0, 0, widthPx, plotHeight);
+    const sx = (audioStart / duration) * data.frames;
+    const sw = Math.max(1, ((audioEnd - audioStart) / duration) * data.frames);
+    ctx.drawImage(source, sx, 0, sw, data.bins, xInTile, 0, widthPx, plotHeight);
 
     if (this.tiles.size >= TILE_LIMIT) {
       const oldest = this.tiles.keys().next().value;
@@ -343,7 +348,8 @@ export class SpectrumPanel {
     const view = this.host.view;
     const time = view.start + (x - GUTTER) / Math.max(1e-6, this.localPx());
     const duration = this.durationMs();
-    return Math.min(duration, Math.max(0, Math.round(time)));
+    const axisEnd = duration + this.host.audioOffsetMs;
+    return Math.min(Math.max(0, axisEnd), Math.max(0, Math.round(time)));
   }
 
   render(force = false): void {
@@ -360,6 +366,7 @@ export class SpectrumPanel {
       height,
       this.host.view.start,
       this.host.viewSpanMs,
+      this.host.audioOffsetMs,
       this.loading ? 1 : 0,
       this.loading ? this.progress : '',
       this.error,

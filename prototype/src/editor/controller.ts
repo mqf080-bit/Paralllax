@@ -244,6 +244,9 @@ export class EditorController implements EditorHost, InspectorHost {
         get audioDurationMs() {
           return self.audioDurationMs;
         },
+        get audioOffsetMs() {
+          return self.audioOffsetMs;
+        },
         get viewSpanMs() {
           return self.viewSpanMs;
         },
@@ -271,6 +274,10 @@ export class EditorController implements EditorHost, InspectorHost {
 
   get audioLoaded(): boolean {
     return this.preview.state.trackName !== 'DRUMS';
+  }
+
+  get audioOffsetMs(): number {
+    return this.chart.meta.offset;
   }
 
   get audioDurationMs(): number | null {

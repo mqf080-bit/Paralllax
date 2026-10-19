@@ -1,6 +1,6 @@
 # agent.md — Parallax Phase 1 协作协议
 
-> 版本：**0.3.10** ｜ 状态：**Step 0–5 已完成；Step 5 第十轮修正（频谱 / 自动完美）已实现，等待你验收**。
+> 版本：**0.3.11** ｜ 状态：**Step 0–5 已完成；Step 5 第十轮修正（频谱 / 自动完美）已实现，等待你验收**。
 > 阶段：Phase 1 — Prototyping in WebXR
 > 设计真相：`parallax-idea.md`
 > 空间 / 材质参考：`references/`
@@ -474,6 +474,8 @@ adb reverse tcp:5173 tcp:5173
 - **第十八轮修正（2026-10-19）**：
   - 修复音频 offset 让起播 playhead 跳到 ±offset；offset 只平移音频内容；
   - 提高 2D snap 线 / 选中引导线对比度。
+- **第十九轮修正（2026-10-19）**：
+  - 频谱图按 `meta.offset` 平移，和波形 / 听感一致。
 - **没做**：框选 / 复制粘贴 / 自动 BPM 检测 / section 编辑 / VR 制谱；
   3D 里 arc 点的时间仍要在 2D / 检查器改。
 
