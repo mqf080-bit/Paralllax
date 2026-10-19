@@ -1,6 +1,6 @@
 # agent.md — Parallax Phase 1 协作协议
 
-> 版本：**0.3.0** ｜ 状态：**Step 0–5 已完成；Step 5 第十轮修正（频谱 / 自动完美）已实现，等待你验收**。
+> 版本：**0.3.1** ｜ 状态：**Step 0–5 已完成；Step 5 第十轮修正（频谱 / 自动完美）已实现，等待你验收**。
 > 阶段：Phase 1 — Prototyping in WebXR
 > 设计真相：`parallax-idea.md`
 > 空间 / 材质参考：`references/`

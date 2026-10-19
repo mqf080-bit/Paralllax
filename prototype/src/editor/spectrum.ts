@@ -194,7 +194,9 @@ export class SpectrumPanel {
         // 只让真正的峰 / 谐波 / 瞬态亮起来。
         const value = Math.pow(center, 2.2);
         const [r, g, b] = colorAt(value);
-        const offset = (frame * data.bins + band) * 4;
+        // ImageData 是行优先：一行 = 一个频带，列 = 时间帧；行 0 放最高频，
+        // 这样 drawImage 到面板时 16k 在顶部、40Hz 在底部。
+        const offset = ((data.bins - 1 - band) * data.frames + frame) * 4;
         image.data[offset] = r;
         image.data[offset + 1] = g;
         image.data[offset + 2] = b;
