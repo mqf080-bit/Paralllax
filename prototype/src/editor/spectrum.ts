@@ -15,6 +15,8 @@ export interface SpectrumHost {
   readonly playhead: number;
   readonly audioFile: File | null;
   readonly audioDurationMs: number | null;
+  /** 主 2D 时间轴当前可见的毫秒数；频谱把它铺满自己的宽度。 */
+  readonly viewSpanMs: number;
   seek(timeMs: number): void;
   setView(view: Partial<Viewport>): void;
 }
@@ -33,14 +35,17 @@ const TOP = 8;
 const BOTTOM = 22;
 const DPR = 1.5;
 
+// 参考 DAW 的暖色热图：黑 → 紫 → 红 → 橙 → 黄白。
 const STOP_COLORS: Array<[number, number, number]> = [
-  [6, 7, 12],
-  [10, 26, 38],
-  [22, 68, 86],
-  [52, 144, 166],
-  [111, 227, 242],
-  [216, 180, 106],
-  [255, 255, 255],
+  [4, 3, 9],
+  [25, 7, 40],
+  [65, 10, 76],
+  [118, 18, 82],
+  [176, 36, 58],
+  [226, 80, 28],
+  [248, 148, 35],
+  [255, 226, 142],
+  [255, 252, 235],
 ];
 
 function colorAt(value: number): [number, number, number] {
@@ -184,7 +189,7 @@ export class SpectrumPanel {
     for (let frame = 0; frame < data.frames; frame += 1) {
       for (let band = 0; band < data.bins; band += 1) {
         const center = data.data[frame * data.bins + band] ?? 0;
-        const value = Math.pow(center, 0.72);
+        const value = Math.pow(center, 0.82);
         const [r, g, b] = colorAt(value);
         const offset = (frame * data.bins + band) * 4;
         image.data[offset] = r;
@@ -201,15 +206,21 @@ export class SpectrumPanel {
     return this.data?.durationMs ?? this.host.audioDurationMs ?? 0;
   }
 
+  /** 频谱全宽铺满「主 2D 视口当前可见的时间范围」。 */
+  private localPx(): number {
+    const plotWidth = Math.max(1, this.elements.canvas.clientWidth - GUTTER - 12);
+    return plotWidth / Math.max(1, this.host.viewSpanMs);
+  }
+
   private timeAt(x: number): number {
     const view = this.host.view;
-    const time = view.start + (x - GUTTER) / Math.max(1e-6, view.pxPerMs);
+    const time = view.start + (x - GUTTER) / Math.max(1e-6, this.localPx());
     const duration = this.durationMs();
     return Math.min(duration, Math.max(0, Math.round(time)));
   }
 
   private xOf(time: number): number {
-    return GUTTER + (time - this.host.view.start) * this.host.view.pxPerMs;
+    return GUTTER + (time - this.host.view.start) * this.localPx();
   }
 
   render(force = false): void {
@@ -226,6 +237,7 @@ export class SpectrumPanel {
       height,
       this.host.view.start,
       this.host.view.pxPerMs,
+      this.host.viewSpanMs,
       this.host.playhead,
       this.hover ?? '',
       this.loading ? 1 : 0,
@@ -253,7 +265,8 @@ export class SpectrumPanel {
     const plotHeight = bottom - top;
     const view = this.host.view;
     const viewStart = view.start;
-    const viewEnd = viewStart + plotWidth / Math.max(1e-6, view.pxPerMs);
+    const localPx = this.localPx();
+    const viewEnd = viewStart + plotWidth / Math.max(1e-6, localPx);
 
     if (this.data && this.source) {
       const duration = Math.max(1, this.data.durationMs);
@@ -262,8 +275,10 @@ export class SpectrumPanel {
       if (end > start) {
         const sx = (start / duration) * this.data.frames;
         const sw = Math.max(1, ((end - start) / duration) * this.data.frames);
-        const dx = left + (start - viewStart) * view.pxPerMs;
-        const dw = Math.max(1, (end - start) * view.pxPerMs);
+        const dx = left + (start - viewStart) * localPx;
+        const dw = Math.max(1, (end - start) * localPx);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(this.source, sx, 0, sw, this.data.bins, dx, top, dw, plotHeight);
       }
     }
@@ -292,7 +307,7 @@ export class SpectrumPanel {
 
     // 时间刻度
     const steps = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 30000, 60000];
-    const step = steps.find((candidate) => candidate * view.pxPerMs >= 76) ?? steps[steps.length - 1]!;
+    const step = steps.find((candidate) => candidate * localPx >= 76) ?? steps[steps.length - 1]!;
     const first = Math.ceil(viewStart / step) * step;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
@@ -454,11 +469,12 @@ export class SpectrumPanel {
     const zoom = event.ctrlKey || event.metaKey;
     if (zoom) {
       const factor = Math.exp(-event.deltaY * 0.0015);
-      const next = Math.min(3, Math.max(0.006, this.host.view.pxPerMs * factor));
-      const time = this.host.view.start + (x - GUTTER) / this.host.view.pxPerMs;
-      this.host.setView({ pxPerMs: next, start: time - (x - GUTTER) / next });
+      const next = Math.min(3, Math.max(0.001, this.host.view.pxPerMs * factor));
+      const time = this.host.view.start + (x - GUTTER) / this.localPx();
+      const nextPx = (this.elements.canvas.clientWidth - GUTTER - 12) / (this.host.viewSpanMs / factor);
+      this.host.setView({ pxPerMs: next, start: time - (x - GUTTER) / nextPx });
     } else {
-      this.host.setView({ start: this.host.view.start + event.deltaY / this.host.view.pxPerMs });
+      this.host.setView({ start: this.host.view.start + event.deltaY / this.localPx() });
     }
     this.lastSignature = '';
     this.render(true);

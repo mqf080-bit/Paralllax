@@ -2,10 +2,10 @@
  * 音频频谱数据：STFT + 对数频带。
  *
  * 这是给制谱器「看鼓点 / 钢琴 / lead」用的，不追求出版级精度：
- * - FFT 2048，Hann 窗；
- * - 时间轴最多约 4096 帧（153s → 每帧 ~37ms）；
- * - 频率轴 40Hz–16kHz，对数分成 256 条；
- * - 每帧每带取最大值，转成 -90dB–-10dB 的 0–1。
+ * - FFT 4096，Hann 窗，hop ≈ 20ms（约 78% overlap，DAW 式连续纹理）；
+ * - 时间轴最多 8192 帧（153s → 每帧 ~20ms）；
+ * - 频率轴 40Hz–16kHz，对数分成 512 条；
+ * - 每帧每带取最大值，转成 -100dB–-20dB 的 0–1。
  */
 
 export interface Spectrogram {
@@ -92,12 +92,12 @@ export async function buildSpectrogram(file: File, options: SpectrogramOptions =
   const durationMs = buffer.duration * 1000;
   const sampleRate = buffer.sampleRate;
   const fftSize = Math.min(
-    options.fftSize ?? 2048,
+    options.fftSize ?? 4096,
     2 ** Math.floor(Math.log2(Math.max(512, buffer.length))),
   );
-  const maxFrames = options.maxFrames ?? 4096;
+  const maxFrames = options.maxFrames ?? 8192;
   const frames = clamp(Math.ceil(durationMs / 20), 512, maxFrames);
-  const bins = options.bins ?? 256;
+  const bins = options.bins ?? 512;
   const minHz = options.minHz ?? 40;
   const maxHz = Math.min(options.maxHz ?? 16000, sampleRate / 2);
   const logRange = Math.log(maxHz / minHz);
@@ -139,7 +139,7 @@ export async function buildSpectrogram(file: File, options: SpectrogramOptions =
         magnitude = Math.max(magnitude, Math.hypot(re[bin]!, im[bin]!));
       }
       const db = 20 * Math.log10(magnitude / half + 1e-9);
-      out[frame * bins + band] = clamp((db + 90) / 80, 0, 1);
+      out[frame * bins + band] = clamp((db + 100) / 80, 0, 1);
     }
 
     // 让主线程有机会刷新「ANALYZING…」和进度。

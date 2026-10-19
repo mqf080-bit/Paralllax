@@ -115,7 +115,7 @@ interface EditorCover extends CoverAsset {
   source: 'embedded' | 'manual' | 'package';
 }
 
-const MIN_ZOOM = 0.006;
+const MIN_ZOOM = 0.001;
 const MAX_ZOOM = 3;
 
 function clamp(value: number, min: number, max: number): number {
@@ -238,6 +238,9 @@ export class EditorController implements EditorHost, InspectorHost {
         get audioDurationMs() {
           return self.audioDurationMs;
         },
+        get viewSpanMs() {
+          return self.viewSpanMs;
+        },
         seek: (timeMs) => self.seek(timeMs),
         setView: (view) => self.setView(view),
       },
@@ -274,6 +277,11 @@ export class EditorController implements EditorHost, InspectorHost {
 
   get coverName(): string | null {
     return this.cover?.name ?? null;
+  }
+
+  /** 2D 时间轴当前可见的时间长度（频谱要用同一个范围铺满全宽）。 */
+  get viewSpanMs(): number {
+    return (this.layout.width - GUTTER) / Math.max(1e-6, this.view.pxPerMs);
   }
 
   loadBuiltin(kind: 'test' | 'demo'): void {
