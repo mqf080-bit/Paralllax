@@ -71,6 +71,8 @@ function clockLabel(ms: number): string {
 
 export class SpectrumPanel {
   private readonly ctx: CanvasRenderingContext2D;
+  private readonly overlay: HTMLCanvasElement;
+  private readonly overlayCtx: CanvasRenderingContext2D;
   private open = false;
   private data: Spectrogram | null = null;
   private source: HTMLCanvasElement | null = null;
@@ -81,7 +83,10 @@ export class SpectrumPanel {
   private token = 0;
   private dragging = false;
   private hover: number | null = null;
-  private lastSignature = '';
+  private lastBaseSignature = '';
+  private lastOverlaySignature = '';
+  private lastTimeText = '';
+  private lastStatusText = '';
 
   constructor(
     private readonly elements: SpectrumElements,
@@ -90,6 +95,17 @@ export class SpectrumPanel {
     const ctx = elements.canvas.getContext('2d');
     if (!ctx) throw new Error('spectrum canvas 不可用');
     this.ctx = ctx;
+
+    const overlay = document.createElement('canvas');
+    overlay.id = 'spectrum-overlay';
+    overlay.setAttribute('aria-hidden', 'true');
+    const parent = elements.canvas.parentElement;
+    if (!parent) throw new Error('spectrum canvas 容器不可用');
+    parent.append(overlay);
+    const overlayCtx = overlay.getContext('2d');
+    if (!overlayCtx) throw new Error('spectrum overlay canvas 不可用');
+    this.overlay = overlay;
+    this.overlayCtx = overlayCtx;
 
     elements.toggle.addEventListener('click', this.onToggle);
     elements.close.addEventListener('click', this.onClose);
@@ -115,10 +131,12 @@ export class SpectrumPanel {
     if (!open) {
       this.dragging = false;
       this.hover = null;
-      this.lastSignature = '';
+      this.lastBaseSignature = '';
+      this.lastOverlaySignature = '';
       return;
     }
-    this.lastSignature = '';
+    this.lastBaseSignature = '';
+    this.lastOverlaySignature = '';
     this.render(true);
   }
 
@@ -131,7 +149,8 @@ export class SpectrumPanel {
     this.loading = false;
     this.progress = 0;
     this.error = '';
-    this.lastSignature = '';
+    this.lastBaseSignature = '';
+    this.lastOverlaySignature = '';
     if (this.open) this.render(true);
   }
 
@@ -150,7 +169,8 @@ export class SpectrumPanel {
         this.source = null;
         this.loading = false;
         this.error = 'NO AUDIO · 先导入音轨';
-        this.lastSignature = '';
+        this.lastBaseSignature = '';
+        this.lastOverlaySignature = '';
       }
       return;
     }
@@ -162,7 +182,8 @@ export class SpectrumPanel {
     this.loading = true;
     this.progress = 0;
     this.error = '';
-    this.lastSignature = '';
+    this.lastBaseSignature = '';
+    this.lastOverlaySignature = '';
     const token = ++this.token;
     void this.load(file, token);
   }
@@ -173,7 +194,7 @@ export class SpectrumPanel {
         onProgress: (progress) => {
           if (token !== this.token) return;
           this.progress = Math.max(0, Math.min(1, progress));
-          this.lastSignature = '';
+          this.lastBaseSignature = '';
           if (this.open) this.render(true);
         },
       });
@@ -235,41 +256,76 @@ export class SpectrumPanel {
     return Math.min(duration, Math.max(0, Math.round(time)));
   }
 
-  private xOf(time: number): number {
-    return GUTTER + (time - this.host.view.start) * this.localPx();
-  }
-
   render(force = false): void {
     if (!this.open) return;
     this.ensureData();
 
-    const canvas = this.elements.canvas;
-    const width = Math.max(1, canvas.clientWidth);
-    const height = Math.max(1, canvas.clientHeight);
+    const width = Math.max(1, this.elements.canvas.clientWidth);
+    const height = Math.max(1, this.elements.canvas.clientHeight);
     if (width < 8 || height < 8) return;
 
-    const signature = [
+    // 静态层：频谱图 + 网格 + 刻度。只在视口 / 尺寸 / 数据 / 计算进度变化时重画。
+    const baseSignature = [
       width,
       height,
       this.host.view.start,
-      this.host.view.pxPerMs,
       this.host.viewSpanMs,
-      this.host.playhead,
-      this.hover ?? '',
       this.loading ? 1 : 0,
       this.loading ? this.progress : '',
       this.error,
       this.data ? 1 : 0,
     ].join('|');
-    if (!force && signature === this.lastSignature) return;
-    this.lastSignature = signature;
-
-    if (canvas.width !== Math.round(width * DPR) || canvas.height !== Math.round(height * DPR)) {
-      canvas.width = Math.round(width * DPR);
-      canvas.height = Math.round(height * DPR);
+    const baseChanged = force || baseSignature !== this.lastBaseSignature;
+    if (baseChanged) {
+      this.lastBaseSignature = baseSignature;
+      this.drawBase(width, height);
     }
-    const ctx = this.ctx;
+
+    // 动态层：播放头 / hover。播放时每帧只清空并重画这一层。
+    const overlaySignature = [
+      width,
+      height,
+      this.host.view.start,
+      this.host.viewSpanMs,
+      this.host.playhead,
+      this.hover ?? '',
+      this.data ? 1 : 0,
+    ].join('|');
+    if (force || baseChanged || overlaySignature !== this.lastOverlaySignature) {
+      this.lastOverlaySignature = overlaySignature;
+      this.drawOverlay(width, height);
+    }
+
+    const timeText = `${formatTime(this.host.playhead)} / ${formatTime(this.durationMs())}`;
+    if (timeText !== this.lastTimeText) {
+      this.lastTimeText = timeText;
+      this.elements.time.textContent = timeText;
+    }
+    const statusText = this.loading
+      ? `ANALYZING… ${Math.round(this.progress * 100)}%`
+      : this.error
+        ? this.error
+        : 'CLICK / DRAG TO SEEK · WHEEL PAN · CTRL+WHEEL ZOOM';
+    if (statusText !== this.lastStatusText) {
+      this.lastStatusText = statusText;
+      this.elements.status.textContent = statusText;
+    }
+  }
+
+  private fitCanvas(canvas: HTMLCanvasElement, width: number, height: number): CanvasRenderingContext2D {
+    const pixelWidth = Math.round(width * DPR);
+    const pixelHeight = Math.round(height * DPR);
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+    }
+    const ctx = canvas === this.elements.canvas ? this.ctx : this.overlayCtx;
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    return ctx;
+  }
+
+  private drawBase(width: number, height: number): void {
+    const ctx = this.fitCanvas(this.elements.canvas, width, height);
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = '#06070c';
     ctx.fillRect(0, 0, width, height);
@@ -329,7 +385,7 @@ export class SpectrumPanel {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     for (let time = first; time <= viewEnd; time += step) {
-      const x = this.xOf(time);
+      const x = GUTTER + (time - viewStart) * localPx;
       if (x < left || x > right) continue;
       ctx.strokeStyle = 'rgba(160,180,205,0.08)';
       ctx.beginPath();
@@ -340,8 +396,47 @@ export class SpectrumPanel {
       ctx.fillText(clockLabel(time), x, height - 6);
     }
 
-    // 播放头
-    const playheadX = this.xOf(this.host.playhead);
+    // 边框 / 状态
+    ctx.strokeStyle = 'rgba(160,180,205,0.14)';
+    ctx.strokeRect(left + 0.5, top + 0.5, plotWidth, plotHeight);
+    if (this.loading) {
+      ctx.fillStyle = 'rgba(6,7,12,0.72)';
+      ctx.fillRect(left, top, plotWidth, plotHeight);
+      ctx.fillStyle = '#b08d57';
+      ctx.font = '12px ui-monospace, Menlo, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        `ANALYZING AUDIO… ${Math.round(this.progress * 100)}%`,
+        left + plotWidth / 2,
+        top + plotHeight / 2,
+      );
+    } else if (this.error) {
+      ctx.fillStyle = 'rgba(6,7,12,0.72)';
+      ctx.fillRect(left, top, plotWidth, plotHeight);
+      ctx.fillStyle = '#e0704f';
+      ctx.font = '12px ui-monospace, Menlo, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(this.error, left + plotWidth / 2, top + plotHeight / 2);
+    } else if (!this.data) {
+      ctx.fillStyle = '#48546a';
+      ctx.font = '12px ui-monospace, Menlo, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('NO SPECTRUM', left + plotWidth / 2, top + plotHeight / 2);
+    }
+  }
+
+  private drawOverlay(width: number, height: number): void {
+    const ctx = this.fitCanvas(this.overlay, width, height);
+    ctx.clearRect(0, 0, width, height);
+
+    const left = GUTTER;
+    const right = Math.max(left + 1, width - 12);
+    const top = TOP;
+    const bottom = Math.max(top + 1, height - BOTTOM);
+    const localPx = this.localPx();
+    const viewStart = this.host.view.start;
+
+    const playheadX = left + (this.host.playhead - viewStart) * localPx;
     if (playheadX >= left && playheadX <= right) {
       ctx.strokeStyle = '#e8cf9d';
       ctx.lineWidth = 1;
@@ -358,9 +453,8 @@ export class SpectrumPanel {
       ctx.fill();
     }
 
-    // hover 线
     if (this.hover !== null) {
-      const x = this.xOf(this.hover);
+      const x = left + (this.hover - viewStart) * localPx;
       if (x >= left && x <= right) {
         ctx.strokeStyle = 'rgba(111,227,242,0.55)';
         ctx.setLineDash([2, 4]);
@@ -379,37 +473,6 @@ export class SpectrumPanel {
         ctx.fillText(label, x + 7, top + 11);
       }
     }
-
-    // 边框 / 状态
-    ctx.strokeStyle = 'rgba(160,180,205,0.14)';
-    ctx.strokeRect(left + 0.5, top + 0.5, plotWidth, plotHeight);
-    if (this.loading) {
-      ctx.fillStyle = 'rgba(6,7,12,0.72)';
-      ctx.fillRect(left, top, plotWidth, plotHeight);
-      ctx.fillStyle = '#b08d57';
-      ctx.font = '12px ui-monospace, Menlo, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(`ANALYZING AUDIO… ${Math.round(this.progress * 100)}%`, left + plotWidth / 2, top + plotHeight / 2);
-    } else if (this.error) {
-      ctx.fillStyle = 'rgba(6,7,12,0.72)';
-      ctx.fillRect(left, top, plotWidth, plotHeight);
-      ctx.fillStyle = '#e0704f';
-      ctx.font = '12px ui-monospace, Menlo, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(this.error, left + plotWidth / 2, top + plotHeight / 2);
-    } else if (!this.data) {
-      ctx.fillStyle = '#48546a';
-      ctx.font = '12px ui-monospace, Menlo, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('NO SPECTRUM', left + plotWidth / 2, top + plotHeight / 2);
-    }
-
-    this.elements.time.textContent = `${formatTime(this.host.playhead)} / ${formatTime(this.durationMs())}`;
-    this.elements.status.textContent = this.loading
-      ? `ANALYZING… ${Math.round(this.progress * 100)}%`
-      : this.error
-        ? this.error
-        : 'CLICK / DRAG TO SEEK · WHEEL PAN · CTRL+WHEEL ZOOM';
   }
 
   private readonly onToggle = (): void => {
@@ -430,6 +493,7 @@ export class SpectrumPanel {
     this.elements.canvas.removeEventListener('pointercancel', this.onPointerUp);
     this.elements.canvas.removeEventListener('pointerleave', this.onPointerLeave);
     this.elements.canvas.removeEventListener('wheel', this.onWheel);
+    this.overlay.remove();
   }
 
   private readonly onPointerDown = (event: PointerEvent): void => {
@@ -439,7 +503,7 @@ export class SpectrumPanel {
     this.dragging = true;
     this.hover = this.timeAt(x);
     this.host.seek(this.hover);
-    this.lastSignature = '';
+    this.lastOverlaySignature = '';
     this.render(true);
     try {
       this.elements.canvas.setPointerCapture(event.pointerId);
@@ -455,7 +519,7 @@ export class SpectrumPanel {
     const x = event.clientX - rect.left;
     this.hover = this.timeAt(x);
     if (this.dragging) this.host.seek(this.hover);
-    this.lastSignature = '';
+    this.lastOverlaySignature = '';
     this.render(true);
     event.preventDefault();
   };
@@ -474,7 +538,7 @@ export class SpectrumPanel {
   private readonly onPointerLeave = (): void => {
     if (this.dragging) return;
     this.hover = null;
-    this.lastSignature = '';
+    this.lastOverlaySignature = '';
     this.render(true);
   };
 
@@ -493,7 +557,7 @@ export class SpectrumPanel {
     } else {
       this.host.setView({ start: this.host.view.start + event.deltaY / this.localPx() });
     }
-    this.lastSignature = '';
+    this.lastOverlaySignature = '';
     this.render(true);
   };
 }

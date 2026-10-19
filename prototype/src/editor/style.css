@@ -804,11 +804,23 @@ select {
   flex: 1;
 }
 
-#spectrum-canvas {
+#spectrum-canvas,
+#spectrum-overlay {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
+}
+
+#spectrum-canvas {
+  z-index: 0;
   cursor: crosshair;
+}
+
+#spectrum-overlay {
+  z-index: 1;
+  pointer-events: none;
 }
 
 .transport__speed {
