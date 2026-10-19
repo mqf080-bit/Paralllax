@@ -92,6 +92,12 @@ const elements: EditorElements = {
   overviewCanvas: byId<HTMLCanvasElement>('overview-canvas'),
   overviewPlay: byId('overview-play'),
   overviewTime: byId('overview-time'),
+  spectrumToggle: byId('spectrum-toggle'),
+  spectrumPanel: byId('spectrum-panel'),
+  spectrumCanvas: byId<HTMLCanvasElement>('spectrum-canvas'),
+  spectrumClose: byId('spectrum-close'),
+  spectrumTime: byId('spectrum-time'),
+  spectrumStatus: byId('spectrum-status'),
 };
 
 const controller = new EditorController(elements);

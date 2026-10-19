@@ -7,7 +7,6 @@ import {
   chartLimits,
   noteHeight,
   noteX,
-  NOTE_HEIGHT,
   type ArcNote as ChartArcNote,
   type Chart,
   type DragNote as ChartDragNote,
@@ -511,7 +510,12 @@ export function createPlayer(
     }
   }
 
-  function updateHold(note: Extract<RuntimeNote, { kind: 'hold' }>, dt: number, hands: HandSample[]): void {
+  function updateHold(
+    note: Extract<RuntimeNote, { kind: 'hold' }>,
+    dt: number,
+    hands: HandSample[],
+    auto = false,
+  ): void {
     const x = xOf(note.chart);
     const y = yOf(note.chart);
     const headZ = zAt(note.chart.time, clockMs);
@@ -546,15 +550,19 @@ export function createPlayer(
     note.strip.scale.z = Math.max(litLength, 0.001);
     note.strip.position.z = litStart - far + litLength / 2;
 
-    const contact = hands.find(
-      (hand) =>
-        hand.pressed &&
-        hand.active &&
-        Math.abs(hand.position.x - x) <= 0.13 &&
-        Math.abs(hand.position.y - y) <= 0.26 &&
-        hand.position.z >= far - 0.05 &&
-        hand.position.z <= near + 0.05,
-    );
+    const contactHand = auto
+      ? null
+      : hands.find(
+          (hand) =>
+            hand.pressed &&
+            hand.active &&
+            Math.abs(hand.position.x - x) <= 0.13 &&
+            Math.abs(hand.position.y - y) <= 0.26 &&
+            hand.position.z >= far - 0.05 &&
+            hand.position.z <= near + 0.05,
+        );
+    const contact = auto || contactHand !== null;
+    const side: HandSide = contactHand?.side ?? note.chart.hand ?? 'none';
 
     const targetGlow = contact ? 1 : 0;
     note.glow += (targetGlow - note.glow) * Math.min(1, dt * 12);
@@ -570,12 +578,21 @@ export function createPlayer(
 
     for (const tick of note.ticks) {
       if (tick.resolved) continue;
+      if (auto) {
+        if (clockMs < tick.time) continue;
+        tick.held = true;
+        tick.resolved = true;
+        notePerfect(side, 0, new THREE.Vector3(x, y, geometry.bandZ), 1);
+        shatterDirection.set(0, 1, 0);
+        shatter.spawn(new THREE.Vector3(x, y + 0.026, geometry.bandZ), shatterDirection, 0xbfe9ff, 4);
+        continue;
+      }
       const windowMs = note.tickWindow * 1000;
       const offsetMs = clockMs - tick.time;
       if (Math.abs(offsetMs) <= windowMs / 2) {
         if (!tick.held && contact) {
           tick.held = true;
-          notePerfect(contact.side, 0, new THREE.Vector3(x, y, geometry.bandZ), 1);
+          notePerfect(side, 0, new THREE.Vector3(x, y, geometry.bandZ), 1);
           shatterDirection.set(0, 1, 0);
           shatter.spawn(new THREE.Vector3(x, y + 0.026, geometry.bandZ), shatterDirection, 0xbfe9ff, 4);
         }
@@ -630,79 +647,15 @@ export function createPlayer(
     }
   }
 
-  // —— 自动演示 ——
-  const ghost = new THREE.Mesh(
-    new THREE.SphereGeometry(0.022, 16, 16),
-    new THREE.MeshBasicMaterial({ color: 0xa8e8ff, transparent: true, opacity: 0.75, toneMapped: false }),
-  );
-  ghost.visible = false;
-  group.add(ghost);
-  const ghostPosition = new THREE.Vector3(0, params.tableHeight + NOTE_HEIGHT.hit, geometry.bandZ);
-  const ghostPrev = new THREE.Vector3().copy(ghostPosition);
-  const ghostVelocity = new THREE.Vector3();
-  const autoSample: HandSample = {
-    side: 'none',
-    source: 'xr',
-    position: ghostPosition,
-    velocity: ghostVelocity,
-    active: true,
-    pressed: true,
-    swing: 0.3,
-    ray: null,
-  };
-
-  function updateGhost(dt: number): HandSample | null {
-    if (!settings.auto) {
-      ghost.visible = false;
-      return null;
-    }
-
-    // 找下一颗还没判定的、离当前时间最近的物件。
-    let best: RuntimeNote | null = null;
-    let bestDelta = Infinity;
-    for (const note of runtime) {
-      if (note.resolved) continue;
-      const time = note.kind === 'arc' ? note.chart.time : note.chart.time;
-      const delta = time - clockMs;
-      if (delta < -200) continue;
-      if (Math.abs(delta) < Math.abs(bestDelta)) {
-        best = note;
-        bestDelta = delta;
-      }
-    }
-
-    let target: THREE.Vector3 | null = null;
-    let side: HandSide = 'none';
-    if (best) {
-      if (best.kind === 'arc') {
-        target = best.arc.pointAt(clockMs);
-        side = best.chart.hand;
-      } else if (best.kind === 'hold') {
-        target = new THREE.Vector3(xOf(best.chart), yOf(best.chart), geometry.bandZ);
-        side = 'none';
-      } else {
-        target = new THREE.Vector3(xOf(best.chart), yOf(best.chart), geometry.bandZ);
-        side = best.chart.hand ?? 'none';
-      }
-    }
-
-    if (target) ghostPosition.lerp(target, Math.min(1, dt * 18));
-    ghostVelocity.copy(ghostPosition).sub(ghostPrev).divideScalar(Math.max(dt, 1e-4));
-    ghostPrev.copy(ghostPosition);
-    autoSample.side = side;
-    autoSample.swing = 0.35;
-
-    // dev 演示：到点的一瞬间补一下挥击速度（自动演示不是判定测试）。
-    if (best && best.kind !== 'arc' && Math.abs(best.chart.time - clockMs) <= 120) {
-      const dx = Math.abs(ghostPosition.x - xOf(best.chart));
-      if (dx < 0.1) {
-        ghostVelocity.set(0, best.kind === 'hit' ? -3 : 0, best.kind === 'hit' ? 0 : -1.4);
-      }
-    }
-
-    ghost.visible = true;
-    ghost.position.copy(ghostPosition);
-    return autoSample;
+  /** 自动演示：到点直接完美，不再模拟手。 */
+  function judgeAuto(note: Extract<RuntimeNote, { kind: 'hit' | 'drag' }>): void {
+    if (clockMs < note.chart.time) return;
+    note.resolved = true;
+    note.group.visible = false;
+    const at = new THREE.Vector3(xOf(note.chart), yOf(note.chart), geometry.bandZ);
+    notePerfect(note.chart.hand ?? 'none', 0, at, 1);
+    shatterDirection.set(0, 1, 0);
+    shatter.spawn(at, shatterDirection, 0xdfefff, 10);
   }
 
   return {
@@ -753,14 +706,13 @@ export function createPlayer(
       // 时间来自音频时钟（唯一权威）；没有音频时退回逐帧累加。
       clockMs = timeSource ? timeSource() : clockMs + dt * 1000;
       windowValue = timeline.windowAt(clockMs);
-      const auto = updateGhost(dt);
-      const samples = auto ? [...hands, auto] : hands;
+      const samples = hands;
 
       for (const note of runtime) {
         updateVisibility(note);
 
         if (note.kind === 'arc') {
-          for (const event of note.arc.update(clockMs, samples)) handleArcEvent(event);
+          for (const event of note.arc.update(clockMs, samples, settings.auto)) handleArcEvent(event);
           const lastTick = note.arc.ticks[note.arc.ticks.length - 1];
           if (lastTick && clockMs > lastTick.time + 300) {
             note.resolved = true;
@@ -770,6 +722,11 @@ export function createPlayer(
         }
 
         if (note.resolved) continue;
+        if (settings.auto) {
+          if (note.kind === 'hold') updateHold(note, dt, samples, true);
+          else judgeAuto(note);
+          continue;
+        }
         if (note.kind === 'hit') judgeHit(note, samples);
         else if (note.kind === 'drag') judgeDrag(note, samples);
         else updateHold(note, dt, samples);
@@ -823,8 +780,6 @@ export function createPlayer(
       holdAuraGeometry.dispose();
       shatter.dispose();
       popup.dispose();
-      ghost.geometry.dispose();
-      (ghost.material as THREE.Material).dispose();
       group.clear();
     },
   };

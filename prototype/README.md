@@ -41,6 +41,7 @@ npm run dev
 - shift 用背景色带表示当时的 4 轨窗口；SV 点击加点、拖动改倍率；波形放在 2D 最底下；
 - 时间吸附含 3 连 / 5 连 / 附点 / 1/32 / 1/24；`Ctrl` 临时自由；
 - 导入本地音频、看波形、调 `meta.offset`；FLAC / MP3 自动读封面 / 标题 / 作者；
+- `SPECTRUM` 可展开音频频谱，点击 / 拖动定位时间，收起后播放头不跳；
   时长默认音频长度，可手改；
 - 预览支持自动打、暂停、0.25×–2×、倒放、FOLLOW；
 - 导出 `<title>.parallax` 单文件谱面包（谱面 + 音轨 + 封面 + 资源），也可单独导出 JSON；草稿自动存 localStorage；
@@ -128,7 +129,7 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 ## 游戏 dev 参数
 
 `?chart=demo` 12s 示例 · `?chart=/charts/example.json` 外部谱面 ·
-`?chart=/charts/air-example.json` 空中 note / 显式 arc 物量 · `?auto=1` 自动演示 ·
+`?chart=/charts/air-example.json` 空中 note / 显式 arc 物量 · `?auto=1` 自动完美演示 ·
 `?freeze=1` 冻结 · `?warp=2.4` 快进 · `?flow=4` 流速 · `?shift=left|right` ·
 `?panel=settings|result` 摊开面板 · `?clock=0` 关掉音频时钟 ·
 `?offset=20&volume=0.6&lead=2000` 音频参数 · `?audio=/track.mp3` 真实音轨 ·
@@ -175,7 +176,7 @@ prototype/
 
 - **72fps**：还没在头显里实测（桌面无头渲染没有参考价值）。
 - **音频**：「调度路径」验过，听感需要戴上确认；偏早 / 偏晚用 `AUDIO OFFSET` 微调。
-- 自动演示会漏键（它只是贴着目标点），手动打不受影响。
+- 自动演示现在是直接完美判定，不再模拟手。
 - 暂停时长按扳机再松手，可能顺带触发一次 UI 点击（面板和判定共用「按下」）。
 - 制谱器：音频 / 封面文件不持久化到草稿，但会进 `.parallax` 包；慢放 / 倒放静音；多选只覆盖 note；没有框选 / 复制粘贴 / 自动 BPM 检测；
   3D 里 arc 点的时间仍要在 2D / 检查器改。

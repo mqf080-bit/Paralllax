@@ -10,7 +10,7 @@
       <header class="topbar">
         <div class="brand">
           <span class="brand__mark">PARALLAX</span>
-          <span class="brand__sub">CHART EDITOR · v0.2.0</span>
+          <span class="brand__sub">CHART EDITOR · v0.3.0</span>
         </div>
 
         <div class="topbar__group">
@@ -35,6 +35,7 @@
           <label class="check"><input id="grid" type="checkbox" checked /><span>SNAP XZ</span></label>
           <button id="edit3d" class="button button--small is-active" type="button">3D EDIT</button>
           <button id="toggle-2d" class="button button--small is-active" type="button">2D</button>
+          <button id="spectrum-toggle" class="button button--small" type="button" title="展开音频频谱定位">SPECTRUM</button>
           <button id="zoom-out" class="button button--small" type="button">−</button>
           <button id="zoom-in" class="button button--small" type="button">＋</button>
           <button id="fit" class="button button--small" type="button">FIT</button>
@@ -95,6 +96,18 @@
 
         <aside id="inspector" class="inspector" aria-label="检查器"></aside>
       </main>
+
+      <section id="spectrum-panel" class="spectrum" hidden aria-label="音频频谱">
+        <header class="spectrum__head">
+          <span class="spectrum__title">SPECTRUM</span>
+          <span id="spectrum-time" class="spectrum__time">—</span>
+          <span id="spectrum-status" class="spectrum__status">CLICK / DRAG TO SEEK</span>
+          <button id="spectrum-close" class="button button--small" type="button">CLOSE ×</button>
+        </header>
+        <div class="spectrum__body">
+          <canvas id="spectrum-canvas"></canvas>
+        </div>
+      </section>
 
       <footer class="overview">
         <div class="overview__controls">

@@ -60,7 +60,7 @@ export interface ArcNote {
   group: THREE.Group;
   hand: HandSide;
   ticks: ArcTick[];
-  update(clockMs: number, hands: HandSample[]): ArcEvent[];
+  update(clockMs: number, hands: HandSample[], auto?: boolean): ArcEvent[];
   /** 自动演示用：当前判定点的世界坐标。 */
   pointAt(clockMs: number): THREE.Vector3;
   dispose(): void;
@@ -260,7 +260,7 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
       return new THREE.Vector3(xy.x, xy.y, spec.bandZ);
     },
 
-    update(clockMs: number, hands: HandSample[]): ArcEvent[] {
+    update(clockMs: number, hands: HandSample[], auto = false): ArcEvent[] {
       const events: ArcEvent[] = [];
       const tRel = THREE.MathUtils.clamp(clockMs - start, 0, duration);
       const local = localAt(tRel);
@@ -301,6 +301,20 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
 
       for (const tick of ticks) {
         if (tick.resolved) continue;
+        if (auto) {
+          // 自动演示不模拟手：物量到达判定线就直接 PERFECT。
+          if (clockMs < tick.time) continue;
+          tick.held = true;
+          tick.resolved = true;
+          const at = xyAt(tick.time - start);
+          events.push({
+            type: 'held',
+            key: tick.key,
+            position: new THREE.Vector3(at.x, at.y, spec.bandZ),
+            side: spec.hand,
+          });
+          continue;
+        }
         const windowMs = tick.key ? KEY_WINDOW_MS : NORMAL_WINDOW_MS;
         const radius = tick.key ? KEY_RADIUS : NORMAL_RADIUS;
         const offsetMs = clockMs - tick.time;

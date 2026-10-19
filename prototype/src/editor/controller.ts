@@ -6,6 +6,7 @@ import { extractAudioMetadata, type AudioMetadata } from '../audio/metadata';
 import { deleteSelection as deleteSelectionImpl, attachInteraction, type EditorHost } from './interaction';
 import { Inspector, type InspectorHost } from './inspector';
 import { OverviewTimeline } from './overview';
+import { SpectrumPanel } from './spectrum';
 import { createPreview, type Preview, type PreviewState } from './preview';
 import * as persistence from './persistence';
 import type { CoverAsset } from './persistence';
@@ -92,6 +93,12 @@ export interface EditorElements {
   chartFile: HTMLInputElement;
   overviewCanvas: HTMLCanvasElement;
   overviewPlay: HTMLButtonElement;
+  spectrumToggle: HTMLButtonElement;
+  spectrumPanel: HTMLElement;
+  spectrumCanvas: HTMLCanvasElement;
+  spectrumClose: HTMLButtonElement;
+  spectrumTime: HTMLElement;
+  spectrumStatus: HTMLElement;
   overviewTime: HTMLElement;
 }
 
@@ -135,6 +142,7 @@ export class EditorController implements EditorHost, InspectorHost {
   private readonly preview: Preview;
   private readonly inspector: Inspector;
   private readonly overview: OverviewTimeline;
+  private readonly spectrum: SpectrumPanel;
   private readonly detachInteraction: () => void;
   private readonly resizeObserver: ResizeObserver;
   private timeline: Timeline;
@@ -207,6 +215,33 @@ export class EditorController implements EditorHost, InspectorHost {
     );
     this.inspector = new Inspector(elements.inspectorHost, this);
     this.overview = new OverviewTimeline(elements.overviewCanvas, this);
+    const self = this;
+    this.spectrum = new SpectrumPanel(
+      {
+        panel: elements.spectrumPanel,
+        canvas: elements.spectrumCanvas,
+        toggle: elements.spectrumToggle,
+        close: elements.spectrumClose,
+        time: elements.spectrumTime,
+        status: elements.spectrumStatus,
+      },
+      {
+        get view() {
+          return self.view;
+        },
+        get playhead() {
+          return self.playhead;
+        },
+        get audioFile() {
+          return self.audioFile;
+        },
+        get audioDurationMs() {
+          return self.audioDurationMs;
+        },
+        seek: (timeMs) => self.seek(timeMs),
+        setView: (view) => self.setView(view),
+      },
+    );
     this.detachInteraction = attachInteraction(elements.canvas, this);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
@@ -338,6 +373,7 @@ export class EditorController implements EditorHost, InspectorHost {
     this.resizeObserver.disconnect();
     this.detachInteraction();
     this.overview.dispose();
+    this.spectrum.dispose();
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('beforeunload', this.onBeforeUnload);
     if (this.previewTimer !== null) window.clearTimeout(this.previewTimer);
@@ -725,6 +761,7 @@ export class EditorController implements EditorHost, InspectorHost {
           this.setCoverData(null);
         }
       }
+      this.fitView();
       this.preview.setOffset(this.chart.meta.offset);
       this.commit({ preview: false });
       if (announce) this.showToast(`音频已载入 · ${file.name} · ${formatTime(this.audioLengthMs ?? 0)}`);
@@ -1039,6 +1076,7 @@ export class EditorController implements EditorHost, InspectorHost {
       this.renderer.setPlayhead(state.timeMs);
       this.renderer.render();
       this.overview.render();
+      this.spectrum.render();
       this.lastUiTime = state.timeMs;
       this.uiDirty = false;
     }
