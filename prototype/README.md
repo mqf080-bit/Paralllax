@@ -1,6 +1,6 @@
 # Parallax — prototype
 
-Phase 1 的 WebXR 原型。**v0.2.0 / Step 0–5 已完成**：游戏可玩，桌面制谱器可用。
+Phase 1 的 WebXR 原型。**v0.3.11 / Step 0–5 已完成并验收**：游戏可玩，桌面制谱器可用；Quest 3 实测 72Hz+。
 
 > 项目总览：[`../README.md`](../README.md) ｜ 谱面格式：[`CHART.md`](CHART.md) ｜
 > 制谱器：[`EDITOR.md`](EDITOR.md) ｜ 谱面包：[`PACKAGE.md`](PACKAGE.md) ｜ 迭代记录：[`STATUS.md`](STATUS.md)

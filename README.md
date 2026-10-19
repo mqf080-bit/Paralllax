@@ -7,6 +7,24 @@ VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处�
 
 ---
 
+## 截图
+
+| 制谱器（v0.3.11） | 游戏（Infinity Heaven 谱面包） |
+| --- | --- |
+| ![Parallax 制谱器](docs/images/editor.jpg) | ![Parallax 游戏画面](docs/images/game.png) |
+
+## 状态
+
+**Phase 1 基础 prototyping 已结束（2026-10-19）。**
+
+- WebXR 游戏原型可玩，Quest 3 头显实测 **72Hz+**；
+- 桌面制谱器已能完成从导入音频、制谱、频谱定位到导出 `.parallax` 的完整流程；
+- 当前版本 **0.3.11**；
+- 下一步进入 Unity 时，编辑器的 3D 预览定位、包 / 资源库方案见
+  [`prototype/FUTURE.md`](prototype/FUTURE.md)。
+
+---
+
 ## 快速使用（v0.3.11）
 
 ### 1. 启动
@@ -81,7 +99,7 @@ theme/ background/   提前预留的资源（游戏暂未消费）
 | 2 | 四种键型 + 判定 | ✅ |
 | 3 | shift（4 轨窗口整体滑动） | ✅ |
 | 4 | 谱面播放 / 流速 / 渲染裁剪 / 音频 / UI | ✅ Quest 3 头显实测 **72Hz+** |
-| 5 | 简易制谱器 | ✅ **v0.3.11** 独立页面 `/editor.html`；支持空中 note / x,z、3D arc 编辑、多选、封面 / 时长、单文件 `.parallax`，待验收 |
+| 5 | 简易制谱器 | ✅ **v0.3.11** 独立页面 `/editor.html`；空中 note / x,z、3D arc 编辑、多选、封面 / 时长、单文件 `.parallax`；**已验收** |
 
 已经能完整打一首 41.6 秒的谱（两次 shift、四种键型、SV 变速），有计分、血条、结算、暂停和设置；
 也能在桌面制谱器里写谱、导入音频对 offset、用同一个播放器预览并导出单文件 `.parallax`。
@@ -263,10 +281,8 @@ prototype/
 
 ## 已知问题
 
-- **72fps**：Quest 3 头显实测 72Hz+（用户验收）。
 - **音频**：调度路径验过（`playing · 16–24ms`），但「听感对不对」需要戴上去确认；
   偏早 / 偏晚用设置里的 `AUDIO OFFSET` 微调。
-- 自动演示现在是直接完美判定，不再模拟手。
 - 暂停时长按扳机再松手，可能顺带触发一次 UI 点击（面板和判定共用「按下」）。
 - 制谱器：音频 / 封面文件不持久化到草稿，但会进 `.parallax` 包；多选只覆盖 note；没有框选 / 复制粘贴 / 自动 BPM 检测；
   慢放和倒放是静音的（AudioContext 不能倒退）；3D 里 arc 点的时间仍要在 2D / 检查器改；
@@ -275,5 +291,5 @@ prototype/
 
 ## 下一步
 
-Step 5 已完成，等你用制谱器做一段谱并验收。之后按 `agent.md` §12 讨论 Phase 2
-（Unity + Chart Editor Web UI），不在 Phase 1 里提前做。
+Phase 1 已验收。后续按 [`prototype/FUTURE.md`](prototype/FUTURE.md) 推进 Unity /
+资源库：先抽玩法契约和 golden tests，再做 Unity importer、工作区与共享资源索引。

@@ -1611,3 +1611,11 @@ hold 的头在左边、身体 / 尾端还在视口里时，整条 hold 就被提
 说明：桌面 headless 没有真实音频输出，offset 的主观听感同步未验证；已确认谱面 offset
 被正确传进游戏音频设置，且 playhead 不再被 offset 拉走。VR 的加载链路与桌面相同，
 但没有头显实测。
+
+## 55. Phase 1 验收（2026-10-19）
+
+- Quest 3 头显实测 **72Hz+**；
+- 制谱器 / 谱面包 / 本地加载流程已验收；
+- 基础 prototyping 阶段结束。
+
+后续 Unity、3D 预览跟进和资源库方案见 [`FUTURE.md`](FUTURE.md)。
