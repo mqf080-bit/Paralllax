@@ -34,6 +34,9 @@ const GUTTER = 52;
 const TOP = 8;
 const BOTTOM = 22;
 const DPR = 1.5;
+/** 频谱底图按时间切块缓存；平移时只补新进入视口的块。 */
+const TILE_PX = 512;
+const TILE_LIMIT = 48;
 
 // 参考 DAW 的暖色热图：黑 → 紫 → 红 → 橙 → 黄白。
 const STOP_COLORS: Array<[number, number, number]> = [
@@ -73,6 +76,9 @@ export class SpectrumPanel {
   private readonly ctx: CanvasRenderingContext2D;
   private readonly overlay: HTMLCanvasElement;
   private readonly overlayCtx: CanvasRenderingContext2D;
+  private tiles = new Map<number, HTMLCanvasElement>();
+  private tileScale = '';
+  private tileData: Spectrogram | null = null;
   private open = false;
   private data: Spectrogram | null = null;
   private source: HTMLCanvasElement | null = null;
@@ -87,6 +93,10 @@ export class SpectrumPanel {
   private lastOverlaySignature = '';
   private lastTimeText = '';
   private lastStatusText = '';
+  private wheelRaf = 0;
+  private wheelDelta = 0;
+  private wheelZoom = false;
+  private wheelX = 0;
 
   constructor(
     private readonly elements: SpectrumElements,
@@ -131,6 +141,7 @@ export class SpectrumPanel {
     if (!open) {
       this.dragging = false;
       this.hover = null;
+      this.cancelWheel();
       this.lastBaseSignature = '';
       this.lastOverlaySignature = '';
       return;
@@ -149,6 +160,7 @@ export class SpectrumPanel {
     this.loading = false;
     this.progress = 0;
     this.error = '';
+    this.clearTiles();
     this.lastBaseSignature = '';
     this.lastOverlaySignature = '';
     if (this.open) this.render(true);
@@ -201,6 +213,7 @@ export class SpectrumPanel {
       if (token !== this.token) return;
       this.data = data;
       this.source = this.renderSource(data);
+      this.clearTiles();
       this.loading = false;
       this.progress = 1;
       this.error = '';
@@ -237,6 +250,83 @@ export class SpectrumPanel {
     }
     ctx.putImageData(image, 0, 0);
     return canvas;
+  }
+
+  private clearTiles(): void {
+    this.tiles.clear();
+    this.tileScale = '';
+    this.tileData = null;
+  }
+
+  private drawSpectrumTiles(
+    ctx: CanvasRenderingContext2D,
+    left: number,
+    top: number,
+    plotHeight: number,
+    viewStart: number,
+    viewEnd: number,
+    localPx: number,
+  ): void {
+    const data = this.data;
+    const source = this.source;
+    if (!data || !source) return;
+    const duration = Math.max(1, data.durationMs);
+    if (viewEnd <= 0 || viewStart >= duration) return;
+
+    const scale = `${localPx.toFixed(6)}|${plotHeight.toFixed(2)}|${data.frames}|${data.bins}|${data.durationMs}`;
+    if (scale !== this.tileScale || data !== this.tileData) {
+      this.tiles.clear();
+      this.tileScale = scale;
+      this.tileData = data;
+    }
+
+    const tileMs = TILE_PX / Math.max(1e-6, localPx);
+    const first = Math.max(0, Math.floor(Math.max(0, viewStart) / tileMs));
+    const last = Math.min(
+      Math.max(0, Math.ceil(duration / tileMs) - 1),
+      Math.floor(Math.min(duration, viewEnd) / tileMs),
+    );
+    for (let index = first; index <= last; index += 1) {
+      const tile = this.tileAt(index, tileMs, plotHeight);
+      if (!tile) continue;
+      const x = left + (index * tileMs - viewStart) * localPx;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(tile, x, top, TILE_PX, plotHeight);
+    }
+  }
+
+  private tileAt(index: number, tileMs: number, plotHeight: number): HTMLCanvasElement | null {
+    const data = this.data;
+    const source = this.source;
+    if (!data || !source) return null;
+    const cached = this.tiles.get(index);
+    if (cached) return cached;
+
+    const duration = Math.max(1, data.durationMs);
+    const tileStart = index * tileMs;
+    const tileEnd = Math.min(duration, tileStart + tileMs);
+    if (tileEnd <= tileStart) return null;
+    const widthPx = (tileEnd - tileStart) / tileMs * TILE_PX;
+    const tile = document.createElement('canvas');
+    tile.width = Math.max(1, Math.round(TILE_PX * DPR));
+    tile.height = Math.max(1, Math.round(plotHeight * DPR));
+    const ctx = tile.getContext('2d');
+    if (!ctx) return null;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, TILE_PX, plotHeight);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    const sx = (tileStart / duration) * data.frames;
+    const sw = Math.max(1, ((tileEnd - tileStart) / duration) * data.frames);
+    ctx.drawImage(source, sx, 0, sw, data.bins, 0, 0, widthPx, plotHeight);
+
+    if (this.tiles.size >= TILE_LIMIT) {
+      const oldest = this.tiles.keys().next().value;
+      if (oldest !== undefined) this.tiles.delete(oldest);
+    }
+    this.tiles.set(index, tile);
+    return tile;
   }
 
   private durationMs(): number {
@@ -342,18 +432,7 @@ export class SpectrumPanel {
     const viewEnd = viewStart + plotWidth / Math.max(1e-6, localPx);
 
     if (this.data && this.source) {
-      const duration = Math.max(1, this.data.durationMs);
-      const start = Math.max(0, viewStart);
-      const end = Math.min(duration, viewEnd);
-      if (end > start) {
-        const sx = (start / duration) * this.data.frames;
-        const sw = Math.max(1, ((end - start) / duration) * this.data.frames);
-        const dx = left + (start - viewStart) * localPx;
-        const dw = Math.max(1, (end - start) * localPx);
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(this.source, sx, 0, sw, this.data.bins, dx, top, dw, plotHeight);
-      }
+      this.drawSpectrumTiles(ctx, left, top, plotHeight, viewStart, viewEnd, localPx);
     }
 
     // 频率网格 + 刻度
@@ -485,6 +564,7 @@ export class SpectrumPanel {
 
   dispose(): void {
     this.token += 1;
+    this.cancelWheel();
     this.elements.toggle.removeEventListener('click', this.onToggle);
     this.elements.close.removeEventListener('click', this.onClose);
     this.elements.canvas.removeEventListener('pointerdown', this.onPointerDown);
@@ -493,6 +573,7 @@ export class SpectrumPanel {
     this.elements.canvas.removeEventListener('pointercancel', this.onPointerUp);
     this.elements.canvas.removeEventListener('pointerleave', this.onPointerLeave);
     this.elements.canvas.removeEventListener('wheel', this.onWheel);
+    this.clearTiles();
     this.overlay.remove();
   }
 
@@ -546,18 +627,47 @@ export class SpectrumPanel {
     if (!this.open) return;
     event.preventDefault();
     const rect = this.elements.canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const zoom = event.ctrlKey || event.metaKey;
-    if (zoom) {
-      const factor = Math.exp(-event.deltaY * 0.0015);
-      const next = Math.min(3, Math.max(0.001, this.host.view.pxPerMs * factor));
-      const time = this.host.view.start + (x - GUTTER) / this.localPx();
-      const nextPx = (this.elements.canvas.clientWidth - GUTTER - 12) / (this.host.viewSpanMs / factor);
-      this.host.setView({ pxPerMs: next, start: time - (x - GUTTER) / nextPx });
-    } else {
-      this.host.setView({ start: this.host.view.start + event.deltaY / this.localPx() });
+    this.wheelX = event.clientX - rect.left;
+    this.wheelZoom = event.ctrlKey || event.metaKey;
+    const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
+    this.wheelDelta += event.deltaY * unit;
+    this.lastOverlaySignature = '';
+    if (this.wheelRaf === 0) {
+      this.wheelRaf = requestAnimationFrame(this.flushWheel);
     }
+  };
+
+  /** 触摸板一帧能发几十个 wheel；合并到一帧一次 setView / 一次重绘。 */
+  private readonly flushWheel = (): void => {
+    this.wheelRaf = 0;
+    if (!this.open) {
+      this.wheelDelta = 0;
+      return;
+    }
+    const delta = this.wheelDelta;
+    this.wheelDelta = 0;
+    if (delta === 0) return;
+    const view = this.host.view;
+    if (this.wheelZoom) {
+      const factor = Math.exp(-delta * 0.0015);
+      const next = Math.min(3, Math.max(0.001, view.pxPerMs * factor));
+      const time = view.start + (this.wheelX - GUTTER) / this.localPx();
+      const nextPx = (this.elements.canvas.clientWidth - GUTTER - 12) / (this.host.viewSpanMs / factor);
+      this.host.setView({ pxPerMs: next, start: time - (this.wheelX - GUTTER) / nextPx });
+    } else {
+      this.host.setView({ start: view.start + delta / this.localPx() });
+    }
+    this.hover = this.timeAt(this.wheelX);
+    this.lastBaseSignature = '';
     this.lastOverlaySignature = '';
     this.render(true);
   };
+
+  private cancelWheel(): void {
+    if (this.wheelRaf !== 0) {
+      cancelAnimationFrame(this.wheelRaf);
+      this.wheelRaf = 0;
+    }
+    this.wheelDelta = 0;
+  }
 }
