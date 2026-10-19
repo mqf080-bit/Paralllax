@@ -171,17 +171,24 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
     drum = createDrumKit({ metronome: false, groove: settings.groove ?? true, level: 1 });
   }
 
-  /** 把一个音轨缓冲区挂到当前谱面时间上。 */
-  function startTrack(chartMs: number): void {
+  /**
+   * 从音轨内容的某个位置开始播放。
+   *
+   * `contentMs` 是不含 offset 的 raw 谱面时间：offset 只负责把音频内容
+   * 相对谱面平移，不应该让 playhead 跳时间。`delayS` 给起播 / resume
+   * 留一点音频线程余量；负 content 表示先静音，等 raw 时间走到 0 再出声。
+   */
+  function startTrack(contentMs: number, delayS = 0): void {
     if (!ctx || !master || !trackBuffer) return;
     stopTrack();
-    const startChart = Math.max(0, chartMs);
-    if (startChart / 1000 >= trackBuffer.duration) return;
+    const content = Math.max(0, contentMs);
+    if (content / 1000 >= trackBuffer.duration) return;
+    const waitS = Math.max(0, -contentMs) / 1000 + Math.max(0, delayS);
 
     const source = ctx.createBufferSource();
     source.buffer = trackBuffer;
     source.connect(master);
-    source.start(Math.max(ctx.currentTime, toCtxTime(startChart)), startChart / 1000);
+    source.start(ctx.currentTime + waitS, content / 1000);
     trackSource = source;
   }
 
@@ -248,10 +255,13 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
     play(fromMs = 0): void {
       ensureContext();
       if (ctx && ctx.state === 'suspended') void ctx.resume();
+      // raw = fromMs - offset；这样 now() 在起播瞬间正好等于 fromMs。
+      const raw = fromMs - settings.offsetMs;
+      const delay = isLive() ? START_DELAY : 0;
       state = 'playing';
-      stampAnchor(fromMs, isLive() ? START_DELAY : 0);
-      pausedAtMs = fromMs;
-      if (trackBuffer && isLive()) startTrack(fromMs);
+      stampAnchor(raw, delay);
+      pausedAtMs = raw;
+      if (trackBuffer && isLive()) startTrack(raw, delay);
     },
 
     pause(): void {
@@ -266,10 +276,11 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
       if (state !== 'paused') return;
       if (ctx && ctx.state === 'suspended') void ctx.resume();
       state = 'playing';
-      stampAnchor(pausedAtMs, isLive() ? START_DELAY : 0);
+      const delay = isLive() ? START_DELAY : 0;
+      stampAnchor(pausedAtMs, delay);
       // 暂停前已经排进音频图的那一小段（最多 LOOKAHEAD）会继续播，别重复排。
       scheduledToMs = pausedAtMs + LOOKAHEAD_MS;
-      if (trackBuffer && isLive()) startTrack(pausedAtMs);
+      if (trackBuffer && isLive()) startTrack(pausedAtMs, delay);
     },
 
     stop(): void {

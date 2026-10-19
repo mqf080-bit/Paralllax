@@ -553,8 +553,8 @@ export class TimelineRenderer {
         line.kind === 'bar'
           ? 'rgba(156, 180, 210, 0.24)'
           : line.kind === 'beat'
-            ? 'rgba(140,165,195,0.07)'
-            : COLORS.hairFaint;
+            ? 'rgba(150,175,205,0.11)'
+            : 'rgba(130,155,190,0.075)';
       ctx.beginPath();
       ctx.moveTo(x + 0.5, layout.lanesTop);
       ctx.lineTo(x + 0.5, layout.lanesTop + layout.lanesH);
@@ -1142,7 +1142,7 @@ export class TimelineRenderer {
     const ctx = this.staticCtx;
     const { layout } = state;
     ctx.save();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.30)';
     ctx.setLineDash([2, 5]);
     for (const time of times) {
       const x = timeToX(state.view, time);
