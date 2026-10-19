@@ -618,7 +618,13 @@ export class TimelineRenderer {
     const ctx = this.staticCtx;
     const { layout, view } = state;
     const x = timeToX(view, note.time);
-    if (x < GUTTER - 40 || x > layout.width + 40) return;
+    const holdTailX = note.type === 'hold' ? timeToX(view, note.time + note.duration) : x;
+    if (note.type === 'hold') {
+      // hold 的头可能在视口左边很远；只要尾端还在视口附近，身体就要画。
+      if (holdTailX < GUTTER - 40 || x > layout.width + 40) return;
+    } else if (x < GUTTER - 40 || x > layout.width + 40) {
+      return;
+    }
     const y = laneToY(layout, noteX(note));
     if (y < layout.lanesTop || y > layout.lanesTop + layout.lanesH) return;
     const selected = isSelected(state, note);
@@ -648,18 +654,24 @@ export class TimelineRenderer {
       ctx.strokeStyle = 'rgba(8, 10, 16, 0.8)';
       ctx.stroke();
     } else if (note.type === 'hold') {
-      const tailX = timeToX(view, note.time + note.duration);
-      const width = Math.max(4, tailX - x);
-      ctx.fillStyle = 'rgba(191, 233, 247, 0.24)';
-      roundRect(ctx, x, y - 3, width, 6, 3);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(191, 233, 247, 0.55)';
-      ctx.stroke();
-      ctx.fillStyle = COLORS.hold;
-      roundRect(ctx, x - 4, y - 6.5, 8, 13, 2.5);
-      ctx.fill();
-      ctx.fillStyle = 'rgba(191, 233, 247, 0.8)';
-      ctx.fillRect(x - 1, y - 6.5, 2, 13);
+      const left = Math.max(GUTTER, x);
+      const right = Math.min(layout.width, holdTailX);
+      if (right > left) {
+        const width = Math.max(4, right - left);
+        ctx.fillStyle = 'rgba(191, 233, 247, 0.24)';
+        roundRect(ctx, left, y - 3, width, 6, 3);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(191, 233, 247, 0.55)';
+        ctx.stroke();
+      }
+      // 头部已经划出左边时，不在视口边缘硬画一个假头。
+      if (x >= GUTTER - 4 && x <= layout.width + 4) {
+        ctx.fillStyle = COLORS.hold;
+        roundRect(ctx, x - 4, y - 6.5, 8, 13, 2.5);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(191, 233, 247, 0.8)';
+        ctx.fillRect(x - 1, y - 6.5, 2, 13);
+      }
     }
 
     if (out) {
@@ -677,9 +689,12 @@ export class TimelineRenderer {
         ctx.arc(x, y, 10, 0, Math.PI * 2);
         ctx.stroke();
       } else if (note.type === 'hold') {
-        const tailX = timeToX(view, note.time + note.duration);
-        roundRect(ctx, x - 5, y - 8, Math.max(10, tailX - x + 10), 16, 4);
-        ctx.stroke();
+        const left = Math.max(GUTTER, x - 5);
+        const right = Math.min(layout.width, holdTailX + 5);
+        if (right > left) {
+          roundRect(ctx, left, y - 8, Math.max(10, right - left), 16, 4);
+          ctx.stroke();
+        }
       }
     }
 
@@ -862,16 +877,20 @@ export class TimelineRenderer {
     const y = heightToY(layout, domain, height);
     if (y < layout.heightTop - 4 || y > layout.heightTop + layout.heightH + 4) return;
     const x = timeToX(view, note.time);
-    if (x < GUTTER - 20 || x > layout.width + 20) return;
+    const holdTailX = note.type === 'hold' ? timeToX(view, note.time + note.duration) : x;
+    if (note.type === 'hold') {
+      if (holdTailX < GUTTER - 10 || x > layout.width + 10) return;
+    } else if (x < GUTTER - 20 || x > layout.width + 20) {
+      return;
+    }
 
     const selected = isSelected(state, note);
     const color = handColor(note.hand);
     ctx.save();
     if (note.type === 'hold') {
-      const tailX = timeToX(view, note.time + note.duration);
       const left = Math.max(GUTTER, x);
-      const right = Math.min(layout.width, tailX);
-      if (right < GUTTER - 10 || left > layout.width + 10) {
+      const right = Math.min(layout.width, holdTailX);
+      if (right <= left) {
         ctx.restore();
         return;
       }
@@ -883,10 +902,13 @@ export class TimelineRenderer {
       ctx.lineTo(right, y);
       ctx.stroke();
       ctx.globalAlpha = 1;
-      ctx.fillStyle = selected ? '#ffffff' : color;
-      ctx.beginPath();
-      ctx.arc(Math.min(Math.max(x, GUTTER), layout.width), y, selected ? 4.5 : 3, 0, Math.PI * 2);
-      ctx.fill();
+      // 头部在视口外时不要把它钳到边缘。
+      if (x >= GUTTER && x <= layout.width) {
+        ctx.fillStyle = selected ? '#ffffff' : color;
+        ctx.beginPath();
+        ctx.arc(x, y, selected ? 4.5 : 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
     } else {
       ctx.strokeStyle = selected ? '#ffffff' : color;
       ctx.lineWidth = selected ? 2 : 1.5;
