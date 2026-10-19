@@ -10,7 +10,7 @@
       <header class="topbar">
         <div class="brand">
           <span class="brand__mark">PARALLAX</span>
-          <span class="brand__sub">CHART EDITOR · v0.3.1</span>
+          <span class="brand__sub">CHART EDITOR · v0.3.2</span>
         </div>
 
         <div class="topbar__group">
@@ -73,6 +73,11 @@
                   <option value="1.5">1.5×</option>
                   <option value="2">2×</option>
                 </select>
+              </label>
+              <label class="transport__field" title="只影响 3D 视图的视觉流速；不改 SV、判定或音频">
+                <span class="topbar__label">3D SPEED</span>
+                <input id="view-speed" class="input input--range transport__speed" type="range" min="0.5" max="10" step="0.5" value="3" />
+                <span id="view-speed-value" class="transport__value">3.0 m/s</span>
               </label>
               <button id="reverse" class="button button--small" type="button">REV</button>
               <label class="check"><input id="auto" type="checkbox" checked /><span>AUTO</span></label>

@@ -9,7 +9,7 @@ import { createEnvironment } from '../materials/environment';
 import { createMaterialLibrary, type MaterialLibrary } from '../materials/library';
 import { buildBackdrop } from '../scene/backdrop';
 import { buildTable } from '../scene/table';
-import { createArcEditOverlay, type ArcAxis, type ArcEditOverlay } from './arcEdit';
+import { createArcEditOverlay, type ArcAxis, type ArcEditConfig, type ArcEditOverlay } from './arcEdit';
 import { arcDuration, chartSpan, sampleArcPoint, snapArcX, snapGroundX, snapSpatialY, X_GRID, Y_GRID, type ToolId } from './model';
 import { createTimeline, type Timeline } from '../chart/timeline';
 
@@ -30,6 +30,8 @@ export interface PreviewState {
   audioDriven: boolean;
   audioLive: boolean;
   trackName: string;
+  /** 3D 视图的视觉流速（m/s），不是谱面 SV。 */
+  flowSpeed: number;
   /** 没有音轨时是否在播合成鼓组。 */
   drums: boolean;
   error: string | null;
@@ -67,6 +69,8 @@ export interface Preview {
   toggle(): void;
   seek(timeMs: number): void;
   setRate(rate: number): void;
+  /** 只改 3D 视图的视觉流速；不动谱面 SV / 时间 / 音频。 */
+  setFlowSpeed(speed: number): void;
   setReverse(reverse: boolean): void;
   setAuto(auto: boolean): void;
   setVolume(volume: number): void;
@@ -200,13 +204,14 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
   const pointerNdc = new THREE.Vector2();
   const bandZ = table.geometry.bandZ;
   const placementPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -bandZ);
-  const arcOverlay: ArcEditOverlay = createArcEditOverlay({
+  const arcConfig: ArcEditConfig = {
     laneWidth: params.laneWidth,
     tableHeight: params.tableHeight,
     bandZ,
     baseSpeed: settings.flowSpeed,
     scroll: (time) => timeline.scrollDistance(time),
-  });
+  };
+  const arcOverlay: ArcEditOverlay = createArcEditOverlay(arcConfig);
   scene.add(arcOverlay.group);
   const gridGroup = new THREE.Group();
   gridGroup.name = 'edit-grid';
@@ -783,6 +788,16 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     if (audioDriven) pauseAudio();
   }
 
+  function setFlowSpeed(value: number): void {
+    const next = Math.min(10, Math.max(0.5, Math.round(value * 10) / 10));
+    if (next === settings.flowSpeed) return;
+    settings.flowSpeed = next;
+    arcConfig.baseSpeed = next;
+    // 只改视觉位置；播放时间、判定、SV 都不变。
+    playerDirty = true;
+    needsRender = true;
+  }
+
   function setReverse(value: boolean): void {
     if (value === reverse) return;
     reverse = value;
@@ -901,6 +916,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
         audioDriven,
         audioLive: audio.live,
         trackName: audio.trackName,
+        flowSpeed: settings.flowSpeed,
         drums: audio.settings.groove === true,
         error: audio.error,
       };
@@ -914,6 +930,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     },
     seek,
     setRate,
+    setFlowSpeed,
     setReverse,
     setAuto(auto: boolean): void {
       autoEnabled = auto;

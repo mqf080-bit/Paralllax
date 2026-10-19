@@ -67,6 +67,8 @@ export interface EditorElements {
   play: HTMLButtonElement;
   stop: HTMLButtonElement;
   rate: HTMLSelectElement;
+  viewSpeed: HTMLInputElement;
+  viewSpeedValue: HTMLElement;
   reverse: HTMLButtonElement;
   auto: HTMLInputElement;
   follow: HTMLInputElement;
@@ -191,6 +193,10 @@ export class EditorController implements EditorHost, InspectorHost {
     this.preview.setVolume(this.volume);
     this.preview.setAuto(elements.auto.checked);
     this.preview.setDrums(elements.drums.checked);
+    const savedSpeed = this.loadViewSpeed();
+    elements.viewSpeed.value = String(savedSpeed);
+    elements.viewSpeedValue.textContent = `${savedSpeed.toFixed(1)} m/s`;
+    this.preview.setFlowSpeed(savedSpeed);
     this.preview.setEditHooks({
       tool: () => this.tool,
       gridSnap: () => this.gridSnap,
@@ -330,6 +336,7 @@ export class EditorController implements EditorHost, InspectorHost {
       this.preview.seek(-1000);
     });
     this.elements.rate.addEventListener('change', () => this.preview.setRate(Number(this.elements.rate.value)));
+    this.elements.viewSpeed.addEventListener('input', () => this.setViewSpeed(Number(this.elements.viewSpeed.value)));
     this.elements.reverse.addEventListener('click', () => {
       this.preview.setReverse(!this.preview.state.reverse);
       this.syncTransportButtons();
@@ -978,6 +985,28 @@ export class EditorController implements EditorHost, InspectorHost {
       this.updateUi();
     }, 650);
     this.updateUi();
+  }
+
+  /** 3D 视图的视觉流速偏好：只影响预览观感，不写进谱面。 */
+  private loadViewSpeed(): number {
+    try {
+      const stored = Number(window.localStorage.getItem('parallax.editor.viewSpeed'));
+      if (Number.isFinite(stored) && stored >= 0.5 && stored <= 10) return stored;
+    } catch {
+      // localStorage 不可用就用默认值
+    }
+    return 3;
+  }
+
+  private setViewSpeed(value: number): void {
+    const speed = Math.min(10, Math.max(0.5, Math.round(value * 10) / 10));
+    this.preview.setFlowSpeed(speed);
+    this.elements.viewSpeedValue.textContent = `${speed.toFixed(1)} m/s`;
+    try {
+      window.localStorage.setItem('parallax.editor.viewSpeed', String(speed));
+    } catch {
+      // ignore
+    }
   }
 
   private updateToolButtons(): void {

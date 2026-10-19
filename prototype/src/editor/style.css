@@ -810,3 +810,18 @@ select {
   height: 100%;
   cursor: crosshair;
 }
+
+.transport__speed {
+  width: 72px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.transport__value {
+  min-width: 42px;
+  color: var(--ink-dim);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}

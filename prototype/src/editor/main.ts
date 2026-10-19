@@ -66,6 +66,8 @@ const elements: EditorElements = {
   stop: byId('stop'),
   rate: byId('rate'),
   reverse: byId('reverse'),
+  viewSpeed: byId<HTMLInputElement>('view-speed'),
+  viewSpeedValue: byId('view-speed-value'),
   auto: byId<HTMLInputElement>('auto'),
   follow: byId<HTMLInputElement>('follow'),
   drums: byId<HTMLInputElement>('drums'),
