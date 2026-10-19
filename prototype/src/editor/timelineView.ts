@@ -550,7 +550,11 @@ export class TimelineRenderer {
     for (const line of grid) {
       const x = timeToX(view, line.time);
       ctx.strokeStyle =
-        line.kind === 'bar' ? COLORS.hair : line.kind === 'beat' ? 'rgba(140,165,195,0.07)' : COLORS.hairFaint;
+        line.kind === 'bar'
+          ? 'rgba(156, 180, 210, 0.24)'
+          : line.kind === 'beat'
+            ? 'rgba(140,165,195,0.07)'
+            : COLORS.hairFaint;
       ctx.beginPath();
       ctx.moveTo(x + 0.5, layout.lanesTop);
       ctx.lineTo(x + 0.5, layout.lanesTop + layout.lanesH);
