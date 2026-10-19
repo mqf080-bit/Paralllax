@@ -1167,7 +1167,7 @@ export class TimelineRenderer {
     }
 
     ctx.fillStyle = COLORS.textFaint;
-    ctx.fillText(`${(view.pxPerMs * 1000).toFixed(0)}px/s`, GUTTER - 6, layout.heightTop + 9);
+    ctx.fillText(`${(view.pxPerMs * 1000).toFixed(0)}px/s`, GUTTER - 6, layout.rulerTop + 9);
   }
 
   private drawPlayhead(state: TimelineState): void {
