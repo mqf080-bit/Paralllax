@@ -3,7 +3,7 @@
 VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处沿 6 条轨道滑来，用手接住；
 台面只点亮其中 4 条轨，**窗口会随谱面整体左移 / 右移一轨**（shift）。
 
-> 版本：[`CHANGELOG.md`](CHANGELOG.md) ｜ 设计真相：[`parallax-idea.md`](parallax-idea.md) ｜ 施工协议：[`agent.md`](agent.md) ｜ 迭代记录：[`prototype/STATUS.md`](prototype/STATUS.md) ｜ 谱面格式：[`prototype/CHART.md`](prototype/CHART.md) ｜ 制谱器：[`prototype/EDITOR.md`](prototype/EDITOR.md) ｜ 谱面包：[`prototype/PACKAGE.md`](prototype/PACKAGE.md)
+> 版本：[`CHANGELOG.md`](CHANGELOG.md) ｜ 未来架构：[`prototype/FUTURE.md`](prototype/FUTURE.md) ｜ 设计真相：[`parallax-idea.md`](parallax-idea.md) ｜ 施工协议：[`agent.md`](agent.md) ｜ 迭代记录：[`prototype/STATUS.md`](prototype/STATUS.md) ｜ 谱面格式：[`prototype/CHART.md`](prototype/CHART.md) ｜ 制谱器：[`prototype/EDITOR.md`](prototype/EDITOR.md) ｜ 谱面包：[`prototype/PACKAGE.md`](prototype/PACKAGE.md)
 
 ---
 
@@ -80,7 +80,7 @@ theme/ background/   提前预留的资源（游戏暂未消费）
 | 1 | 台面 / 材质 / 光照 / 布局 | ✅ 台面最终是**一层平面** |
 | 2 | 四种键型 + 判定 | ✅ |
 | 3 | shift（4 轨窗口整体滑动） | ✅ |
-| 4 | 谱面播放 / 流速 / 渲染裁剪 / 音频 / UI | ✅ 只剩「72fps 实测」未记录 |
+| 4 | 谱面播放 / 流速 / 渲染裁剪 / 音频 / UI | ✅ Quest 3 头显实测 **72Hz+** |
 | 5 | 简易制谱器 | ✅ **v0.3.11** 独立页面 `/editor.html`；支持空中 note / x,z、3D arc 编辑、多选、封面 / 时长、单文件 `.parallax`，待验收 |
 
 已经能完整打一首 41.6 秒的谱（两次 shift、四种键型、SV 变速），有计分、血条、结算、暂停和设置；
@@ -263,7 +263,7 @@ prototype/
 
 ## 已知问题
 
-- **72fps**：还没在头显里实测（桌面无头渲染的帧率没有参考价值）。
+- **72fps**：Quest 3 头显实测 72Hz+（用户验收）。
 - **音频**：调度路径验过（`playing · 16–24ms`），但「听感对不对」需要戴上去确认；
   偏早 / 偏晚用设置里的 `AUDIO OFFSET` 微调。
 - 自动演示现在是直接完美判定，不再模拟手。
