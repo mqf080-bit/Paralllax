@@ -62,10 +62,11 @@ function colorAt(value: number): [number, number, number] {
 }
 
 function clockLabel(ms: number): string {
-  const value = Math.max(0, ms);
+  const sign = ms < 0 ? '-' : '';
+  const value = Math.abs(ms);
   const minutes = Math.floor(value / 60000);
   const seconds = (value % 60000) / 1000;
-  return `${minutes}:${seconds.toFixed(2).padStart(5, '0')}`;
+  return `${sign}${minutes}:${seconds.toFixed(2).padStart(5, '0')}`;
 }
 
 export class SpectrumPanel {
@@ -189,7 +190,9 @@ export class SpectrumPanel {
     for (let frame = 0; frame < data.frames; frame += 1) {
       for (let band = 0; band < data.bins; band += 1) {
         const center = data.data[frame * data.bins + band] ?? 0;
-        const value = Math.pow(center, 0.82);
+        // 频谱的噪声底很亮，直接线性映射会把整块画成黄色；用 gamma 把中低能量压暗，
+        // 只让真正的峰 / 谐波 / 瞬态亮起来。
+        const value = Math.pow(center, 2.2);
         const [r, g, b] = colorAt(value);
         const offset = (frame * data.bins + band) * 4;
         image.data[offset] = r;
