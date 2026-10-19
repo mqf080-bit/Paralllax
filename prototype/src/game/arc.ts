@@ -63,6 +63,8 @@ export interface ArcNote {
   update(clockMs: number, hands: HandSample[], auto?: boolean): ArcEvent[];
   /** 自动演示用：当前判定点的世界坐标。 */
   pointAt(clockMs: number): THREE.Vector3;
+  /** 只改视觉流速：几何按初始速度建，靠 z 缩放跟随新的 base speed。 */
+  setSpeed(speed: number): void;
   dispose(): void;
 }
 
@@ -110,6 +112,9 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   const points = [...spec.points].sort((a, b) => a.time - b.time);
   const duration = points[points.length - 1]?.time ?? 0;
   const start = spec.startTime;
+  /** 几何初始速度；后续调速只缩放 z，不重建曲线。 */
+  const geometrySpeed = spec.baseSpeed;
+  let baseSpeed = spec.baseSpeed;
 
   const toWorldX = (lane: number): number => (lane - 2.5) * spec.laneWidth;
   const toWorldY = (height: number): number => spec.tableHeight + height;
@@ -139,7 +144,7 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   function localAt(tRel: number): THREE.Vector3 {
     const t = Math.min(Math.max(tRel, 0), duration);
     const xy = xyAt(t);
-    const z = -((spec.scroll(start + t) - spec.scroll(start)) * spec.baseSpeed) / 1000;
+    const z = -((spec.scroll(start + t) - spec.scroll(start)) * geometrySpeed) / 1000;
     return new THREE.Vector3(xy.x, xy.y, z);
   }
 
@@ -260,19 +265,25 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
       return new THREE.Vector3(xy.x, xy.y, spec.bandZ);
     },
 
+    setSpeed(speed: number): void {
+      if (speed === baseSpeed || speed <= 0) return;
+      group.scale.z *= speed / baseSpeed;
+      baseSpeed = speed;
+    },
+
     update(clockMs: number, hands: HandSample[], auto = false): ArcEvent[] {
       const events: ArcEvent[] = [];
       const tRel = THREE.MathUtils.clamp(clockMs - start, 0, duration);
       const local = localAt(tRel);
 
-      group.position.z = spec.bandZ + ((spec.scroll(clockMs) - spec.scroll(start)) * spec.baseSpeed) / 1000;
+      group.position.z = spec.bandZ + ((spec.scroll(clockMs) - spec.scroll(start)) * baseSpeed) / 1000;
       head.position.copy(local);
       headHalo.position.copy(local);
 
       // 轨道和光点也要按距离淡出：arc 还没到的时候，光点会停在「管子的起点」，
       // 那是台面之外很远的地方 —— 不淡掉就是一颗悬在黑暗里的红点。
       const headFade = THREE.MathUtils.clamp(
-        (group.position.z + local.z - arcFade.far) / arcFade.span,
+        (group.position.z + local.z * (baseSpeed / geometrySpeed) - arcFade.far) / arcFade.span,
         0,
         1,
       );

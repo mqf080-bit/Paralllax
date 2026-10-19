@@ -69,6 +69,8 @@ export interface Player {
   readonly totalObjects: number;
   /** 用外部时钟（音频）驱动；传 null 退回「每帧累加 dt」。 */
   setTimeSource(source: (() => number) | null): void;
+  /** 只改 3D 视觉流速，不动谱面 SV / 判定。 */
+  setFlowSpeed(speed: number): void;
   update(dt: number, hands: HandSample[]): void;
   restart(): void;
   dispose(): void;
@@ -689,6 +691,13 @@ export function createPlayer(
 
     setTimeSource(source: (() => number) | null): void {
       timeSource = source;
+    },
+
+    setFlowSpeed(speed: number): void {
+      settings.flowSpeed = speed;
+      for (const note of runtime) {
+        if (note.kind === 'arc') note.arc.setSpeed(speed);
+      }
     },
 
     update(dt: number, hands: HandSample[]): void {

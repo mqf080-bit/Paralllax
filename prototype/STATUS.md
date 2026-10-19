@@ -1,7 +1,7 @@
 # prototype / STATUS
 
 > 更新：2026-10-18 22:10 CEST
-> 当前版本：**0.3.2** ｜ 当前 Step：**5 — 制谱器（第十轮修正已实现），待你验收**
+> 当前版本：**0.3.3** ｜ 当前 Step：**5 — 制谱器（第十轮修正已实现），待你验收**
 > 设计真相：`../parallax-idea.md`｜施工协议：`../agent.md`
 
 ---
@@ -1462,3 +1462,18 @@ prototype/public/packages/              # 示例 / 可直接用 URL 加载的包
 - 改速度时暂停也会立即重排 3D 位置；
 - 选中 arc 时，3D 编辑层同步使用新的视觉速度；
 - 2D 视图和导出的 `.parallax` 完全不受影响。
+
+### 45.1 arc 跟随 3D SPEED（0.3.3）
+
+arc 的曲线是按建谱时的 `baseSpeed` 烘焙的，之前只改了 player 的 `settings.flowSpeed`，
+所以 hit / drag / hold 会动，arc 不动。
+
+修复：
+
+- `ArcNote.setSpeed()` 保留初始几何，按新速度缩放整个 arc 的 `group.scale.z`；
+- 每帧的 `group.position.z` 用新的 base speed；
+- 头部淡出距离也按新的视觉 z 计算；
+- `Player.setFlowSpeed()` 遍历所有 arc 调用；
+- 选中 arc 时 3D 编辑层仍然用 `arcConfig.baseSpeed`，同步更新。
+
+现在 `3D SPEED` 会同时影响 hit / drag / hold / arc，且不碰 SV / 判定 / 音频。

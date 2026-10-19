@@ -793,6 +793,8 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     if (next === settings.flowSpeed) return;
     settings.flowSpeed = next;
     arcConfig.baseSpeed = next;
+    // arc 的曲线是按建谱时的基准速度烘焙的，这里让它同步缩放 z。
+    player.setFlowSpeed(next);
     // 只改视觉位置；播放时间、判定、SV 都不变。
     playerDirty = true;
     needsRender = true;
