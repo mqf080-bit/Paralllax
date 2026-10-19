@@ -377,7 +377,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       host.beginGesture();
       const note: Note =
         host.tool === 'hit'
-          ? { type: 'hit', time: snapped, lane: clampLane(Math.round(snappedX)), x: snappedX }
+          ? { type: 'hit', time: snapped, lane: clampLane(Math.round(snappedX)), x: snappedX, z: 0 }
           : { type: 'drag', time: snapped, lane: clampLane(Math.round(snappedX)), x: snappedX };
       host.chart.notes.push(note);
       host.select({ kind: 'note', note });

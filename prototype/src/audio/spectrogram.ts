@@ -3,8 +3,8 @@
  *
  * 这是给制谱器「看鼓点 / 钢琴 / lead」用的，不追求出版级精度：
  * - FFT 4096，Hann 窗，hop ≈ 20ms（约 78% overlap，DAW 式连续纹理）；
- * - 时间轴最多 8192 帧（153s → 每帧 ~20ms）；
- * - 频率轴 40Hz–16kHz，对数分成 512 条；
+ * - 时间轴最多 16384 帧（153s → 每帧 ~10ms）；
+ * - 频率轴 40Hz–16kHz，对数分成 1024 条；
  * - 每帧每带取最大值，转成 -100dB–-20dB 的 0–1。
  */
 
@@ -26,6 +26,8 @@ export interface SpectrogramOptions {
   bins?: number;
   fftSize?: number;
   maxFrames?: number;
+  /** 计算进度 0–1，用于面板显示百分比。 */
+  onProgress?: (progress: number) => void;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -95,9 +97,9 @@ export async function buildSpectrogram(file: File, options: SpectrogramOptions =
     options.fftSize ?? 4096,
     2 ** Math.floor(Math.log2(Math.max(512, buffer.length))),
   );
-  const maxFrames = options.maxFrames ?? 8192;
-  const frames = clamp(Math.ceil(durationMs / 20), 512, maxFrames);
-  const bins = options.bins ?? 512;
+  const maxFrames = options.maxFrames ?? 16384;
+  const frames = clamp(Math.ceil(durationMs / 10), 1024, maxFrames);
+  const bins = options.bins ?? 1024;
   const minHz = options.minHz ?? 40;
   const maxHz = Math.min(options.maxHz ?? 16000, sampleRate / 2);
   const logRange = Math.log(maxHz / minHz);
@@ -143,7 +145,10 @@ export async function buildSpectrogram(file: File, options: SpectrogramOptions =
     }
 
     // 让主线程有机会刷新「ANALYZING…」和进度。
-    if (frame % 64 === 63) await new Promise((resolve) => setTimeout(resolve, 0));
+    if (frame % 64 === 63) {
+      options.onProgress?.((frame + 1) / frames);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
   }
 
   return { durationMs, frames, bins, minHz, maxHz, data: out };

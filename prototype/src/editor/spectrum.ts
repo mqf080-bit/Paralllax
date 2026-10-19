@@ -76,6 +76,7 @@ export class SpectrumPanel {
   private source: HTMLCanvasElement | null = null;
   private key = '';
   private loading = false;
+  private progress = 0;
   private error = '';
   private token = 0;
   private dragging = false;
@@ -128,6 +129,7 @@ export class SpectrumPanel {
     this.data = null;
     this.source = null;
     this.loading = false;
+    this.progress = 0;
     this.error = '';
     this.lastSignature = '';
     if (this.open) this.render(true);
@@ -158,6 +160,7 @@ export class SpectrumPanel {
     this.data = null;
     this.source = null;
     this.loading = true;
+    this.progress = 0;
     this.error = '';
     this.lastSignature = '';
     const token = ++this.token;
@@ -166,11 +169,19 @@ export class SpectrumPanel {
 
   private async load(file: File, token: number): Promise<void> {
     try {
-      const data = await buildSpectrogram(file);
+      const data = await buildSpectrogram(file, {
+        onProgress: (progress) => {
+          if (token !== this.token) return;
+          this.progress = Math.max(0, Math.min(1, progress));
+          this.lastSignature = '';
+          if (this.open) this.render(true);
+        },
+      });
       if (token !== this.token) return;
       this.data = data;
       this.source = this.renderSource(data);
       this.loading = false;
+      this.progress = 1;
       this.error = '';
     } catch (cause) {
       if (token !== this.token) return;
@@ -246,6 +257,7 @@ export class SpectrumPanel {
       this.host.playhead,
       this.hover ?? '',
       this.loading ? 1 : 0,
+      this.loading ? this.progress : '',
       this.error,
       this.data ? 1 : 0,
     ].join('|');
@@ -377,7 +389,7 @@ export class SpectrumPanel {
       ctx.fillStyle = '#b08d57';
       ctx.font = '12px ui-monospace, Menlo, monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('ANALYZING AUDIO…', left + plotWidth / 2, top + plotHeight / 2);
+      ctx.fillText(`ANALYZING AUDIO… ${Math.round(this.progress * 100)}%`, left + plotWidth / 2, top + plotHeight / 2);
     } else if (this.error) {
       ctx.fillStyle = 'rgba(6,7,12,0.72)';
       ctx.fillRect(left, top, plotWidth, plotHeight);
@@ -394,7 +406,7 @@ export class SpectrumPanel {
 
     this.elements.time.textContent = `${formatTime(this.host.playhead)} / ${formatTime(this.durationMs())}`;
     this.elements.status.textContent = this.loading
-      ? 'ANALYZING…'
+      ? `ANALYZING… ${Math.round(this.progress * 100)}%`
       : this.error
         ? this.error
         : 'CLICK / DRAG TO SEEK · WHEEL PAN · CTRL+WHEEL ZOOM';
