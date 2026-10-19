@@ -1585,3 +1585,31 @@ hold 的头在左边、身体 / 尾端还在视口里时，整条 hold 就被提
 - tile 缓存 key 加入 offset；改 offset 会重算可见块；
 - 指针 seek、时间刻度仍使用谱面时间；
 - 负 offset 时音频内容可能落在谱面负时间，tile 直接从对应音频采样。
+
+## 54. Infinity Heaven 谱面包冒烟测试（2026-10-19）
+
+用户提供的 `/home/lain/Documents/infinity-heaven.parallax`，18,464,458 B。
+
+包内容：
+
+- `chart.json` 8,056 B；
+- `audio/HyuN---Infinity-Heaven.flac` 18,199,150 B；
+- `cover/cover.jpeg` 256,888 B；
+- title `Infinity Heaven` / artist `HyuN` / difficulty `IN 1`；
+- `meta.offset = -750`，`meta.duration = 153816`；
+- timing `160 BPM / 4 beats`；
+- speed 只有 `{ time: 0, multiplier: 1 }`，没有 SV 变化；shift 为空；
+- 48 notes。
+
+桌面游戏测试：
+
+- `?pack=/packages/infinity-heaven.parallax` 成功；
+  - `[pack] 3 files · audio ... · cover ...`
+  - `[chart] ok · Infinity Heaven · 48 notes`
+- 游戏 GUI 显示校准偏移 `-750ms`，基准流速 `3 m/s`；
+- `?auto=1` 下音频时钟 playing、track 正确、封面 / 标题显示，无控制台错误；
+- 游戏页 `LOAD .parallax` 本地加载也成功，reload 到 `?localPack=1`。
+
+说明：桌面 headless 没有真实音频输出，offset 的主观听感同步未验证；已确认谱面 offset
+被正确传进游戏音频设置，且 playhead 不再被 offset 拉走。VR 的加载链路与桌面相同，
+但没有头显实测。
