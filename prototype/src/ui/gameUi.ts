@@ -98,9 +98,9 @@ const H = 470;
 const M = 24;
 
 /** 面板的世界尺寸与位置：远一点、物理尺寸大一点，但保持接近原来的视野占比。 */
-const PANEL_WIDTH = 1.4;
-const PANEL_DISTANCE = 0.56;
-const PANEL_Y = 1.39;
+const PANEL_WIDTH = 1.55;
+const PANEL_DISTANCE = 1.35;
+const PANEL_Y = 1.44;
 const HEADER_H = 40;
 const FOOTER_H = 24;
 const BODY_TOP = 58;
@@ -563,7 +563,7 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
   // 面板距离 / 尺寸是纯显示参数，生产构建也保留，方便直接在 Quest 里用 URL 试。
   const tuning = new URLSearchParams(window.location.search);
   const panelScale = clamp(numericParam(tuning, 'panelScale', 1), 0.6, 1.6);
-  const panelDistance = clamp(numericParam(tuning, 'panelDistance', PANEL_DISTANCE), 0.3, 1.2);
+  const panelDistance = clamp(numericParam(tuning, 'panelDistance', PANEL_DISTANCE), 0.35, 2.5);
   const panelY = clamp(numericParam(tuning, 'panelY', PANEL_Y), 1.0, 1.9);
   const panelWidth = PANEL_WIDTH * panelScale;
   const panelHeight = (panelWidth * H) / W;

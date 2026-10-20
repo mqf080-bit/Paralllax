@@ -15,7 +15,7 @@
 - P2 布局重做：全部去圆角；主页双栏、Songs 可选列表 + 详情、Pause / Settings / Result 双栏；支持切换内置谱并重建播放器 / 音频 / 浮空显示；Add packs 二级页；新增 `?panel=packs`。
 - 2D UI study（`design/ui-2d/`）：六屏可切换，A + C 的排版 / 浅蓝 + 稀有 lime；用于 VR 移植前的视觉与密度试验。
 - VR 复刻 2D study：760×470 六屏重排，标签 / 按钮按 VR 可读性重新定字阶，2× 面板纹理；chart map / density 接真实谱面；Settings 增加 Metronome / Groove / Lead-in；新增 `?chrome=0` 干净截图开关。
-- VR 面板从 0.86m / 0.34m 调到 1.40m / 0.56m，中心抬高到 1.39m；尺寸和距离同比放大，保持视野占比；新增 `?panelScale` / `?panelDistance` / `?panelY` 头显调参。
+- VR 面板从 0.86m / 0.34m 调到 1.55m / 1.35m，中心抬高到 1.44m；优先保证 1.35m 聚焦距离，水平视角约 60°；新增 `?panelScale` / `?panelDistance` / `?panelY` 头显调参（生产站可用）。
 
 ## 0.3.11 — 2026-10-18
 
