@@ -1,6 +1,17 @@
-# agent.md — Parallax Phase 1 协作协议
+> # ⛔ OLD / 已归档
+>
+> **这是 Phase 1 的旧施工协议，已停止使用。**
+> Phase 1（Step 0–5）已于 2026-10-19 完成并验收；新工作不要再按本文件推进。
+> 当前状态看 [`README.md`](README.md) 和 [`prototype/STATUS.md`](prototype/STATUS.md)；
+> 后续架构看 [`prototype/FUTURE.md`](prototype/FUTURE.md)。Phase 2 的协议另建。
+>
+> 保留本文件只为记录 Phase 1 的 step 划分、验收标准和踩坑顺序。
 
-> 版本：**0.3.11** ｜ 状态：**Phase 1 原型完成（Step 0–5）；Quest 3 实测 72Hz+；下一步见 `prototype/FUTURE.md`**。
+---
+
+# agent.md — Parallax Phase 1 协作协议（OLD）
+
+> 版本：**0.3.11（已归档）** ｜ 状态：**Phase 1 原型完成（Step 0–5）；Quest 3 实测 72Hz+；下一步见 `prototype/FUTURE.md`**。
 > 阶段：Phase 1 — Prototyping in WebXR
 > 设计真相：`parallax-idea.md`
 > 空间 / 材质参考：`references/`
