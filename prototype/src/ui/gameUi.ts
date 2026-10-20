@@ -560,7 +560,8 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
   const group = new THREE.Group();
   group.name = 'game-ui';
 
-  const tuning = import.meta.env.DEV ? new URLSearchParams(window.location.search) : null;
+  // 面板距离 / 尺寸是纯显示参数，生产构建也保留，方便直接在 Quest 里用 URL 试。
+  const tuning = new URLSearchParams(window.location.search);
   const panelScale = clamp(numericParam(tuning, 'panelScale', 1), 0.6, 1.6);
   const panelDistance = clamp(numericParam(tuning, 'panelDistance', PANEL_DISTANCE), 0.3, 1.2);
   const panelY = clamp(numericParam(tuning, 'panelY', PANEL_Y), 1.0, 1.9);
