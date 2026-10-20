@@ -1,5 +1,8 @@
 # Parallax — 2D UI Study 02
 
+> 这是一份**设计夹具**，不是第二套产品：只用于定版式和字号，不接游戏状态。
+> 移植边界和验收流程见 [`DESIGN-WORKFLOW.md`](../../DESIGN-WORKFLOW.md)。
+
 在进入 VR 之前，用二维网页把 **A（Technical Console）+ C（Editorial Grid）** 的视觉先试一遍：
 更密的网格、更大的字号层级、更明确的留白，以及稀有的 lime 信号色。
 

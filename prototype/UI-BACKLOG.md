@@ -2,7 +2,7 @@
 
 > 记录：2026-10-20 ｜ 状态：**P0–P2 已实现，六屏已按 2D Study 复刻；待 Quest 3 验收** ｜ 范围：游玩端 VR（Meta Quest 3 基准）
 > 目标：把问题、约束、验收和未决问题写清楚；头显实测仍是唯一没闭环的验收项。
-> 相关：[STATUS.md](STATUS.md) ｜ [gameUi.ts](src/ui/gameUi.ts) ｜ [vrPanel.ts](src/ui/vrPanel.ts) ｜ [hands.ts](src/game/hands.ts) ｜ [main.ts](src/main.ts)
+> 相关：[STATUS.md](STATUS.md) ｜ [gameUi.ts](src/ui/gameUi.ts) ｜ [vrPanel.ts](src/ui/vrPanel.ts) ｜ [hands.ts](src/game/hands.ts) ｜ [main.ts](src/main.ts) ｜ [设计工作流](../DESIGN-WORKFLOW.md)
 
 ---
 

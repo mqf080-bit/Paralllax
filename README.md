@@ -3,7 +3,7 @@
 VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处沿 6 条轨道滑来，用手接住；
 台面只点亮其中 4 条轨，**窗口会随谱面整体左移 / 右移一轨**（shift）。
 
-> 版本：[`CHANGELOG.md`](CHANGELOG.md) ｜ 未来架构：[`prototype/FUTURE.md`](prototype/FUTURE.md) ｜ 设计真相：[`parallax-idea.md`](parallax-idea.md) ｜ Phase 1 旧协议：[`agent_old.md`](agent_old.md)（归档） ｜ 迭代记录：[`prototype/STATUS.md`](prototype/STATUS.md) ｜ 谱面格式：[`prototype/CHART.md`](prototype/CHART.md) ｜ 制谱器：[`prototype/EDITOR.md`](prototype/EDITOR.md) ｜ 谱面包：[`prototype/PACKAGE.md`](prototype/PACKAGE.md)
+> 版本：[`CHANGELOG.md`](CHANGELOG.md) ｜ 未来架构：[`prototype/FUTURE.md`](prototype/FUTURE.md) ｜ 设计真相：[`parallax-idea.md`](parallax-idea.md) ｜ 设计工作流：[`DESIGN-WORKFLOW.md`](DESIGN-WORKFLOW.md) ｜ Phase 1 旧协议：[`agent_old.md`](agent_old.md)（归档） ｜ 迭代记录：[`prototype/STATUS.md`](prototype/STATUS.md) ｜ 谱面格式：[`prototype/CHART.md`](prototype/CHART.md) ｜ 制谱器：[`prototype/EDITOR.md`](prototype/EDITOR.md) ｜ 谱面包：[`prototype/PACKAGE.md`](prototype/PACKAGE.md)
 
 ---
 
@@ -38,8 +38,9 @@ npm run dev
 - 游戏：<http://127.0.0.1:5173>
 - 制谱器：<http://127.0.0.1:5173/editor.html>（桌面浏览器，不进 VR）
 
-Quest 3 用 USB + `adb reverse tcp:5173 tcp:5173`，然后在头显浏览器打开
-`http://127.0.0.1:5173`。
+Quest 3 推荐直接打开 Cloudflare Pages 的固定 HTTPS 地址（部署步骤见
+[`prototype/DEPLOY.md`](prototype/DEPLOY.md)）；本地调试仍可用 USB +
+`adb reverse tcp:5173 tcp:5173`，然后在头显浏览器打开 `http://127.0.0.1:5173`。
 
 ### 2. 写一张谱
 
@@ -264,6 +265,7 @@ cd prototype && npm run dev
 
 ```
 parallax-idea.md     设计真相（判定、键型、shift、配色、材质隐喻）
+DESIGN-WORKFLOW.md   设计实验环境的使用边界（先做夹具，再回主代码）
 agent_old.md         Phase 1 旧施工协议（已归档，不再遵循）
 references/          空间 / 材质参考
 resources/           作者源素材（谱面 / 音频 / 主题 / 背景；运行时不用）
@@ -305,3 +307,4 @@ Phase 1 已验收。后续按 [`prototype/FUTURE.md`](prototype/FUTURE.md) 推�
 
 游玩端 VR UI 的入口流程、暂停层级、激光误触与视觉方向记录在
 [`prototype/UI-BACKLOG.md`](prototype/UI-BACKLOG.md)；P0–P2 已实现，待 Quest 3 验收。
+做新的视觉 / 版式实验前，先读 [`DESIGN-WORKFLOW.md`](DESIGN-WORKFLOW.md)。
