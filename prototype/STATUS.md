@@ -36,6 +36,7 @@
 - **面板距离 / 尺寸（2026-10-20）**：1.55m 宽 × 0.959m 高，距离 1.35m、中心高 1.44m；优先保证聚焦距离，水平视角约 60°。可用 `?panelScale` / `?panelDistance` / `?panelY` 在头显里继续调。
 - **包索引 / 懒加载（2026-10-20）**：`public/packages/index.json` 在启动时只读元数据，选中条目后才下载 `.parallax`；Infinity Heaven / Air / Ticks 会直接出现在 Songs。
 - **arc 流速 / 包 offset（2026-10-20）**：Settings 改流速会同步缩放已生成的 arc；`meta.offset` 改为隐藏的 `chartOffsetMs`，与玩家校准 offset 分离。
+- **手感布局（2026-10-20）**：单轨宽 0.23→0.27m，所有 note / arc 的 x 按 lane 单位同比展开；判定带前移 25cm（近端内 0.80m）。editor 的 3D view 共享 `DEFAULT_PARAMS` / `deriveGeometry`，自动同步。
 - **暂缓**：无物量时立即结算，暂不按包内 `meta.duration` 等待；等 Infinity Heaven 谱面补充完成后再处理。
 
 ---
@@ -61,8 +62,8 @@
 
 | 参数 | 值 |
 | --- | --- |
-| 台面高度 / 轨宽 / 进深 | 0.95m / 0.23m / 10m |
-| 判定带 | z = −0.21m（距玩家约 0.55m） |
+| 台面高度 / 轨宽 / 进深 | 0.95m / 0.27m / 10m |
+| 判定带 | z = −0.46m（近端内 0.80m，比旧版前移 25cm） |
 | 高度基准 | 胸 0.33 / 面 0.61 / 头顶 0.81 m（相对台面） |
 | 高度上限 | 0.81m；超限 note 不生成 |
 | 视距 / 渐显 | 9m / 4m |

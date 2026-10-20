@@ -707,3 +707,32 @@ P1 的 A 第一版只是换了皮，用户指出「布局完全没变、不可�
 
 - 谱面没有物量时 `playfield.finished` 立即为 true，没有按 `meta.duration` 等待。
   等 Infinity Heaven 补完后单独处理；现在不做，避免测试时干等。
+
+---
+
+## 16. 手感布局：加宽轨道 / 判定带前移（2026-10-20）
+
+用户头显试玩反馈：当前手感和轨道宽度不够，尤其是判定线离身体太近。
+
+### 调整
+
+- 单轨宽：`0.23m` → **`0.27m`**（+17%）。
+- note / arc / hold 的 x 仍按谱面的 lane 单位映射：`x = (lane - 2.5) * laneWidth`。
+  因而所有 note 的相对位置（轨号与小数偏移）不变，只是整个物理间距同比展开。
+- 判定带：`nearZ - 0.55` → **`nearZ - 0.80`**，即向远离玩家的方向前移 **25cm**。
+- `TableParams` 增加 `bandDistance`，`deriveGeometry()` 统一计算 `bandZ`。
+- 新增 `?lane=0.27` / `?band=0.80`（生产页也可用），方便在 Quest 里直接试手感。
+- `?lane` / `?band` 在 `buildTable` / `createPlayer` 之前生效，刷新页面即可。
+
+### editor 3D
+
+editor 的 3D 预览使用 `DEFAULT_PARAMS` + `buildTable()` + `createPlayer()`，并直接读取
+`table.geometry.bandZ` / `params.laneWidth`。因此加宽和判定带前移会自动同步，不需要另写一套
+坐标。已截图确认 editor 3D 的格宽与判定带位置和游戏一致。
+
+### 已验证
+
+- `npm run typecheck` / `npm run build` 通过；
+- 游戏页 `?lane=0.27&band=0.80` 下轨道宽度、判定带位置正确；
+- editor 3D 预览同一组参数下格宽与判定带同步；
+- 尚未在 Quest 3 里主观验收「手感」。

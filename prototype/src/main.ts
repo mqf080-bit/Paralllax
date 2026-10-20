@@ -39,6 +39,15 @@ if (!container) throw new Error('#app container is missing');
 
 const params: TableParams = { ...DEFAULT_PARAMS };
 
+// 布局调参：/?lane=0.27&band=0.80。生产页也可用，方便在 Quest 里直接试手感。
+{
+  const query = new URLSearchParams(window.location.search);
+  const lane = Number(query.get('lane'));
+  if (Number.isFinite(lane) && lane >= 0.18 && lane <= 0.34) params.laneWidth = lane;
+  const band = Number(query.get('band'));
+  if (Number.isFinite(band) && band >= 0.25 && band <= 1.2) params.bandDistance = band;
+}
+
 // 默认跑 42 秒的验收谱。
 // `?chart=demo` 切回 12 秒示例；`?chart=/charts/xxx.json` 载入制谱器导出的谱面。
 async function loadImageBytes(data: Uint8Array, type: string): Promise<HTMLImageElement | null> {

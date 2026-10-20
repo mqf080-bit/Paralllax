@@ -19,6 +19,7 @@
 - 本地谱面包：IndexedDB 写操作等事务 commit 后再 reload，避免 18MB 包在 Quest 上保存失败；加载页显示 `LOADING PACKAGE`；文档明确 `public/packages/` 不是自动曲库。
 - 谱面包索引：`public/packages/index.json` + 选中后懒加载；启动不再预下载 18MB 包，Songs 先显示元数据，选中后加载并更新详情。
 - 游玩端流速变更现在会同步到已生成的 arc（`playfield.setFlowSpeed`），和 editor 3D 的行为一致。
+- 手感布局：单轨 0.23→0.27m，判定带近端距离 0.55→0.80m（前移 25cm）；editor 3D 预览共用同一套参数。新增 `?lane` / `?band` 调参。
 - 谱面 / 包自带 offset 与玩家 offset 分离：`meta.offset` 写入 `chartOffsetMs`，只在音频时钟内部生效，不再显示为 Settings 的 Offset。
 
 ## 0.3.11 — 2026-10-18

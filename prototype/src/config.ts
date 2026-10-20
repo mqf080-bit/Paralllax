@@ -19,6 +19,8 @@ export interface TableParams {
   tableDepth: number;
   /** 台面近端到玩家原点的距离（米）。 */
   nearOffset: number;
+  /** 判定带中心到台面近端的距离（米）。越大越靠前 / 远离玩家。 */
+  bandDistance: number;
   /** 顶板厚度（米）。没有凹槽，这就是台面本身的厚度。 */
   plateThickness: number;
   /** 调试：近端显示轨号。 */
@@ -37,9 +39,10 @@ export const LANE_COUNT = 4;
 
 export const DEFAULT_PARAMS: TableParams = {
   tableHeight: 0.95,
-  laneWidth: 0.23,
+  laneWidth: 0.27,
   tableDepth: 10,
   nearOffset: 0.34,
+  bandDistance: 0.8,
   plateThickness: 0.012,
   showLaneNumbers: false,
   showBand: true,
@@ -92,8 +95,8 @@ export function deriveGeometry(p: TableParams): TableGeometry {
   const fieldLength = p.tableDepth - NEAR_MARGIN - FAR_MARGIN;
   const fieldCenterZ = nearZ - NEAR_MARGIN - fieldLength / 2;
 
-  // 判定带放在玩家手最容易够到的位置。
-  const bandZ = nearZ - 0.55;
+  // 判定带放在玩家手最容易够到的位置；默认比旧版前移 25cm。
+  const bandZ = nearZ - p.bandDistance;
   const bandLength = 0.07;
 
   return {
