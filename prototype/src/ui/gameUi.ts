@@ -96,6 +96,11 @@ export interface GameUi {
 const W = 760;
 const H = 470;
 const M = 24;
+
+/** 面板的世界尺寸与位置：远一点、物理尺寸大一点，但保持接近原来的视野占比。 */
+const PANEL_WIDTH = 1.4;
+const PANEL_DISTANCE = 0.56;
+const PANEL_Y = 1.39;
 const HEADER_H = 40;
 const FOOTER_H = 24;
 const BODY_TOP = 58;
@@ -216,6 +221,13 @@ function vrule(ctx: CanvasRenderingContext2D, x: number, y: number, h: number, c
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function numericParam(query: URLSearchParams | null, key: string, fallback: number): number {
+  const raw = query?.get(key);
+  if (raw === null || raw === undefined) return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
 function titleCase(value: string): string {
@@ -548,14 +560,21 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
   const group = new THREE.Group();
   group.name = 'game-ui';
 
+  const tuning = import.meta.env.DEV ? new URLSearchParams(window.location.search) : null;
+  const panelScale = clamp(numericParam(tuning, 'panelScale', 1), 0.6, 1.6);
+  const panelDistance = clamp(numericParam(tuning, 'panelDistance', PANEL_DISTANCE), 0.3, 1.2);
+  const panelY = clamp(numericParam(tuning, 'panelY', PANEL_Y), 1.0, 1.9);
+  const panelWidth = PANEL_WIDTH * panelScale;
+  const panelHeight = (panelWidth * H) / W;
+
   const panel = createVrPanel({
-    width: 0.86,
-    height: 0.532,
+    width: panelWidth,
+    height: panelHeight,
     canvasWidth: W,
     canvasHeight: H,
     onTop: true,
   });
-  panel.group.position.set(0, 1.33, -0.34);
+  panel.group.position.set(0, panelY, -panelDistance);
   group.add(panel.group);
 
   // —— 激光笔 ——

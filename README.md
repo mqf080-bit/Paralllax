@@ -252,6 +252,7 @@ cd prototype && npm run dev
 | `?range=6` | 视距（米，从判定带算） |
 | `?panel=home\|songs\|packs\|paused\|settings\|result` | 直接摊开指定面板 |
 | `?chrome=0` | 隐藏诊断 / lil-gui / Stats / 包加载器，给面板截图留干净背景 |
+| `?panelScale=1.05` `?panelDistance=0.65` `?panelY=1.45` | 调 VR 面板尺寸 / 距离 / 高度（dev） |
 | `?vr=1` | 假装在 VR 里（检查 `EXIT VR` 等只在头显出现的元素） |
 | `?menuButton=6` | 改 menu 键的 gamepad 索引（默认 6；读不到时用左手 Y 长按） |
 | `?clock=0` | 关掉音频时钟（无头截图用） |
