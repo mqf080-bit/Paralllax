@@ -3,7 +3,7 @@
 VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处沿 6 条轨道滑来，用手接住；
 台面只点亮其中 4 条轨，**窗口会随谱面整体左移 / 右移一轨**（shift）。
 
-> 版本：[`CHANGELOG.md`](CHANGELOG.md) ｜ 未来架构：[`prototype/FUTURE.md`](prototype/FUTURE.md) ｜ 设计真相：[`parallax-idea.md`](parallax-idea.md) ｜ 施工协议：[`agent.md`](agent.md) ｜ 迭代记录：[`prototype/STATUS.md`](prototype/STATUS.md) ｜ 谱面格式：[`prototype/CHART.md`](prototype/CHART.md) ｜ 制谱器：[`prototype/EDITOR.md`](prototype/EDITOR.md) ｜ 谱面包：[`prototype/PACKAGE.md`](prototype/PACKAGE.md)
+> 版本：[`CHANGELOG.md`](CHANGELOG.md) ｜ 未来架构：[`prototype/FUTURE.md`](prototype/FUTURE.md) ｜ 设计真相：[`parallax-idea.md`](parallax-idea.md) ｜ Phase 1 旧协议：[`agent_old.md`](agent_old.md)（归档） ｜ 迭代记录：[`prototype/STATUS.md`](prototype/STATUS.md) ｜ 谱面格式：[`prototype/CHART.md`](prototype/CHART.md) ｜ 制谱器：[`prototype/EDITOR.md`](prototype/EDITOR.md) ｜ 谱面包：[`prototype/PACKAGE.md`](prototype/PACKAGE.md)
 
 ---
 
@@ -225,12 +225,15 @@ cd prototype && npm run dev
 
 | 做什么 | 怎么做 |
 | --- | --- |
+| 开始 | 进 VR 后在主页点 `START`（不再自动开谱） |
+| 选歌 / 加包 | 主页 `Songs` 打开可选取曲列表和详情；`How to add packs` 看 Desktop / Drag / Folder / URL 四种加包方式 |
 | 打键 | 手扫过判定带；hold 要按住扳机 / 侧握 |
 | 打 arc | 手跟着弧走；黄铜珠是关键物量 |
 | 点 UI | 手柄指向面板扣扳机，或直接戳 |
-| 暂停 / 重试 / 设置 | 右前方 `SETTINGS / PAUSE / RETRY`（播放时压暗到 30%） |
+| 暂停 | 左手柄 **menu** 键，或 **左手 Y 长按 400ms**；桌面按 `Esc` |
+| 暂停里的操作 | `RESUME / RESTART / SETTINGS / HOME`；设置是暂停的二级页 |
 
-首次进 VR 会自动开始（2 秒数拍）。打完或血量归零出结算。
+首次进 VR 落在主页，选 `START` 才开始；打完或血量归零出结算。
 
 ## 调试参数（dev）
 
@@ -242,12 +245,14 @@ cd prototype && npm run dev
 | `?pack=/packages/air-example.parallax` | 自定义谱面包示例（谱面 + 资源，一个文件） |
 | 游戏页左下 `LOAD .parallax` | 直接选本地导出的包，不用复制到 public/ |
 | `?auto=1` | 自动演示（所有 note / 物量到判定线直接 PERFECT） |
+| `?autostart=1` | 跳过主页，直接进游玩 |
 | `?warp=12.4&freeze=1` | 快进到第 12.4 秒并冻结（截图 / 检查用） |
 | `?flow=4` | 基准流速 m/s |
 | `?range=6` | 视距（米，从判定带算） |
-| `?panel=settings` `?panel=result` | 直接摊开面板 |
+| `?panel=home\|songs\|packs\|paused\|settings\|result` | 直接摊开指定面板 |
+| `?vr=1` | 假装在 VR 里（检查 `EXIT VR` 等只在头显出现的元素） |
+| `?menuButton=6` | 改 menu 键的 gamepad 索引（默认 6；读不到时用左手 Y 长按） |
 | `?clock=0` | 关掉音频时钟（无头截图用） |
-| `?aim=1&aimTarget=pause&click=1` | 假手验证激光笔 |
 | `?offset=20` `?volume=0.6` `?lead=2000` `?metronome=1` `?audio=/track.mp3` | 音频 |
 | `?maxheight=0.5` | 临时压低高度上限，验证「超限不生成」 |
 | `?shift=left` `?cam=` `?look=` `?exposure=` `?env=` | 场景调试 |
@@ -256,9 +261,10 @@ cd prototype && npm run dev
 
 ```
 parallax-idea.md     设计真相（判定、键型、shift、配色、材质隐喻）
-agent.md             施工协议（每一步做什么、验收、不做什么）
+agent_old.md         Phase 1 旧施工协议（已归档，不再遵循）
 references/          空间 / 材质参考
 resources/           作者源素材（谱面 / 音频 / 主题 / 背景；运行时不用）
+design/ui-2d/        2D UI study（A + C 的排版 / 配色 / 密度试验）
 prototype/
   src/
     chart/           谱面格式、时间轴（SV 积分 / shift / 小节）、示例谱、验收谱
@@ -293,3 +299,6 @@ prototype/
 
 Phase 1 已验收。后续按 [`prototype/FUTURE.md`](prototype/FUTURE.md) 推进 Unity /
 资源库：先抽玩法契约和 golden tests，再做 Unity importer、工作区与共享资源索引。
+
+游玩端 VR UI 的入口流程、暂停层级、激光误触与视觉方向记录在
+[`prototype/UI-BACKLOG.md`](prototype/UI-BACKLOG.md)；目前只记录，未开工。

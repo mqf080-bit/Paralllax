@@ -3,9 +3,9 @@
 Phase 1 的 WebXR 原型。**v0.3.11 / Step 0–5 已完成并验收**：游戏可玩，桌面制谱器可用；Quest 3 实测 72Hz+。
 
 > 项目总览：[`../README.md`](../README.md) ｜ 谱面格式：[`CHART.md`](CHART.md) ｜
-> 制谱器：[`EDITOR.md`](EDITOR.md) ｜ 谱面包：[`PACKAGE.md`](PACKAGE.md) ｜ 迭代记录：[`STATUS.md`](STATUS.md)
+> 制谱器：[`EDITOR.md`](EDITOR.md) ｜ 谱面包：[`PACKAGE.md`](PACKAGE.md) ｜ 迭代记录：[`STATUS.md`](STATUS.md) ｜ UI 待办：[`UI-BACKLOG.md`](UI-BACKLOG.md)
 
-设计真相在仓库根的 `parallax-idea.md`；施工协议在 `agent.md`。这里只放能跑的东西。
+设计真相在仓库根的 `parallax-idea.md`；Phase 1 旧协议在 `agent_old.md`（已归档，不再遵循）。这里只放能跑的东西。
 
 ## 跑起来
 
@@ -102,10 +102,13 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 
 | 做什么 | 怎么做 |
 | --- | --- |
+| 开始 | 进 VR 后在主页点 `START`；不再自动开谱 |
+| 选歌 / 加包 | 主页 `Songs` 打开可选取曲列表和详情；`How to add packs` 看 Desktop / Drag / Folder / URL 四种加包方式 |
 | 打键 | 手扫过判定带（hit 要速度 + 位移，drag 只要扫过，hold 要按住扳机 / 侧握） |
 | 打 arc | 手跟着弧走；弧上的黄铜珠是**关键物量**，必须进体积判定 |
 | 点 UI | 手柄指向面板，**扣扳机**；靠近了直接伸手戳也行 |
-| 暂停 / 重试 / 设置 | 右前方那条 `SETTINGS / PAUSE / RETRY`（播放时会淡到 30%） |
+| 暂停 | 左手柄 **menu** 键，或 **左手 Y 长按 400ms**；桌面按 `Esc` |
+| 暂停里的操作 | `RESUME / RESTART / SETTINGS / HOME`；设置是暂停的二级页 |
 
 音频：没有音轨资产，默认按谱面的 `timing` **现场合成鼓组**。想听真曲子，把文件放到
 `prototype/public/`，用 `?audio=/track.mp3` 打开；`meta.offset` 与设置面板的 `AUDIO OFFSET`
@@ -130,10 +133,9 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 
 `?chart=demo` 12s 示例 · `?chart=/charts/example.json` 外部谱面 ·
 `?chart=/charts/air-example.json` 空中 note / 显式 arc 物量 · `?auto=1` 自动完美演示 ·
-`?freeze=1` 冻结 · `?warp=2.4` 快进 · `?flow=4` 流速 · `?shift=left|right` ·
-`?panel=settings|result` 摊开面板 · `?clock=0` 关掉音频时钟 ·
-`?offset=20&volume=0.6&lead=2000` 音频参数 · `?audio=/track.mp3` 真实音轨 ·
-`?aim=1&aimTarget=settings|pause|retry&click=1` 假手验证激光笔。
+`?autostart=1` 跳过主页 · `?freeze=1` 冻结 · `?warp=2.4` 快进 · `?flow=4` 流速 · `?shift=left|right` ·
+`?panel=home|songs|packs|paused|settings|result` 摊开面板 · `?menuButton=6` 改 menu 键索引 · `?clock=0` 关掉音频时钟 ·
+`?offset=20&volume=0.6&lead=2000` 音频参数 · `?audio=/track.mp3` 真实音轨。
 
 ## 脚本
 
@@ -177,7 +179,8 @@ prototype/
 - **72fps**：Quest 3 头显实测 72Hz+（用户验收）。
 - **音频**：「调度路径」验过，听感需要戴上确认；偏早 / 偏晚用 `AUDIO OFFSET` 微调。
 - 自动演示现在是直接完美判定，不再模拟手。
-- 暂停时长按扳机再松手，可能顺带触发一次 UI 点击（面板和判定共用「按下」）。
+- **菜单键**：优先读 `gamepad.buttons[6]`，读不到时用左手 Y 长按 400ms；需要在 Quest 3 上确认哪个索引真的可用。
+- **暂停 / 设置**：游玩中已没有常驻按钮；面板交互只在主页 / 暂停 / 设置 / 结算时接收射线。
 - 制谱器：音频 / 封面文件不持久化到草稿，但会进 `.parallax` 包；慢放 / 倒放静音；多选只覆盖 note；没有框选 / 复制粘贴 / 自动 BPM 检测；
   3D 里 arc 点的时间仍要在 2D / 检查器改。
 - hold 固定贴地；hit / drag 可以浮空。

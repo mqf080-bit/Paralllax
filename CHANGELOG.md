@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## Unreleased — 2026-10-20
+
+### UI
+
+- 进入 VR 先到主页，不再自动开谱；主页显示当前谱面信息，`START` 后播放；
+- 游玩中移除常驻 `SETTINGS / PAUSE / RETRY` 控制条，面板点击只在主页 / 暂停 / 设置 / 结算时生效；
+- 暂停改为统一层级：`RESUME / RESTART / SETTINGS / HOME`，设置是暂停的二级页；
+- 左手 menu 键优先打开暂停，读不到时用左手 Y 长按 400ms 兜底；桌面 `Esc`；
+- 结算改为 `RETRY / HOME`；
+- 新增 dev 参数 `?autostart=1`、`?panel=home|paused|settings|result`、`?menuButton=N`。
+- P1 A 第一版：面板拉近到约 0.86–0.9m，改为石墨表面 + 浅蓝主强调 + lime 稀有状态；主页 / 暂停 / 设置各 5 行；新增 `Songs` 面板与加包提示；新增 `?panel=songs` / `?vr=1`。
+- 面板切换时加输入锁：按住扳机切换页面不会立刻点中新面板上的按钮。
+- P2 布局重做：全部去圆角；主页双栏、Songs 可选列表 + 详情、Pause / Settings / Result 双栏；支持切换内置谱并重建播放器 / 音频 / 浮空显示；Add packs 二级页；新增 `?panel=packs`。
+- 2D UI study（`design/ui-2d/`）：六屏可切换，A + C 的排版 / 浅蓝 + 稀有 lime；用于 VR 移植前的视觉与密度试验。
+
 ## 0.3.11 — 2026-10-18
 
 ### 修复

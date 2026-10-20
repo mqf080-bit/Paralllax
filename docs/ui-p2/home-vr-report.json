@@ -1,0 +1,30 @@
+[
+  {
+    "file": "page.png",
+    "state": null,
+    "size": "1440x900",
+    "zoom": 1,
+    "animationWaitMs": 0,
+    "issues": [],
+    "lint": [
+      {
+        "rule": "sideStripe",
+        "label": "彩色单侧边线",
+        "count": 14,
+        "examples": [
+          "div.lil-fill（2px）",
+          "div.lil-fill（2px）",
+          "div.lil-fill（2px）"
+        ]
+      },
+      {
+        "rule": "smallText",
+        "label": "正文小于 13px",
+        "count": 1,
+        "examples": [
+          "p#hint.panel__hint「本机不支持 immersive-vr（或没有接头」（11px）"
+        ]
+      }
+    ]
+  }
+]

@@ -40,6 +40,10 @@ export interface HandSample {
 
 export interface Hands {
   readonly samples: HandSample[];
+  /** 这一帧是否有「菜单 / 暂停」请求（左手 Y 长按或可配置的 menu 键）。 */
+  readonly menuRequested: boolean;
+  /** 取走一次菜单请求；主循环每帧调用一次。 */
+  consumeMenu(): boolean;
   update(dt: number, camera: THREE.PerspectiveCamera): void;
   /** 震一下。`side` 为 none 时两只手一起震。 */
   pulse(side: HandSide, intensity?: number, durationMs?: number): void;
@@ -51,7 +55,15 @@ interface HapticActuator {
   pulse?(intensity: number, duration: number): Promise<boolean> | boolean;
 }
 
+interface GamepadButtonLike {
+  pressed: boolean;
+  touched?: boolean;
+  value?: number;
+}
+
 interface GamepadLike {
+  buttons?: GamepadButtonLike[];
+  mapping?: string;
   hapticActuators?: HapticActuator[];
 }
 
@@ -60,6 +72,13 @@ export interface HandsOptions {
   pointerPlaneY: number;
   /** 桌面 fallback：手固定在这个 z 上（判定带）。指针只控制横向位置。 */
   pointerZ: number;
+  /**
+   * 可选的 menu 按钮索引（xr-standard 之外的附加按钮，通常是 6）。
+   * 读不到时退回「左手 Y 长按」。`?menuButton=6` 可现场验证。
+   */
+  menuButtonIndex?: number;
+  /** 左手 Y 长按触发暂停的时长（毫秒）。 */
+  menuHoldMs?: number;
 }
 
 /** 「挥击距离」的取样窗口（秒）。 */
@@ -202,6 +221,11 @@ export function createHands(
   let elapsed = 0;
   const swingHistory = new Map<HandSample, Array<{ t: number; p: THREE.Vector3 }>>();
 
+  // 菜单请求：左手 Y 长按 / 可选的附加 menu 键。每帧最多置位一次，由主循环取走。
+  let menuLatch = false;
+  const menuButtonIndex = options.menuButtonIndex ?? 6;
+  const menuHoldMs = options.menuHoldMs ?? 400;
+
   function trackSwing(sample: HandSample): void {
     let history = swingHistory.get(sample);
     if (!history) {
@@ -275,6 +299,12 @@ export function createHands(
     gamepad: GamepadLike | null;
     triggerDown: boolean;
     squeezeDown: boolean;
+    /** 附加 menu 键的上一帧状态，用来做边沿触发。 */
+    menuDirectDown: boolean;
+    /** 左手 Y 已经按住的时长。 */
+    menuHeldMs: number;
+    /** 这次长按是否已经触发过。 */
+    menuFired: boolean;
   }
 
   const xrHands: XrHand[] = [];
@@ -305,6 +335,9 @@ export function createHands(
       gamepad: null,
       triggerDown: false,
       squeezeDown: false,
+      menuDirectDown: false,
+      menuHeldMs: 0,
+      menuFired: false,
     };
 
     const onConnected = (event: unknown): void => {
@@ -316,6 +349,12 @@ export function createHands(
       hand.sample.active = true;
       hand.trail.base.setHex(HAND_COLOR[side]);
       hand.hasPrev = false;
+      hand.menuDirectDown = false;
+      hand.menuHeldMs = 0;
+      hand.menuFired = false;
+      console.info(
+        `[hands] ${side} · mapping ${hand.gamepad?.mapping || '—'} · ${hand.gamepad?.buttons?.length ?? 0} buttons`,
+      );
     };
     const onDisconnected = (): void => {
       hand.sample.active = false;
@@ -324,6 +363,9 @@ export function createHands(
       hand.sample.pressed = false;
       hand.triggerDown = false;
       hand.squeezeDown = false;
+      hand.menuDirectDown = false;
+      hand.menuHeldMs = 0;
+      hand.menuFired = false;
       hand.trail.clear();
       hand.trail.points.visible = false;
       hand.hasPrev = false;
@@ -367,8 +409,19 @@ export function createHands(
   return {
     samples,
 
+    get menuRequested(): boolean {
+      return menuLatch;
+    },
+
+    consumeMenu(): boolean {
+      const requested = menuLatch;
+      menuLatch = false;
+      return requested;
+    },
+
     update(dt: number, camera: THREE.PerspectiveCamera): void {
       elapsed += dt;
+      menuLatch = false;
       const presenting = renderer.xr.isPresenting;
 
       // —— 指针 ——
@@ -429,6 +482,27 @@ export function createHands(
         hand.trail.points.visible = true;
         hand.trail.push(hand.sample.position);
         trackSwing(hand.sample);
+
+        // 暂停 / 菜单：优先读附加 menu 键；读不到时用左手 Y 长按兜底。
+        // Quest 的 menu 键不保证暴露给 WebXR（规范允许 UA 保留系统键），所以必须有 fallback。
+        const buttons = hand.gamepad?.buttons;
+        if (buttons) {
+          const direct = buttons[menuButtonIndex]?.pressed ?? false;
+          if (direct && !hand.menuDirectDown) menuLatch = true;
+          hand.menuDirectDown = direct;
+
+          const fallback = hand.sample.side === 'left' && (buttons[5]?.pressed ?? false);
+          if (fallback) {
+            hand.menuHeldMs += dt * 1000;
+            if (!hand.menuFired && hand.menuHeldMs >= menuHoldMs) {
+              menuLatch = true;
+              hand.menuFired = true;
+            }
+          } else {
+            hand.menuHeldMs = 0;
+            hand.menuFired = false;
+          }
+        }
       }
     },
 

@@ -2,7 +2,7 @@
 
 > 更新：2026-10-20 ｜ 版本：**0.3.11** ｜ 阶段：**Phase 1 完成；Phase 2 未启动**
 > 当前个人进度：**Infinity Heaven 初谱制作中**（用户估计约 1 周）；期间只做小修。
-> 设计真相：[`../parallax-idea.md`](../parallax-idea.md) ｜ 施工协议：[`../agent.md`](../agent.md)（**OLD / 已归档**） ｜ 后续架构：[`FUTURE.md`](FUTURE.md)
+> 设计真相：[`../parallax-idea.md`](../parallax-idea.md) ｜ Phase 1 旧协议：[`../agent_old.md`](../agent_old.md)（**OLD / 已归档**） ｜ 后续架构：[`FUTURE.md`](FUTURE.md)
 > 完整逐轮历史（55 节 / 90KB）在 git：`git show ad37349:prototype/STATUS.md > /tmp/parallax-status-full.md`。本文件是 2026-10-20 的压缩版。
 
 ---
@@ -23,9 +23,14 @@
 - 完成个人初谱 **Infinity Heaven**，同时摸索制谱流程；
 - 期间可能做的小修：
   - **arc**：更多曲线过渡；
-  - **游玩 UI**：修当前问题；
+  - **游玩 UI**：P0 流程 / 误触已做；余下 P1 视觉、选歌、准备页；
   - **VR panel**：小幅扩展。
 - 约束：保持 v0.3.11 可玩；**不启动 Unity / 资源库 / 大重构**；每次小修只碰一个面。
+- 游玩端 UI 问题已单独记录：[`UI-BACKLOG.md`](UI-BACKLOG.md)（入口 / 选歌 / 暂停层级 / 激光误触 / 视觉方向）。
+- **P0 UI 已实现（2026-10-20）**：进 VR 先到主页、`START` 才播放；游玩中无常驻按钮；暂停 / 设置分层；左手 menu 或 Y 长按暂停。待 Quest 3 头显验收。
+- **P1 A 第一版（2026-10-20）**：面板拉近、现代石墨 + 浅蓝主强调 / lime 稀有状态；主页 / 暂停 / 设置各 5 行；新增 Songs 面板与「如何加包」提示。待头显验收；多曲切换未做。
+- **P2 布局重做（2026-10-20）**：去圆角；主页双栏、Songs 可选列表 + 详情、Pause / Settings / Result 双栏；可切换内置谱并重建播放器 / 音频 / 浮空显示；Add packs 二级页。待头显验收。
+- **2D UI Study（2026-10-20）**：[`design/ui-2d/`](../design/ui-2d/) 先用网页试 A + C 的排版 / 浅蓝 / lime / 密度；六个界面可切换，截图在 `docs/ui-2d/`。
 
 ---
 

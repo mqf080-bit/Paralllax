@@ -5,10 +5,11 @@ import Stats from 'three/examples/jsm/libs/stats.module.js';
 
 import { createAudioClock, type AudioSettings } from './audio/clock';
 import { DEFAULT_PARAMS, type TableParams } from './config';
-import { createHands, type HandSample } from './game/hands';
+import { createHands } from './game/hands';
 import { DEMO_CHART } from './chart/demo';
 import { TEST_CHART } from './chart/test';
 import type { Chart } from './chart/schema';
+import { createTimeline } from './chart/timeline';
 import { createPlayer, type Player, type PlayerSettings } from './game/player';
 import { unpackPackage } from './pack/format';
 import { audioFromPackage, chartJsonFromPackage, coverFromPackage, loadPackageUrl, type PackedAudio } from './pack/io';
@@ -22,7 +23,7 @@ import { buildMaterialLab } from './scene/materialLab';
 import { buildNotesPreview } from './scene/notes';
 import { buildTable } from './scene/table';
 import { createDiagnostics } from './ui/diagnostics';
-import { createGameUi, type GameUiStatus } from './ui/gameUi';
+import { createGameUi, type GameUiStatus, type SongView } from './ui/gameUi';
 import { probeXr } from './xr/xr-support';
 import './ui/style.css';
 
@@ -88,6 +89,7 @@ const bootQuery = new URLSearchParams(window.location.search);
 const chartParam = bootQuery.get('chart');
 const packParam = bootQuery.get('pack');
 let activeChart: Chart = TEST_CHART;
+let chartSource = 'BUILT-IN';
 let packedAudio: PackedAudio | null = null;
 let packedCover: PackedAudio | null = null;
 let localPack: ArrayBuffer | null = null;
@@ -102,6 +104,7 @@ if (localPack) {
   try {
     const pkg = unpackPackage(localPack);
     activeChart = prepareChart(chartJsonFromPackage(pkg), 'local package');
+    chartSource = 'LOCAL PACK';
     packedAudio = audioFromPackage(pkg);
     packedCover = coverFromPackage(pkg);
     console.info(
@@ -115,6 +118,7 @@ if (localPack) {
   try {
     const pkg = await loadPackageUrl(url);
     activeChart = prepareChart(chartJsonFromPackage(pkg), url);
+    chartSource = 'PACKAGE';
     packedAudio = audioFromPackage(pkg);
     packedCover = coverFromPackage(pkg);
     console.info(
@@ -131,9 +135,76 @@ if (localPack) {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     activeChart = prepareChart(await response.json(), url);
+    chartSource = 'CHART FILE';
   } catch (cause) {
     console.warn(`[chart] 载入 ${url} 失败，回退测试谱`, cause);
   }
+}
+
+interface ChartEntry extends SongView {
+  chart: Chart;
+  audio: PackedAudio | null;
+  cover: PackedAudio | null;
+}
+
+function chartDuration(chart: Chart): number {
+  return createTimeline(chart).duration;
+}
+
+function toSongView(entry: ChartEntry): SongView {
+  return {
+    id: entry.id,
+    title: entry.chart.meta.title,
+    artist: entry.chart.meta.artist ?? '',
+    difficulty: entry.chart.meta.difficulty ?? '',
+    durationMs: chartDuration(entry.chart),
+    source: entry.source,
+  };
+}
+
+const songEntries: ChartEntry[] = [];
+function addEntry(entry: ChartEntry): void {
+  if (!songEntries.some((existing) => existing.chart === entry.chart)) songEntries.push(entry);
+}
+if (activeChart !== TEST_CHART && activeChart !== DEMO_CHART) {
+  addEntry({
+    id: 'current',
+    chart: activeChart,
+    title: activeChart.meta.title,
+    artist: activeChart.meta.artist ?? '',
+    difficulty: activeChart.meta.difficulty ?? '',
+    durationMs: chartDuration(activeChart),
+    source: chartSource,
+    audio: packedAudio,
+    cover: packedCover,
+  });
+}
+addEntry({
+  id: 'proving-ground',
+  chart: TEST_CHART,
+  title: TEST_CHART.meta.title,
+  artist: TEST_CHART.meta.artist ?? '',
+  difficulty: TEST_CHART.meta.difficulty ?? '',
+  durationMs: chartDuration(TEST_CHART),
+  source: 'BUILT-IN',
+  audio: null,
+  cover: null,
+});
+addEntry({
+  id: 'example-loop',
+  chart: DEMO_CHART,
+  title: DEMO_CHART.meta.title,
+  artist: DEMO_CHART.meta.artist ?? '',
+  difficulty: DEMO_CHART.meta.difficulty ?? '',
+  durationMs: chartDuration(DEMO_CHART),
+  source: 'BUILT-IN',
+  audio: null,
+  cover: null,
+});
+let selectedChartId =
+  activeChart === TEST_CHART ? 'proving-ground' : activeChart === DEMO_CHART ? 'example-loop' : 'current';
+function selectedEntry(): ChartEntry {
+  return songEntries.find((entry) => entry.id === selectedChartId) ?? songEntries[0]!;
 }
 
 // 键型预览与打击练习的开关；也接受 ?preview=1 / ?auto=1。
@@ -373,13 +444,13 @@ const coverImage = packedCover
   : activeChart.meta.cover
     ? await loadImageUrl(activeChart.meta.cover)
     : null;
-const displayTextures = createDisplayTextures({
+let displayTextures = createDisplayTextures({
   title: activeChart.meta.title,
   artist: activeChart.meta.artist,
   difficulty: activeChart.meta.difficulty,
   cover: coverImage,
 });
-const display = buildDisplay(displayTextures, displayPlacement);
+let display = buildDisplay(displayTextures, displayPlacement);
 scene.add(display.group);
 
 // 材质实验台：dev 下默认显示，?lab=0 关掉。不参与玩法，只在调材质时打开。
@@ -404,9 +475,15 @@ const notes = buildNotesPreview(params, table.geometry, lib);
 scene.add(notes.group);
 
 // —— 打击练习：4 条 drag 的楼梯 ——
+const menuButtonRaw = bootQuery.get('menuButton');
+const menuButtonIndex =
+  menuButtonRaw !== null && Number.isInteger(Number(menuButtonRaw)) && Number(menuButtonRaw) >= 0
+    ? Number(menuButtonRaw)
+    : 6;
 const hands = createHands(renderer, scene, {
   pointerPlaneY: params.tableHeight + 0.07,
   pointerZ: table.geometry.bandZ,
+  menuButtonIndex,
 });
 
 const playHooks = {
@@ -426,9 +503,200 @@ const uiStatus: GameUiStatus = {
   latencyMs: 0,
   audioLive: false,
   trackName: 'DRUMS',
+  inVr: false,
 };
 const gameUi = createGameUi(playSettings, audioSettings, uiStatus);
+gameUi.setChartInfo(toSongView(selectedEntry()));
+gameUi.setSongs(songEntries.map(toSongView), selectedChartId);
 scene.add(gameUi.group);
+
+type GameFlow = 'home' | 'songs' | 'playing' | 'paused' | 'settings' | 'result';
+let flow: GameFlow = 'home';
+let settingsReturn: 'home' | 'paused' = 'home';
+
+/** 回主页：停表、清空这一局、藏起谱面与 HUD。 */
+function showHome(): void {
+  if (audio.state === 'playing') audio.pause();
+  flow = 'home';
+  settingsReturn = 'home';
+  playfield.restart();
+  playfield.group.visible = false;
+  display.group.visible = false;
+  uiStatus.playing = false;
+  uiStatus.paused = false;
+  gameUi.showHome();
+}
+
+/** 选歌 / 当前包：真实切换播放器、音频与浮空显示。 */
+function showSongs(): void {
+  if (audio.state === 'playing') audio.pause();
+  flow = 'songs';
+  playfield.group.visible = false;
+  display.group.visible = false;
+  uiStatus.playing = false;
+  uiStatus.paused = false;
+  gameUi.showSongs();
+}
+
+async function rebuildDisplay(entry: ChartEntry): Promise<void> {
+  const cover = entry.cover
+    ? await loadImageBytes(entry.cover.data, entry.cover.type)
+    : entry.chart.meta.cover
+      ? await loadImageUrl(entry.chart.meta.cover)
+      : null;
+  scene.remove(display.group);
+  display.dispose();
+  displayTextures.dispose();
+  displayTextures = createDisplayTextures({
+    title: entry.chart.meta.title,
+    artist: entry.chart.meta.artist,
+    difficulty: entry.chart.meta.difficulty,
+    cover,
+  });
+  display = buildDisplay(displayTextures, displayPlacement);
+  scene.add(display.group);
+  display.group.visible = false;
+  moveDisplay();
+}
+
+async function switchChart(entry: ChartEntry): Promise<void> {
+  audio.pause();
+  audio.clearTrack();
+  audioSettings.offsetMs = entry.chart.meta.offset;
+  audio.setTiming(entry.chart.timing);
+  if (entry.audio) {
+    const url = URL.createObjectURL(new Blob([new Uint8Array(entry.audio.data).buffer], { type: entry.audio.type }));
+    try {
+      await audio.loadTrack(url, entry.audio.name);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  activeChart = entry.chart;
+  chartSource = entry.source;
+  packedAudio = entry.audio;
+  packedCover = entry.cover;
+  selectedChartId = entry.id;
+
+  scene.remove(playfield.group);
+  playfield.dispose();
+  playfield = createPlayer(params, table.geometry, lib, activeChart, playSettings, playHooks);
+  playfield.setTimeSource(() => audio.now());
+  playfield.group.visible = false;
+  scene.add(playfield.group);
+
+  gameUi.setChartInfo(toSongView(entry));
+  gameUi.setSongs(songEntries.map(toSongView), selectedChartId);
+  await rebuildDisplay(entry);
+  playfield.group.visible = false;
+  display.group.visible = false;
+}
+
+/** 进入游玩状态（不重启谱面 / 音频）。 */
+function enterPlaying(): void {
+  flow = 'playing';
+  playfield.group.visible = true;
+  display.group.visible = true;
+  uiStatus.playing = true;
+  uiStatus.paused = false;
+  gameUi.showPlaying();
+}
+
+/** 从头开始一局：重置谱面，音频从 lead-in 起播。 */
+function startPlayback(): void {
+  playfield.restart();
+  enterPlaying();
+  audio.play(-audioSettings.leadInMs);
+}
+
+function pausePlayback(): void {
+  if (flow !== 'playing') return;
+  audio.pause();
+  flow = 'paused';
+  playfield.group.visible = true;
+  display.group.visible = false;
+  uiStatus.playing = false;
+  uiStatus.paused = true;
+  gameUi.showPaused(playfield.score, playfield.timeMs);
+}
+
+function resumePlayback(): void {
+  if (flow !== 'paused') return;
+  audio.resume();
+  enterPlaying();
+}
+
+function openSettings(): void {
+  const fromHome = flow === 'home';
+  if (flow === 'playing') pausePlayback();
+  settingsReturn = flow === 'home' ? 'home' : 'paused';
+  if (audio.state === 'playing') audio.pause();
+  flow = 'settings';
+  playfield.group.visible = !fromHome;
+  display.group.visible = false;
+  uiStatus.playing = false;
+  uiStatus.paused = true;
+  gameUi.showSettings();
+}
+
+function closeSettings(): void {
+  if (flow !== 'settings') return;
+  if (settingsReturn === 'home') {
+    showHome();
+    return;
+  }
+  flow = 'paused';
+  uiStatus.playing = false;
+  uiStatus.paused = true;
+  gameUi.showPaused(playfield.score, playfield.timeMs);
+}
+
+function showResult(): void {
+  flow = 'result';
+  if (audio.state === 'playing') audio.pause();
+  uiStatus.playing = false;
+  uiStatus.paused = false;
+  playfield.group.visible = true;
+  display.group.visible = false;
+  gameUi.showResult(playfield.score);
+}
+
+function exitVr(): void {
+  const session = renderer.xr.getSession();
+  if (session) void session.end();
+}
+
+// dev：给 CDP / 控制台一个最小状态机入口，方便验证「主页 → 游玩 → 暂停 → 设置」。
+if (import.meta.env.DEV) {
+  (window as unknown as { __parallax: Record<string, unknown> }).__parallax = {
+    get flow() {
+      return flow;
+    },
+    get mode() {
+      return gameUi.mode;
+    },
+    get selected() {
+      return selectedChartId;
+    },
+    get charts() {
+      return songEntries.map((entry) => entry.id);
+    },
+    start: startPlayback,
+    pause: pausePlayback,
+    resume: resumePlayback,
+    home: showHome,
+    songs: showSongs,
+    settings: openSettings,
+    back: closeSettings,
+    result: showResult,
+    hands,
+    gameUi,
+    get playfield() {
+      return playfield;
+    },
+  };
+}
 
 // dev：?warp=1.6 先把练习快进若干秒，配合 ?freeze=1 冻结在那一帧（headless 帧率低，等不到）。
 let frozen = false;
@@ -448,6 +716,7 @@ if (import.meta.env.DEV) {
       playfield.update(step, hands.samples);
       fake.t += step * 1000;
     }
+    enterPlaying();
     if (!frozen) {
       // 快进结束后接着用音频时钟从那个时间点继续跑。
       audio.play(fake.t);
@@ -456,60 +725,43 @@ if (import.meta.env.DEV) {
   }
 }
 
-/**
- * 从头开始一局：重置谱面、结算面板，并让音频从 lead-in 起播。
- * lead-in 是负数时间：note 从远处滑进来，玩家有时间把手放到判定带上。
- */
-let pausedBySettings = false;
-function restartPlayback(): void {
-  gameUi.reset();
-  playfield.restart();
-  audio.play(-audioSettings.leadInMs);
-  uiStatus.paused = false;
-  pausedBySettings = false;
-}
-
 // dev：?clock=0 完全不启动音频（headless 截图时 AudioContext 会把虚拟时间卡住）；
-// ?panel=settings|result 直接把面板摊开，方便在桌面上检查外观。
+// ?autostart=1 / ?warp / ?panel / ?auto 保持旧的「直接进游玩」调试路径。
 const devFlags = import.meta.env.DEV ? new URLSearchParams(window.location.search) : null;
 const clockOff = devFlags?.get('clock') === '0';
+/** dev：?vr=1 假装在头显里，用来检查 EXIT VR 等只有 VR 才出现的元素。 */
+const fakeVr = devFlags?.get('vr') === '1';
 if (clockOff) playfield.setTimeSource(null);
-if (!devWarped && !clockOff) restartPlayback();
+const autoStart =
+  devWarped ||
+  devFlags?.get('autostart') === '1' ||
+  devFlags?.get('auto') === '1' ||
+  devFlags?.get('freeze') === '1' ||
+  devFlags?.has('panel');
+if (!devWarped) {
+  if (autoStart) {
+    if (!clockOff) startPlayback();
+    else enterPlaying();
+  } else {
+    showHome();
+  }
+}
 
 const panelParam = devFlags?.get('panel') ?? null;
-if (panelParam === 'settings' || panelParam === 'result') gameUi.debugShowPanel(panelParam, playfield.score);
-
-// dev：?aim=1 造一只「瞄准控制条」的假手，用来在没有头显时验证激光笔交互。
-if (devFlags?.get('aim') === '1') {
-  const fakePosition = new THREE.Vector3(0.28, 1.16, 0.28);
-  // 控制条三个按钮在世界里的中心（面板朝向默认相机，所以位置是算好的）。
-  const target = devFlags.get('aimTarget') ?? 'pause';
-  const aimAt =
-    target === 'settings'
-      ? new THREE.Vector3(0.493, 1.074, -0.684)
-      : target === 'retry'
-        ? new THREE.Vector3(0.787, 1.074, -0.516)
-        : new THREE.Vector3(0.64, 1.074, -0.6);
-  const fake: HandSample = {
-    side: 'right',
-    source: 'xr',
-    position: fakePosition,
-    velocity: new THREE.Vector3(),
-    active: true,
-    pressed: false,
-    swing: 0,
-    ray: new THREE.Ray(fakePosition, aimAt.clone().sub(fakePosition).normalize()),
-  };
-  hands.samples.push(fake);
-  if (devFlags.get('click') === '1') {
-    // 无头渲染只有 ~2fps，按下至少要跨过一帧，否则「边沿」会被整段跳过。
-    window.setTimeout(() => {
-      fake.pressed = true;
-    }, 900);
-    window.setTimeout(() => {
-      fake.pressed = false;
-    }, 3600);
-  }
+if (panelParam === 'home') {
+  showHome();
+} else if (panelParam === 'songs') {
+  showSongs();
+} else if (panelParam === 'packs') {
+  showSongs();
+  gameUi.debugShowPanel('packs', playfield.score);
+} else if (panelParam === 'paused') {
+  enterPlaying();
+  pausePlayback();
+} else if (panelParam === 'settings') {
+  openSettings();
+} else if (panelParam === 'result') {
+  showResult();
 }
 
 function applyPreview(): void {
@@ -603,6 +855,12 @@ window.addEventListener('keydown', (event) => {
   if (event.code === 'KeyA') shiftState.mode = 'left';
   else if (event.code === 'KeyD') shiftState.mode = 'right';
   else if (event.code === 'KeyS') shiftState.mode = 'normal';
+  else if (event.code === 'Escape') {
+    if (flow === 'playing') pausePlayback();
+    else if (flow === 'paused') resumePlayback();
+    else if (flow === 'settings') closeSettings();
+    else if (flow === 'songs') showHome();
+  }
 });
 
 // —— 会话 ——
@@ -611,14 +869,22 @@ const HINT_READY = '链路就绪 · 点下方 Enter VR 进入 immersive-vr。';
 
 renderer.xr.addEventListener('sessionstart', () => {
   controls.enabled = false;
-  // 进头显时从干净的一波开始：桌面上积累的漏键不该带进 VR。
-  restartPlayback();
+  uiStatus.inVr = true;
+  // 正常进头显先落在欢迎页；dev 的自动路径仍可直接进游玩。
+  if (autoStart) {
+    if (!clockOff) startPlayback();
+    else enterPlaying();
+  } else {
+    showHome();
+  }
   diagnostics.set('session', 'immersive-vr', 'ok');
-  diagnostics.setHint('VR 会话中 · 桌面镜像上的操作不影响头显。');
+  diagnostics.setHint('VR 会话中 · 菜单键 / 左手 Y 长按打开暂停。');
 });
 renderer.xr.addEventListener('sessionend', () => {
   controls.enabled = true;
+  uiStatus.inVr = false;
   audio.pause();
+  showHome();
   referenceSpaceSeen = false;
   diagnostics.set('session', 'off', 'idle');
   diagnostics.set('refspace', '—', 'idle');
@@ -673,7 +939,7 @@ if (import.meta.env.DEV) {
       onDisplayChange: moveDisplay,
       onLabChange: applyLab,
       onPreviewChange: applyPreview,
-      onPlayRestart: () => restartPlayback(),
+      onPlayRestart: () => startPlayback(),
     });
   });
 }
@@ -704,38 +970,48 @@ renderer.setAnimationLoop((frameTime: number) => {
 
   if (!frozen) {
     hands.update(dt, camera);
-    playfield.update(dt, hands.samples);
+    if (flow === 'playing') playfield.update(dt, hands.samples);
   }
   audio.update();
 
-  uiStatus.paused = audio.state === 'paused';
-  uiStatus.playing = audio.state === 'playing';
+  uiStatus.inVr = fakeVr || renderer.xr.isPresenting;
+  uiStatus.paused = flow === 'paused' || flow === 'settings';
+  uiStatus.playing = flow === 'playing';
   uiStatus.latencyMs = audio.latencyMs;
   uiStatus.audioLive = audio.live;
   uiStatus.trackName = audio.trackName;
 
-  const action = gameUi.update(camera, hands.samples, playfield.score, playfield.finished);
-  if (action === 'retry') {
-    restartPlayback();
-  } else if (action === 'pause') {
-    audio.pause();
+  // 菜单键（或左手 Y 长按）只在这一层处理：游玩中 → 暂停；暂停中 → 继续；设置中 → 返回。
+  if (!frozen && hands.consumeMenu()) {
+    if (flow === 'playing') pausePlayback();
+    else if (flow === 'paused') resumePlayback();
+    else if (flow === 'settings') closeSettings();
+  }
+
+  const action = gameUi.update(camera, hands.samples, playfield.score);
+  if (action === 'start' || action === 'restart') {
+    startPlayback();
   } else if (action === 'resume') {
-    audio.resume();
+    resumePlayback();
+  } else if (action === 'home') {
+    showHome();
+  } else if (action === 'songs') {
+    showSongs();
+  } else if (action === 'songs-back') {
+    showHome();
+  } else if (action?.startsWith('song:')) {
+    const entry = songEntries.find((candidate) => candidate.id === action.slice(5));
+    if (entry) void switchChart(entry);
+  } else if (action === 'settings') {
+    openSettings();
+  } else if (action === 'settings-back') {
+    closeSettings();
+  } else if (action === 'exit-vr') {
+    exitVr();
   }
 
-  // 设置面板开着 = 暂停：不然玩家读设置的时候谱面还在走。
-  if (gameUi.settingsOpen) {
-    if (audio.state === 'playing') {
-      audio.pause();
-      pausedBySettings = true;
-    }
-  } else if (pausedBySettings) {
-    pausedBySettings = false;
-    if (audio.state === 'paused') audio.resume();
-  }
-
-  // 谱面跑完 / 血量归零 / 关掉播放：停表。
-  if (audio.state === 'playing' && (!playSettings.enabled || playfield.finished)) audio.pause();
+  // 谱面跑完 / 血量归零：进入结算，音频停表。
+  if (flow === 'playing' && playfield.finished) showResult();
 
   if (previewState.visible) notes.update(frameTime / 1000);
 

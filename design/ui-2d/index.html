@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Parallax — UI Study 02</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="stage">
+      <div class="shell">
+        <div class="shell-bar">
+          <div class="shell-title">
+            <strong>PARALLAX</strong>
+            <span>MENU SYSTEM / UI STUDY 02</span>
+          </div>
+          <nav class="screen-tabs" aria-label="Screens">
+            <button type="button" data-screen="home">Home</button>
+            <button type="button" data-screen="songs">Songs</button>
+            <button type="button" data-screen="packs">Add packs</button>
+            <button type="button" data-screen="paused">Pause</button>
+            <button type="button" data-screen="settings">Settings</button>
+            <button type="button" data-screen="result">Result</button>
+          </nav>
+          <div class="shell-meta">760 × 470 · 1.58×</div>
+        </div>
+
+        <main class="panel" id="panel">
+          <header class="panel-header">
+            <div class="wordmark">PARALLAX</div>
+            <div class="header-meta">
+              <span class="status"><i class="dot dot-blue"></i> SYSTEM READY</span>
+              <span>QUEST 3 / WEBXR</span>
+            </div>
+          </header>
+
+          <div class="panel-body">
+            <section class="screen" data-screen="home">
+              <div class="home-grid">
+                <div class="home-lead">
+                  <div class="home-top">
+                    <div class="home-title-block">
+                      <div class="eyebrow"><span class="index">01</span> NOW PLAYING</div>
+                      <h1 class="display">Proving<br />Ground</h1>
+                      <p class="artist">demo</p>
+                    </div>
+                    <div class="cover home-cover" aria-hidden="true"><span>01</span></div>
+                  </div>
+                  <div class="home-facts">
+                    <div><span>BPM</span><strong>150</strong></div>
+                    <div><span>Notes</span><strong>79</strong></div>
+                    <div><span>Shifts</span><strong>02</strong></div>
+                    <div><span>Types</span><strong>04</strong></div>
+                  </div>
+                  <div class="chart-map">
+                    <div class="chart-map-head"><span>CHART MAP</span><span>0:42 · 79 NOTES · 2 SHIFTS</span></div>
+                    <div class="lanes">
+                      <div class="lane"><i style="left: 6%"></i><i style="left: 18%"></i><i style="left: 34%"></i><i style="left: 51%"></i><i style="left: 77%"></i></div>
+                      <div class="lane"><i style="left: 12%"></i><i style="left: 29%"></i><i style="left: 44%"></i><i style="left: 62%"></i><i style="left: 88%"></i></div>
+                      <div class="lane"><i style="left: 8%"></i><i style="left: 24%"></i><i style="left: 39%"></i><i style="left: 58%"></i><i style="left: 71%"></i><i style="left: 92%"></i></div>
+                      <div class="lane"><i style="left: 15%"></i><i style="left: 33%"></i><i style="left: 48%"></i><i style="left: 66%"></i><i style="left: 84%"></i></div>
+                      <div class="lane"><i style="left: 4%"></i><i style="left: 21%"></i><i style="left: 37%"></i><i style="left: 55%"></i><i style="left: 73%"></i><i style="left: 96%"></i></div>
+                      <div class="lane"><i style="left: 10%"></i><i style="left: 27%"></i><i style="left: 46%"></i><i style="left: 64%"></i><i style="left: 81%"></i></div>
+                      <span class="shift-marker" style="left: 29%"><b>L</b></span>
+                      <span class="shift-marker" style="left: 72%"><b>R</b></span>
+                    </div>
+                  </div>
+                  <div class="meta-row">
+                    <div><span>Difficulty</span><strong>IN 8</strong></div>
+                    <div><span>Length</span><strong>0:42</strong></div>
+                    <div><span>Source</span><strong>BUILT-IN</strong></div>
+                  </div>
+                  <p class="note">Two charts loaded. Select a song or start the current one.</p>
+                </div>
+                <aside class="home-actions">
+                  <button class="action action-primary" type="button" data-action="start">
+                    <span>Start</span><kbd>↵</kbd>
+                  </button>
+                  <button class="action" type="button" data-screen="songs">
+                    <span>Songs</span><span class="action-index">02</span>
+                  </button>
+                  <button class="action" type="button" data-screen="settings">
+                    <span>Settings</span><span class="action-index">03</span>
+                  </button>
+                  <button class="action action-quiet" type="button" data-action="exit">
+                    <span>Exit VR</span><kbd>⌫</kbd>
+                  </button>
+                  <div class="home-status">
+                    <span><i class="dot dot-blue"></i> AUDIO / SYNTH</span>
+                    <span>MENU / Y HOLD</span>
+                  </div>
+                </aside>
+              </div>
+            </section>
+
+            <section class="screen" data-screen="songs">
+              <div class="songs-grid">
+                <div class="library">
+                  <div class="eyebrow"><span class="index">02</span> LIBRARY <span class="count">02</span></div>
+                  <div class="song-list" id="song-list">
+                    <button class="song-row is-selected" type="button" data-song="proving-ground">
+                      <span class="song-index">01</span>
+                      <span class="song-main"><strong>Proving Ground</strong><small>demo · IN 8</small></span>
+                      <span class="song-time">0:42</span>
+                    </button>
+                    <button class="song-row" type="button" data-song="antagonism">
+                      <span class="song-index">02</span>
+                      <span class="song-main"><strong>Antagonism</strong><small>demo · IN 7</small></span>
+                      <span class="song-time">0:12</span>
+                    </button>
+                    <button class="song-row" type="button" data-song="air-ticks">
+                      <span class="song-index">03</span>
+                      <span class="song-main"><strong>Air / Ticks</strong><small>example · IN 4</small></span>
+                      <span class="song-time">0:18</span>
+                    </button>
+                    <button class="song-row" type="button" data-song="infinity-heaven">
+                      <span class="song-index">04</span>
+                      <span class="song-main"><strong>Infinity Heaven</strong><small>HyuN · IN 1</small></span>
+                      <span class="song-time">2:33</span>
+                    </button>
+                  </div>
+                  <div class="density-block">
+                    <div class="chart-map-head"><span>DENSITY</span><span id="density-meta">79 NOTES · 2 SHIFTS</span></div>
+                    <div class="density" id="density-bars" aria-hidden="true"></div>
+                  </div>
+                  <div class="collection">
+                    <div><span>Charts</span><strong>04</strong></div>
+                    <div><span>Built-in</span><strong>02</strong></div>
+                    <div><span>Packs</span><strong>02</strong></div>
+                    <div><span>Last played</span><strong>Proving Ground</strong></div>
+                  </div>
+                  <div class="add-packs">
+                    <div>
+                      <div class="eyebrow">ADD PACKS</div>
+                      <p>Load or drop a <code>.parallax</code> on desktop.</p>
+                    </div>
+                    <button class="action action-small action-quiet" type="button" data-screen="packs">
+                      <span>How to add</span><span>↗</span>
+                    </button>
+                  </div>
+                </div>
+
+                <aside class="song-detail">
+                  <div class="detail-head">
+                    <div class="eyebrow"><span class="lime-dot"></span> SELECTED</div>
+                    <span class="detail-index" id="detail-index">01</span>
+                  </div>
+                  <div class="cover" aria-hidden="true"><span id="cover-index">01</span></div>
+                  <h2 id="detail-title">Proving Ground</h2>
+                  <p class="artist" id="detail-artist">demo</p>
+                  <dl class="detail-meta">
+                    <div><dt>Difficulty</dt><dd id="detail-difficulty">IN 8</dd></div>
+                    <div><dt>Length</dt><dd id="detail-length">0:42</dd></div>
+                    <div><dt>Source</dt><dd id="detail-source">BUILT-IN</dd></div>
+                  </dl>
+                  <div class="detail-facts">
+                    <div><span>BPM</span><strong id="detail-bpm">150</strong></div>
+                    <div><span>Notes</span><strong id="detail-notes">79</strong></div>
+                    <div><span>Shifts</span><strong id="detail-shifts">02</strong></div>
+                    <div><span>Types</span><strong id="detail-types">04</strong></div>
+                  </div>
+                  <div class="detail-actions">
+                    <button class="action action-primary" type="button" data-action="play">
+                      <span>Play</span><kbd>↵</kbd>
+                    </button>
+                    <button class="action action-quiet" type="button" data-screen="home">
+                      <span>Back</span><span>←</span>
+                    </button>
+                  </div>
+                </aside>
+              </div>
+            </section>
+
+            <section class="screen" data-screen="packs">
+              <div class="packs-page">
+                <div class="eyebrow"><span class="index">03</span> ADD PACKS</div>
+                <h1 class="display display-small">Bring your<br />own chart.</h1>
+                <p class="note note-wide">
+                  A <code>.parallax</code> contains the chart, audio and cover. Load it on desktop; the headset sees it after a refresh.
+                </p>
+                <div class="steps-grid">
+                  <article>
+                    <span class="step-index">01</span>
+                    <h3>Desktop</h3>
+                    <p>Use <code>LOAD .parallax</code> at the bottom-left of the game page.</p>
+                  </article>
+                  <article>
+                    <span class="step-index">02</span>
+                    <h3>Drag</h3>
+                    <p>Drop a <code>.parallax</code> file anywhere on the page.</p>
+                  </article>
+                  <article>
+                    <span class="step-index">03</span>
+                    <h3>Folder</h3>
+                    <p>Put it in <code>prototype/public/packages/</code>.</p>
+                  </article>
+                  <article>
+                    <span class="step-index">04</span>
+                    <h3>URL</h3>
+                    <p>Open <code>?pack=/packages/&lt;name&gt;.parallax</code>.</p>
+                  </article>
+                </div>
+                <div class="pack-summary">
+                  <div><span>Current pack</span><strong>Infinity Heaven</strong></div>
+                  <div><span>Audio</span><strong>FLAC · 18.2 MB</strong></div>
+                  <div><span>Chart</span><strong>8 KB · 48 notes</strong></div>
+                </div>
+                <button class="action action-quiet back-row" type="button" data-screen="songs">
+                  <span>Back to songs</span><span>←</span>
+                </button>
+              </div>
+            </section>
+
+            <section class="screen" data-screen="paused">
+              <div class="pause-grid">
+                <div class="pause-lead">
+                  <div class="eyebrow"><span class="lime-dot"></span> PAUSED <span class="index">04</span></div>
+                  <div class="big-time">1:24</div>
+                  <h2>Proving Ground</h2>
+                  <div class="chart-map pause-map">
+                    <div class="chart-map-head"><span>CHART MAP</span><span>1:24 · 46.8s LEFT</span></div>
+                    <div class="lanes">
+                      <div class="lane"><i style="left: 6%"></i><i style="left: 18%"></i><i style="left: 34%"></i><i style="left: 51%"></i><i style="left: 77%"></i><i style="left: 93%"></i></div>
+                      <div class="lane"><i style="left: 12%"></i><i style="left: 29%"></i><i style="left: 44%"></i><i style="left: 62%"></i><i style="left: 88%"></i></div>
+                      <div class="lane"><i style="left: 8%"></i><i style="left: 24%"></i><i style="left: 39%"></i><i style="left: 58%"></i><i style="left: 71%"></i><i style="left: 92%"></i></div>
+                      <div class="lane"><i style="left: 15%"></i><i style="left: 33%"></i><i style="left: 48%"></i><i style="left: 66%"></i><i style="left: 84%"></i></div>
+                      <div class="lane"><i style="left: 4%"></i><i style="left: 21%"></i><i style="left: 37%"></i><i style="left: 55%"></i><i style="left: 73%"></i><i style="left: 96%"></i></div>
+                      <div class="lane"><i style="left: 10%"></i><i style="left: 27%"></i><i style="left: 46%"></i><i style="left: 64%"></i><i style="left: 81%"></i></div>
+                    </div>
+                  </div>
+                  <div class="pause-stats">
+                    <div><span>Score</span><strong>4,820,116</strong></div>
+                    <div><span>Combo</span><strong>87</strong></div>
+                    <div><span>Speed</span><strong>x3.0</strong></div>
+                    <div><span>Accuracy</span><strong>98.7%</strong></div>
+                  </div>
+                </div>
+                <aside class="pause-actions">
+                  <button class="action action-primary" type="button" data-screen="home">
+                    <span>Resume</span><kbd>↵</kbd>
+                  </button>
+                  <button class="action" type="button"><span>Restart</span><span>↺</span></button>
+                  <button class="action" type="button" data-screen="settings"><span>Settings</span><span>03</span></button>
+                  <button class="action action-quiet" type="button" data-screen="home"><span>Home</span><span>⌂</span></button>
+                </aside>
+              </div>
+            </section>
+
+            <section class="screen" data-screen="settings">
+              <div class="settings-grid">
+                <div class="settings-lead">
+                  <div class="eyebrow"><span class="index">05</span> SETTINGS</div>
+                  <h1 class="display display-small">Calibrate<br />the room.</h1>
+                  <div class="control-list">
+                    <div class="control-row">
+                      <span>Speed</span>
+                      <div class="stepper"><button type="button">−</button><strong>x3.0</strong><button type="button">+</button></div>
+                    </div>
+                    <div class="control-row">
+                      <span>Offset</span>
+                      <div class="stepper"><button type="button">−</button><strong>+15ms</strong><button type="button">+</button></div>
+                    </div>
+                    <div class="control-row">
+                      <span>Volume</span>
+                      <div class="stepper"><button type="button">−</button><strong>80%</strong><button type="button">+</button></div>
+                    </div>
+                    <div class="control-row">
+                      <span>Haptics</span>
+                      <div class="toggle"><button type="button" class="is-on">ON</button><button type="button">OFF</button></div>
+                    </div>
+                    <div class="control-row">
+                      <span>Handedness</span>
+                      <div class="toggle"><button type="button">L</button><button type="button" class="is-on">R</button></div>
+                    </div>
+                    <div class="control-row">
+                      <span>Height</span>
+                      <div class="stepper"><button type="button">−</button><strong>0.95m</strong><button type="button">+</button></div>
+                    </div>
+                  </div>
+                  <button class="action action-quiet back-row" type="button" data-screen="home">
+                    <span>Back</span><span>←</span>
+                  </button>
+                </div>
+                <aside class="status-panel">
+                  <div class="eyebrow">STATUS</div>
+                  <dl class="status-list">
+                    <div><dt>Track</dt><dd>DRUMS</dd></div>
+                    <div><dt>Latency</dt><dd>24 ms</dd></div>
+                    <div><dt>Mode</dt><dd>TIME BASED</dd></div>
+                    <div><dt>Build</dt><dd>0.3.11</dd></div>
+                  </dl>
+                  <p>Speed is visual only. Judgement is time based.</p>
+                  <div class="status-grid">
+                    <div><span>Headset</span><strong>Quest 3</strong></div>
+                    <div><span>Refresh</span><strong>72 Hz</strong></div>
+                    <div><span>Room</span><strong>0.95m</strong></div>
+                    <div><span>Theme</span><strong>DARK</strong></div>
+                  </div>
+                </aside>
+              </div>
+            </section>
+
+            <section class="screen" data-screen="result">
+              <div class="result-grid">
+                <div class="result-lead">
+                  <div class="eyebrow"><span class="index">06</span> RESULT <span class="lime-text">CLEAR</span></div>
+                  <div class="big-score">9,214,880</div>
+                  <h2>Proving Ground</h2>
+                  <div class="result-meta">
+                    <div><span>Max combo</span><strong>246</strong></div>
+                    <div><span>Difficulty</span><strong>IN 8</strong></div>
+                    <div><span>Accuracy</span><strong>98.7%</strong></div>
+                    <div><span>Notes</span><strong>317</strong></div>
+                  </div>
+                  <div class="judgement-bar" aria-hidden="true"><span class="j-perfect" style="width:78%"></span><span class="j-good" style="width:18%"></span><span class="j-miss" style="width:4%"></span></div>
+                  <div class="judgement-legend"><span>PERFECT 312</span><span>GOOD 4</span><span>MISS 1</span></div>
+                  <div class="result-actions">
+                    <button class="action action-primary" type="button" data-action="play"><span>Retry</span><kbd>↵</kbd></button>
+                    <button class="action action-quiet" type="button" data-screen="home"><span>Home</span><span>⌂</span></button>
+                  </div>
+                </div>
+                <aside class="result-stats">
+                  <div class="eyebrow">ACCURACY</div>
+                  <div class="stat-row"><span>Perfect</span><strong>312</strong></div>
+                  <div class="stat-row"><span>Good</span><strong>4</strong></div>
+                  <div class="stat-row"><span>Miss</span><strong>1</strong></div>
+                </aside>
+              </div>
+            </section>
+          </div>
+
+          <footer class="panel-footer">
+            <span>PARALLAX / MENU</span>
+            <span>MENU / Y HOLD = PAUSE</span>
+          </footer>
+        </main>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
