@@ -14,6 +14,7 @@
 - 面板切换时加输入锁：按住扳机切换页面不会立刻点中新面板上的按钮。
 - P2 布局重做：全部去圆角；主页双栏、Songs 可选列表 + 详情、Pause / Settings / Result 双栏；支持切换内置谱并重建播放器 / 音频 / 浮空显示；Add packs 二级页；新增 `?panel=packs`。
 - 2D UI study（`design/ui-2d/`）：六屏可切换，A + C 的排版 / 浅蓝 + 稀有 lime；用于 VR 移植前的视觉与密度试验。
+- VR 复刻 2D study：760×470 六屏重排，标签 / 按钮按 VR 可读性重新定字阶，2× 面板纹理；chart map / density 接真实谱面；Settings 增加 Metronome / Groove / Lead-in；新增 `?chrome=0` 干净截图开关。
 
 ## 0.3.11 — 2026-10-18
 

@@ -3,7 +3,7 @@
 Phase 1 的 WebXR 原型。**v0.3.11 / Step 0–5 已完成并验收**：游戏可玩，桌面制谱器可用；Quest 3 实测 72Hz+。
 
 > 项目总览：[`../README.md`](../README.md) ｜ 谱面格式：[`CHART.md`](CHART.md) ｜
-> 制谱器：[`EDITOR.md`](EDITOR.md) ｜ 谱面包：[`PACKAGE.md`](PACKAGE.md) ｜ 迭代记录：[`STATUS.md`](STATUS.md) ｜ UI 待办：[`UI-BACKLOG.md`](UI-BACKLOG.md)
+> 制谱器：[`EDITOR.md`](EDITOR.md) ｜ 谱面包：[`PACKAGE.md`](PACKAGE.md) ｜ 迭代记录：[`STATUS.md`](STATUS.md) ｜ UI 待办：[`UI-BACKLOG.md`](UI-BACKLOG.md) ｜ 无线上头显：[`DEPLOY.md`](DEPLOY.md)
 
 设计真相在仓库根的 `parallax-idea.md`；Phase 1 旧协议在 `agent_old.md`（已归档，不再遵循）。这里只放能跑的东西。
 
@@ -55,6 +55,8 @@ npm run dev
 ## 在 Quest 3 上打开
 
 WebXR 要求 **secure context**。`http://localhost` 和 `http://127.0.0.1` 算，`http://192.168.x.x:5173` 不算 —— 所以「Vite 开 `--host` 后用局域网 IP 打开」通常拿不到 `navigator.xr`。
+
+> 不想插线：把静态构建部署到 Cloudflare Pages，Quest 收藏 `https://<project>.pages.dev`。完整步骤和更新方式见 [`DEPLOY.md`](DEPLOY.md)。
 
 ### 方案 A — USB + `adb reverse`（推荐）
 
@@ -135,7 +137,7 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 `?chart=/charts/air-example.json` 空中 note / 显式 arc 物量 · `?auto=1` 自动完美演示 ·
 `?autostart=1` 跳过主页 · `?freeze=1` 冻结 · `?warp=2.4` 快进 · `?flow=4` 流速 · `?shift=left|right` ·
 `?panel=home|songs|packs|paused|settings|result` 摊开面板 · `?menuButton=6` 改 menu 键索引 · `?clock=0` 关掉音频时钟 ·
-`?offset=20&volume=0.6&lead=2000` 音频参数 · `?audio=/track.mp3` 真实音轨。
+`?offset=20&volume=0.6&lead=2000` 音频参数 · `?audio=/track.mp3` 真实音轨 · `?chrome=0` 隐藏桌面调试覆盖层。
 
 ## 脚本
 

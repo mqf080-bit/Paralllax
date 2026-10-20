@@ -37,6 +37,16 @@ body {
   display: block;
 }
 
+/* 截图 / 演示时只留 3D 画面，不把桌面调试工具拍进去。 */
+body.chrome-clean .panel,
+body.chrome-clean .package-loader,
+body.chrome-clean #stats,
+body.chrome-clean .perf-stats,
+body.chrome-clean #enter-vr,
+body.chrome-clean .lil-gui {
+  display: none !important;
+}
+
 /* —— 自检面板 —— */
 
 .panel {

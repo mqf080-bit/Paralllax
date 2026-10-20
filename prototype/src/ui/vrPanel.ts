@@ -64,7 +64,7 @@ export interface PanelOptions {
   opacity?: number;
 }
 
-const SUPERSAMPLE = 1.5;
+const SUPERSAMPLE = 2;
 const MAX_RAY_DISTANCE = 6;
 
 export function createVrPanel(options: PanelOptions): VrPanel {

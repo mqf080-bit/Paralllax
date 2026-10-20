@@ -141,7 +141,7 @@ if (localPack) {
   }
 }
 
-interface ChartEntry extends SongView {
+interface ChartEntry extends Omit<SongView, 'preview'> {
   chart: Chart;
   audio: PackedAudio | null;
   cover: PackedAudio | null;
@@ -151,14 +151,47 @@ function chartDuration(chart: Chart): number {
   return createTimeline(chart).duration;
 }
 
+/** 菜单里的谱面缩略数据：BPM、物量、shift，以及 chart map / density 用的归一化坐标。 */
+function chartPreview(chart: Chart, durationMs: number): SongView['preview'] {
+  const duration = Math.max(1, durationMs);
+  const shiftMarks = chart.shift
+    .filter((shift) => shift.target === 'left' || shift.target === 'right')
+    .map((shift) => ({
+      at: Math.min(1, Math.max(0, shift.time / duration)),
+      side: shift.target === 'left' ? ('L' as const) : ('R' as const),
+    }));
+  const counts = Array.from({ length: 32 }, () => 0);
+
+  const map = chart.notes.map((note) => {
+    const at = Math.min(1, Math.max(0, note.time / duration));
+    const rawLane = note.type === 'arc' ? (note.points[0]?.x ?? 2.5) : (note.x ?? note.lane);
+    const bucket = Math.min(31, Math.max(0, Math.floor(at * 32)));
+    counts[bucket] = (counts[bucket] ?? 0) + 1;
+    return { at, lane: Math.min(5, Math.max(0, Math.round(rawLane))) };
+  });
+
+  const peak = Math.max(1, ...counts);
+  return {
+    bpm: Math.round(chart.timing[0]?.bpm ?? 0),
+    noteCount: chart.notes.length,
+    shiftCount: shiftMarks.length,
+    typeCount: new Set(chart.notes.map((note) => note.type)).size,
+    map,
+    shiftMarks,
+    density: counts.map((count) => Math.max(0.08, count / peak)),
+  };
+}
+
 function toSongView(entry: ChartEntry): SongView {
+  const durationMs = chartDuration(entry.chart);
   return {
     id: entry.id,
     title: entry.chart.meta.title,
     artist: entry.chart.meta.artist ?? '',
     difficulty: entry.chart.meta.difficulty ?? '',
-    durationMs: chartDuration(entry.chart),
+    durationMs,
     source: entry.source,
+    preview: chartPreview(entry.chart, durationMs),
   };
 }
 
@@ -503,6 +536,7 @@ const uiStatus: GameUiStatus = {
   latencyMs: 0,
   audioLive: false,
   trackName: 'DRUMS',
+  tableHeight: params.tableHeight,
   inVr: false,
 };
 const gameUi = createGameUi(playSettings, audioSettings, uiStatus);
@@ -728,6 +762,8 @@ if (import.meta.env.DEV) {
 // dev：?clock=0 完全不启动音频（headless 截图时 AudioContext 会把虚拟时间卡住）；
 // ?autostart=1 / ?warp / ?panel / ?auto 保持旧的「直接进游玩」调试路径。
 const devFlags = import.meta.env.DEV ? new URLSearchParams(window.location.search) : null;
+// dev：?chrome=0 隐藏桌面镜像上的诊断 / lil-gui / 包加载器，给面板截图留干净背景。
+if (devFlags?.get('chrome') === '0') document.body.classList.add('chrome-clean');
 const clockOff = devFlags?.get('clock') === '0';
 /** dev：?vr=1 假装在头显里，用来检查 EXIT VR 等只有 VR 才出现的元素。 */
 const fakeVr = devFlags?.get('vr') === '1';
@@ -920,6 +956,7 @@ stats.dom.style.position = 'fixed';
 stats.dom.style.left = '16px';
 stats.dom.style.bottom = '16px';
 stats.dom.style.top = 'auto';
+stats.dom.className = 'perf-stats';
 document.body.append(stats.dom);
 
 // —— 调试面板（仅 dev）——
@@ -978,6 +1015,7 @@ renderer.setAnimationLoop((frameTime: number) => {
   uiStatus.paused = flow === 'paused' || flow === 'settings';
   uiStatus.playing = flow === 'playing';
   uiStatus.latencyMs = audio.latencyMs;
+  uiStatus.tableHeight = params.tableHeight;
   uiStatus.audioLive = audio.live;
   uiStatus.trackName = audio.trackName;
 

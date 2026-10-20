@@ -1,7 +1,7 @@
 # UI-BACKLOG — 游玩端 VR UI 问题记录
 
-> 记录：2026-10-20 ｜ 状态：**P0 已实现；P1 记录 / 方向待选** ｜ 范围：游玩端 VR（Meta Quest 3 基准）
-> 目标：把问题、约束、验收和未决问题写清楚；P0 已落地，P1 尚未改代码。
+> 记录：2026-10-20 ｜ 状态：**P0–P2 已实现，六屏已按 2D Study 复刻；待 Quest 3 验收** ｜ 范围：游玩端 VR（Meta Quest 3 基准）
+> 目标：把问题、约束、验收和未决问题写清楚；头显实测仍是唯一没闭环的验收项。
 > 相关：[STATUS.md](STATUS.md) ｜ [gameUi.ts](src/ui/gameUi.ts) ｜ [vrPanel.ts](src/ui/vrPanel.ts) ｜ [hands.ts](src/game/hands.ts) ｜ [main.ts](src/main.ts)
 
 ---
@@ -579,3 +579,37 @@ P1 的 A 第一版只是换了皮，用户指出「布局完全没变、不可�
 标签 / 按钮在 VR 里要按 760 画布重新定到可读尺寸，字体也要随包带或回退系统字体。
 
 **用户反馈（2026-10-20）**：二维稿里有些字体太小。移植前先调字阶，尤其是 9–11px 标签 / 说明。
+
+---
+
+## 12. VR 复刻 2D Study（2026-10-20）
+
+按用户要求，把 `design/ui-2d` 的六屏版式搬进 760×470 的 VR 面板，并专门处理小字可读性。
+
+### 做了什么
+
+- **不再用二维稿等比缩字**：10–11px 的二维标签按 760 画布重新定成 10–11px 的 VR 标签、12–13px 正文、16px 按钮、22px 详情标题、38px 主页大标题；画布里不再出现 10px 以下文字。
+- **2× 面板纹理**：`vrPanel` 的 `SUPERSAMPLE` 从 1.5 提到 2，760×470 的逻辑画布实际绘制为 1520×940，头显里的小字边缘更干净。
+- **真实谱面缩略数据**：`SongView.preview` 从 `Chart` 计算 BPM / note 数 / shift 数 / 键型数 / chart map / density；主页、Songs、Pause、Packs、Result 不再写死 79 / 02 / 04。
+- **六屏版式对齐二维稿**：
+  - Home：左侧 38px 两行标题 + 封面 + facts + chart map + 难度 / 时长 / 来源，右侧竖向操作；
+  - Songs：左侧可选列表 + density + collection + Add packs，右侧封面 / 详情 / BPM / Notes / Shifts / Types + Play / Back；
+  - Add packs：2×2 步骤网格 + 当前包摘要；
+  - Pause：大时间 + chart map + 底部 Score / Combo / Speed / Accuracy，右侧操作；
+  - Settings：六行真实控件（Speed / Offset / Volume / Metronome / Groove / Lead-in），右侧 status / 4 项环境信息；
+  - Result：大分数 + 判定条 + 4 项 meta，右侧 Perfect / Good / Miss。
+- **控件修正**：stepper 外层方框、加减号不再被 `fit()` 截成省略号；设置 / 结算左栏宽度收到 512px 分隔线以内；Result 右栏数字改为右对齐。
+- **截图开关**：`?chrome=0` 隐藏诊断面板、lil-gui、Stats 和包加载器，避免桌面覆盖层进入面板截图。
+
+### 已验证
+
+- `npm run typecheck` / `npm run build` 通过；
+- Home / Songs / Packs / Paused / Settings / Result 六屏截图：`docs/ui-vr2/`；
+- 实际数据：Proving Ground 显示 150 BPM / 79 notes / 02 shifts / 04 types，duration 0:42；
+- 设置页 6 个控件已接到真实 `AudioSettings` / `flowSpeed`，待头显点击验收。
+
+### 还没做
+
+- Quest 3 头显里的实际字号、hover 强度、0.86m 面板距离与 2× 纹理性能；
+- 超过 4 首时的滚动 / 分页；
+- 独立视觉评审：两次派发 reviewer 都未在时限内返回，未采信其结论；本轮为主 Agent 按截图自查（对齐、分隔线、字号、lime 使用）。

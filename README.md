@@ -156,7 +156,7 @@ drag / arc / hold 没有 GOOD：接上物量就算完美，接不上就是漏。
 - 总分 **10,000,000**，按物量等比分配（PERFECT 100% / GOOD 60% / MISS 0），连击只作反馈。
 - 血量 100：PERFECT +0.5、GOOD +0.25、MISS −6，归零 = FAILED。
 - 浮空显示：曲名 / 作者 / 封面 / 难度 / 物量数 / 分数 / COMBO / 血条，绑定在窗口右缘、跟着 shift 走。
-- 3D 面板：`SETTINGS` / `PAUSE` / `RETRY`；设置里有流速、音频偏移、音量。
+- VR 菜单：Home / Songs / Add packs / Pause / Settings / Result；设置里有流速、音频偏移、音量、节拍器、合成鼓组、起播留白。
   交互是**激光笔（扣扳机）**或直接伸手戳。
 
 ### 渲染裁剪
@@ -219,6 +219,7 @@ cd prototype && npm run dev
 ```
 
 在头显浏览器里打开 <http://localhost:5173>，点 **ENTER VR**。
+不想插线可以把构建部署到 Cloudflare Pages，Quest 直接打开固定 HTTPS 地址；步骤见 [`prototype/DEPLOY.md`](prototype/DEPLOY.md)。
 （WSL / 无线 / 隧道的细节见 [`prototype/README.md`](prototype/README.md)。）
 
 ## 操作
@@ -250,6 +251,7 @@ cd prototype && npm run dev
 | `?flow=4` | 基准流速 m/s |
 | `?range=6` | 视距（米，从判定带算） |
 | `?panel=home\|songs\|packs\|paused\|settings\|result` | 直接摊开指定面板 |
+| `?chrome=0` | 隐藏诊断 / lil-gui / Stats / 包加载器，给面板截图留干净背景 |
 | `?vr=1` | 假装在 VR 里（检查 `EXIT VR` 等只在头显出现的元素） |
 | `?menuButton=6` | 改 menu 键的 gamepad 索引（默认 6；读不到时用左手 Y 长按） |
 | `?clock=0` | 关掉音频时钟（无头截图用） |
@@ -301,4 +303,4 @@ Phase 1 已验收。后续按 [`prototype/FUTURE.md`](prototype/FUTURE.md) 推�
 资源库：先抽玩法契约和 golden tests，再做 Unity importer、工作区与共享资源索引。
 
 游玩端 VR UI 的入口流程、暂停层级、激光误触与视觉方向记录在
-[`prototype/UI-BACKLOG.md`](prototype/UI-BACKLOG.md)；目前只记录，未开工。
+[`prototype/UI-BACKLOG.md`](prototype/UI-BACKLOG.md)；P0–P2 已实现，待 Quest 3 验收。
