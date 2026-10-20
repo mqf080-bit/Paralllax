@@ -157,7 +157,7 @@ drag / arc / hold 没有 GOOD：接上物量就算完美，接不上就是漏。
 ### 音频时钟
 
 - 谱面时间的权威是 **`AudioContext.currentTime`**（含输出延迟补偿），不是逐帧累加的 dt。
-- 起播留 **2s lead-in**（谱面时间为负，note 从远处滑进来）；`meta.offset` = 玩家校准量。
+- 起播留 **2s lead-in**（谱面时间为负，note 从远处滑进来）；`meta.offset` 是谱面 / 包作者偏移，内部生效但不显示；玩家校准用 Settings 的 `Offset`。
 - 没有音频资产：按 `timing` **现场合成鼓组 + 贝斯**（和谱面共用同一张 timing，天然对拍）。
   想听真曲子：文件放到 `prototype/public/`，用 `?audio=/track.mp3`。
 - 暂停 / 恢复会重打锚点，谱面时间不跳。

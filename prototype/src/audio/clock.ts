@@ -17,14 +17,19 @@ import { collectBeats, createDrumKit, type DrumKit } from './track';
  * 谱面时间可以是负数：起播前留一段 lead-in，note 从远处滑进来。
  *
  * `settings.offsetMs` 是玩家校准量：**正值 = 谱面时间提前**（note 更早到）。
- * 谱面里的 `meta.offset` 直接落在这里。
+ * 谱面 / 包里的 `meta.offset` 落到 `chartOffsetMs`，与玩家校准分开，游戏 UI 不显示。
  */
 
 export type TransportState = 'idle' | 'playing' | 'paused';
 
 export interface AudioSettings {
-  /** 校准偏移（毫秒）。正 = 谱面时间提前。 */
+  /** 玩家校准偏移（毫秒）。正 = 谱面时间提前。 */
   offsetMs: number;
+  /**
+   * 谱面 / 包自带的音频偏移（毫秒），只由 chart.meta.offset 写入。
+   * 它是作者属性，不显示在游戏设置里；玩家校准用 offsetMs。
+   */
+  chartOffsetMs?: number;
   /** 总音量 0–1。 */
   volume: number;
   /** 有真实音轨时是否额外叠一层节拍器。 */
@@ -153,8 +158,12 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
     if (isLive() && trackBuffer) startTrack(at);
   }
 
+  function totalOffsetMs(): number {
+    return settings.offsetMs + (settings.chartOffsetMs ?? 0);
+  }
+
   function nowMs(): number {
-    return rawNow() + settings.offsetMs;
+    return rawNow() + totalOffsetMs();
   }
 
   function buildChain(): void {
@@ -255,8 +264,8 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
     play(fromMs = 0): void {
       ensureContext();
       if (ctx && ctx.state === 'suspended') void ctx.resume();
-      // raw = fromMs - offset；这样 now() 在起播瞬间正好等于 fromMs。
-      const raw = fromMs - settings.offsetMs;
+      // raw = fromMs - (玩家 offset + 谱面 offset)；这样 now() 在起播瞬间正好等于 fromMs。
+      const raw = fromMs - totalOffsetMs();
       const delay = isLive() ? START_DELAY : 0;
       state = 'playing';
       stampAnchor(raw, delay);

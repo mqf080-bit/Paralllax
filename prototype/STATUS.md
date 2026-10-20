@@ -35,6 +35,8 @@
 - **VR 复刻 2D Study（2026-10-20）**：760×470 六屏按二维稿重排；标签 10–11px / 正文 12–13px / 按钮 16px，2× 纹理；chart map / density 来自真实谱面。截图在 `docs/ui-vr2/`。待 Quest 3 验收。
 - **面板距离 / 尺寸（2026-10-20）**：1.55m 宽 × 0.959m 高，距离 1.35m、中心高 1.44m；优先保证聚焦距离，水平视角约 60°。可用 `?panelScale` / `?panelDistance` / `?panelY` 在头显里继续调。
 - **包索引 / 懒加载（2026-10-20）**：`public/packages/index.json` 在启动时只读元数据，选中条目后才下载 `.parallax`；Infinity Heaven / Air / Ticks 会直接出现在 Songs。
+- **arc 流速 / 包 offset（2026-10-20）**：Settings 改流速会同步缩放已生成的 arc；`meta.offset` 改为隐藏的 `chartOffsetMs`，与玩家校准 offset 分离。
+- **暂缓**：无物量时立即结算，暂不按包内 `meta.duration` 等待；等 Infinity Heaven 谱面补充完成后再处理。
 
 ---
 

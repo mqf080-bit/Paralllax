@@ -113,8 +113,8 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 | 暂停里的操作 | `RESUME / RESTART / SETTINGS / HOME`；设置是暂停的二级页 |
 
 音频：没有音轨资产，默认按谱面的 `timing` **现场合成鼓组**。想听真曲子，把文件放到
-`prototype/public/`，用 `?audio=/track.mp3` 打开；`meta.offset` 与设置面板的 `AUDIO OFFSET`
-用来校准「键比声音早 / 晚」。
+`prototype/public/`，用 `?audio=/track.mp3` 打开。`meta.offset` 是谱面作者偏移，游戏端只内部应用、不显示；
+设置面板的 `Offset` 才是玩家校准（默认 0ms）。
 
 ## 场景里有什么
 

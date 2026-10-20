@@ -679,3 +679,31 @@ P1 的 A 第一版只是换了皮，用户指出「布局完全没变、不可�
 - 超过 4 首的滚动 / 分页；
 - 索引自动生成（现在重新导出包后要手动更新 `index.json` 的 duration / notes 等元数据，选中后会以包内 chart 为准）；
 - 包的移除 / 重命名。
+
+---
+
+## 15. arc 流速 / 包 offset 修正（2026-10-20）
+
+### arc 流速
+
+- 游玩端 Settings 的 Speed 只改了 `playSettings.flowSpeed`，地面键每帧读 `baseSpeed()` 所以会变，
+  但已经生成的 arc 没有收到 `setSpeed`，仍然按创建时速度走。
+- 现在主循环检测 `playfield.settings.flowSpeed` 变化并调用 `playfield.setFlowSpeed()`；
+  `Player.setFlowSpeed()` 会遍历 runtime 中的 arc 做 `group.scale.z *= new/old`。
+- 已验证：3.0 → 5.0 后，4 条 arc 的 `scale.z` 从 1 变为 1.6667。
+- editor 的 3D 预览本来就有这段同步，不需要改。
+
+### 包 offset
+
+- 之前游戏启动 / 切谱时把 `chart.meta.offset` 直接写进 `audioSettings.offsetMs`，
+  Settings 的 Offset 就显示了包里的 `-750ms`，而且玩家校准会被包覆盖。
+- 现在 `AudioSettings` 分成：
+  - `offsetMs`：玩家校准，Settings 可见；
+  - `chartOffsetMs`：谱面 / 包作者偏移，音频时钟内部相加，游戏 UI 不显示。
+- 切谱只更新 `chartOffsetMs`，不会覆盖玩家 offset。
+- 已验证：`?pack=infinity-heaven&panel=settings` 的 Offset 显示 `0ms`，包内 `-750ms` 仍在音频时钟里生效。
+
+### 暂缓
+
+- 谱面没有物量时 `playfield.finished` 立即为 true，没有按 `meta.duration` 等待。
+  等 Infinity Heaven 补完后单独处理；现在不做，避免测试时干等。

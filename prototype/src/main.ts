@@ -343,7 +343,8 @@ const playSettings: PlayerSettings = { enabled: true, flowSpeed: 3.0, auto: fals
 // 谱面时间由音频时钟提供（见 src/audio/clock.ts）。没有音轨时它现场合成一条
 // 鼓点轨；有真实音轨时（?audio=/track.mp3）用真实音轨的时间对齐。
 const audioSettings: AudioSettings = {
-  offsetMs: activeChart.meta.offset,
+  offsetMs: 0,
+  chartOffsetMs: activeChart.meta.offset,
   volume: 0.8,
   metronome: false,
   leadInMs: 2000,
@@ -621,6 +622,7 @@ const playHooks = {
 };
 
 let playfield: Player = createPlayer(params, table.geometry, lib, activeChart, playSettings, playHooks);
+let appliedFlowSpeed = playSettings.flowSpeed;
 // 谱面时间来自音频时钟；音频没解锁时它退回 performance.now，游戏照常能跑。
 playfield.setTimeSource(() => audio.now());
 scene.add(playfield.group);
@@ -751,7 +753,7 @@ async function switchChart(entry: ChartEntry): Promise<void> {
 
   audio.pause();
   audio.clearTrack();
-  audioSettings.offsetMs = chart.meta.offset;
+  audioSettings.chartOffsetMs = chart.meta.offset;
   audio.setTiming(chart.timing);
   if (entry.audio) {
     const url = URL.createObjectURL(new Blob([new Uint8Array(entry.audio.data).buffer], { type: entry.audio.type }));
@@ -1187,6 +1189,10 @@ renderer.setAnimationLoop((frameTime: number) => {
   }
 
   const action = gameUi.update(camera, hands.samples, playfield.score);
+  if (playfield.settings.flowSpeed !== appliedFlowSpeed) {
+    appliedFlowSpeed = playfield.settings.flowSpeed;
+    playfield.setFlowSpeed(appliedFlowSpeed);
+  }
   if (action === 'start' || action === 'restart') {
     const selected = selectedEntry();
     if (action === 'start' && !selected.chart) {

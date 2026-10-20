@@ -18,6 +18,8 @@
 - VR 面板从 0.86m / 0.34m 调到 1.55m / 1.35m，中心抬高到 1.44m；优先保证 1.35m 聚焦距离，水平视角约 60°；新增 `?panelScale` / `?panelDistance` / `?panelY` 头显调参（生产站可用）。
 - 本地谱面包：IndexedDB 写操作等事务 commit 后再 reload，避免 18MB 包在 Quest 上保存失败；加载页显示 `LOADING PACKAGE`；文档明确 `public/packages/` 不是自动曲库。
 - 谱面包索引：`public/packages/index.json` + 选中后懒加载；启动不再预下载 18MB 包，Songs 先显示元数据，选中后加载并更新详情。
+- 游玩端流速变更现在会同步到已生成的 arc（`playfield.setFlowSpeed`），和 editor 3D 的行为一致。
+- 谱面 / 包自带 offset 与玩家 offset 分离：`meta.offset` 写入 `chartOffsetMs`，只在音频时钟内部生效，不再显示为 Settings 的 Offset。
 
 ## 0.3.11 — 2026-10-18
 
