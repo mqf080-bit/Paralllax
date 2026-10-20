@@ -1,0 +1,30 @@
+{
+  "format": "parallax.package-index",
+  "version": 1,
+  "packages": [
+    {
+      "id": "air-example",
+      "pack": "/packages/air-example.parallax",
+      "title": "Air / Ticks",
+      "artist": "demo",
+      "difficulty": "IN 5",
+      "durationMs": 6400,
+      "bpm": 150,
+      "notes": 7,
+      "shifts": 1,
+      "types": 4
+    },
+    {
+      "id": "infinity-heaven",
+      "pack": "/packages/infinity-heaven.parallax",
+      "title": "Infinity Heaven",
+      "artist": "HyuN",
+      "difficulty": "IN 1",
+      "durationMs": 153816,
+      "bpm": 160,
+      "notes": 48,
+      "shifts": 0,
+      "types": 3
+    }
+  ]
+}

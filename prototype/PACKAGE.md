@@ -69,6 +69,37 @@ offset 18   头部 JSON（UTF-8）
 ?pack=air-example                 # 自动补 /packages/air-example.parallax
 ```
 
+### 包索引 / 懒加载
+
+游戏启动时会读取 `public/packages/index.json`，把包作为条目放进 Songs，但**不会预先下载 `.parallax`**。选中条目后才下载、解析并切换谱面。
+
+```json
+{
+  "format": "parallax.package-index",
+  "version": 1,
+  "packages": [
+    {
+      "id": "infinity-heaven",
+      "pack": "/packages/infinity-heaven.parallax",
+      "title": "Infinity Heaven",
+      "artist": "HyuN",
+      "difficulty": "IN 1",
+      "durationMs": 153816,
+      "bpm": 160,
+      "notes": 48,
+      "shifts": 0,
+      "types": 3
+    }
+  ]
+}
+```
+
+- `id` 必须唯一；`pack` 可以写根路径，也可以相对 `packages/index.json`；
+- `durationMs` / `bpm` / `notes` / `shifts` / `types` 只用于加载前的列表和详情；加载完成后会用包内 chart 覆盖；
+- 新增包时把 `.parallax` 放进 `public/packages/`，并在 `index.json` 增加一项；
+- `?pack=` 直接打开时，会把当前包作为 `current`；索引里同一个包会按 `pack` / 标题去重，不会出现两行。
+- 没有 `index.json` 时，菜单只显示当前包和两张内置谱。
+
 仓库自带示例：`public/packages/air-example.parallax`（只有谱面 + 一个主题 JSON，没有音轨）。
 
 `public/packages/` 只是一个静态目录，**不会自动扫描成曲目列表**；当前菜单只显示

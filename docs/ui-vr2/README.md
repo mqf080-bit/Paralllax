@@ -7,7 +7,7 @@
 | 文件 | 状态 |
 | --- | --- |
 | `home.png` | 主页，Proving Ground |
-| `songs.png` | 选歌，Proving Ground 选中 |
+| `songs.png` | 选歌，包含 `packages/index.json` 的 Air / Ticks 与 Infinity Heaven；选中包后才下载 `.parallax` |
 | `songs-selected.png` | 选歌，切到 Antagonism（`?chart=demo`） |
 | `packs.png` | Add packs |
 | `paused.png` | 暂停在 0:30，Score / Combo / Accuracy 有值 |

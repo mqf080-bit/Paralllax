@@ -557,7 +557,7 @@ P1 的 A 第一版只是换了皮，用户指出「布局完全没变、不可�
 ### 还没做
 
 - 多曲列表超过 4 首时的滚动 / 分页；
-- 包库：`public/packages/` 不会自动扫描进 Songs，当前只显示 active package；需要 `index.json` + 懒加载；
+- 包库：已支持 `public/packages/index.json` + 选中后懒加载；超过 4 首的滚动 / 分页仍未做；
 - 从本地 `.parallax` 包列表里移除 / 重命名；
 - 准备页 / 身高校准（UI-03）；
 - Quest 3 头显里的实际可读性、hover 反馈强度和 1.35m 距离；
@@ -647,3 +647,35 @@ P1 的 A 第一版只是换了皮，用户指出「布局完全没变、不可�
 - **VR 面板的「大」和「近」不是一回事。** 同比放大只改变物理尺寸，不改变角尺寸，不能解决贴脸感。
 - 先调距离，再调尺寸；距离舒适后再决定面板多大。
 - 可读性由角尺寸和纹理倍率共同决定，不能只看物理尺寸。
+
+---
+
+## 14. 包索引 / 懒加载（2026-10-20）
+
+用户把 `infinity-heaven.parallax` 放进 `public/packages/` 后，在头显里看不到。
+根因不是包坏了，而是当时的 Songs 只显示“当前加载的包 + 两张内置谱”，没有包库。
+
+### 实现
+
+- 新增 `prototype/public/packages/index.json`，只存包元数据：
+  `id / pack / title / artist / difficulty / durationMs / bpm / notes / shifts / types`。
+- 启动时只 fetch 这个 JSON，不下载 `.parallax`；Songs 先显示索引条目。
+- 选中索引条目才调用 `loadPackageUrl()`，下载 / 解包后替换 `entry.chart`，并刷新详情、Play 按钮和列表。
+- 加载中 Play 变灰，显示 `LOADING PACKAGE…`；失败显示 `PACKAGE LOAD FAILED`，可以重新选一次重试。
+- `?pack=` 打开的包会用 `packUrl` / 标题与索引去重，不会出现两行 Infinity Heaven。
+- `LOAD .parallax` 的 IndexedDB 写操作改为等 `transaction.oncomplete` 再 reload，避免大包还没 commit 就跳转。
+- 加载大包期间显示全屏 `LOADING PACKAGE`，不再黑屏。
+
+### 已验证
+
+- CDP：Songs 初始包含
+  `proving-ground / example-loop / air-example / infinity-heaven`；
+- 选中索引里的 `infinity-heaven` 后，`selected = infinity-heaven`，`playfield.duration = 153816`；
+- 18MB 包只在选中时下载；
+- `npm run typecheck` / `npm run build` 通过。
+
+### 还没做
+
+- 超过 4 首的滚动 / 分页；
+- 索引自动生成（现在重新导出包后要手动更新 `index.json` 的 duration / notes 等元数据，选中后会以包内 chart 为准）；
+- 包的移除 / 重命名。

@@ -73,6 +73,9 @@ export interface SongView {
   durationMs: number;
   source: string;
   preview: ChartPreview;
+  /** false = 索引里已有条目，但 .parallax 还没下载 / 解析。 */
+  ready?: boolean;
+  error?: string;
 }
 
 export interface GameUi {
@@ -441,6 +444,7 @@ interface ButtonOptions {
   meta?: string;
   center?: boolean;
   size?: number;
+  disabled?: boolean;
 }
 
 function drawButton(
@@ -450,7 +454,8 @@ function drawButton(
   label: string,
   options: ButtonOptions = {},
 ): PanelHotspot {
-  const hovered = state.hovered === spot.id;
+  const disabled = options.disabled ?? false;
+  const hovered = !disabled && state.hovered === spot.id;
   const tone = options.tone ?? 'default';
   const primary = tone === 'primary';
   const quiet = tone === 'quiet';
@@ -459,7 +464,11 @@ function drawButton(
   let fill = quiet ? 'transparent' : INK.surface;
   let border = quiet ? 'transparent' : INK.line;
   let color = quiet ? INK.dim : INK.text;
-  if (primary) {
+  if (disabled) {
+    fill = INK.surface;
+    border = INK.line;
+    color = INK.faint;
+  } else if (primary) {
     fill = hovered ? '#B5D8FF' : INK.accent;
     border = primary && hovered ? '#B5D8FF' : INK.accent;
     color = INK.dark;
@@ -806,12 +815,26 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
     drawFact(ctx, 'Shifts', String(detail.preview.shiftCount).padStart(2, '0'), dx, 328, 14);
     drawFact(ctx, 'Types', String(detail.preview.typeCount).padStart(2, '0'), dx + 108, 328, 14);
 
-    spots.push(
-      drawButton(ctx, state, { id: 'start', x: dx, y: 388, w: 104, h: 40 }, 'Play', {
-        tone: 'primary',
-        meta: '↵',
-      }),
+    const ready = detail.ready !== false;
+    if (!ready) {
+      text(
+        ctx,
+        detail.error ? 'PACKAGE LOAD FAILED · SELECT AGAIN' : 'LOADING PACKAGE…',
+        dx,
+        370,
+        10,
+        600,
+        detail.error ? INK.bad : INK.accent,
+      );
+    }
+    const play = drawButton(
+      ctx,
+      state,
+      { id: 'start', x: dx, y: 388, w: 104, h: 40 },
+      ready ? 'Play' : detail.error ? 'Unavailable' : 'Loading',
+      { tone: ready ? 'primary' : 'quiet', meta: ready ? '↵' : '…', disabled: !ready },
     );
+    if (ready) spots.push(play);
     spots.push(
       drawButton(ctx, state, { id: 'songs-back', x: dx + 112, y: 388, w: 102, h: 40 }, 'Back', {
         tone: 'quiet',

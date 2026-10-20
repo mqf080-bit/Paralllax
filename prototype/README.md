@@ -105,7 +105,7 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 | 做什么 | 怎么做 |
 | --- | --- |
 | 开始 | 进 VR 后在主页点 `START`；不再自动开谱 |
-| 选歌 / 加包 | 主页 `Songs` 打开可选取曲列表和详情；`How to add packs` 看 Desktop / Drag / Folder / URL 四种加包方式。`public/packages/` 不会自动出现在列表，需 `?pack=` 或 `LOAD .parallax` |
+| 选歌 / 加包 | 主页 `Songs` 读取 `public/packages/index.json`，包条目在选中后才下载 `.parallax`；`How to add packs` 看 Desktop / Drag / Folder / URL 四种方式 |
 | 打键 | 手扫过判定带（hit 要速度 + 位移，drag 只要扫过，hold 要按住扳机 / 侧握） |
 | 打 arc | 手跟着弧走；弧上的黄铜珠是**关键物量**，必须进体积判定 |
 | 点 UI | 手柄指向面板，**扣扳机**；靠近了直接伸手戳也行 |

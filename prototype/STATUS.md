@@ -34,6 +34,7 @@
 - **2D UI Study（2026-10-20）**：[`design/ui-2d/`](../design/ui-2d/) 先用网页试 A + C 的排版 / 浅蓝 / lime / 密度；六个界面可切换，截图在 `docs/ui-2d/`。
 - **VR 复刻 2D Study（2026-10-20）**：760×470 六屏按二维稿重排；标签 10–11px / 正文 12–13px / 按钮 16px，2× 纹理；chart map / density 来自真实谱面。截图在 `docs/ui-vr2/`。待 Quest 3 验收。
 - **面板距离 / 尺寸（2026-10-20）**：1.55m 宽 × 0.959m 高，距离 1.35m、中心高 1.44m；优先保证聚焦距离，水平视角约 60°。可用 `?panelScale` / `?panelDistance` / `?panelY` 在头显里继续调。
+- **包索引 / 懒加载（2026-10-20）**：`public/packages/index.json` 在启动时只读元数据，选中条目后才下载 `.parallax`；Infinity Heaven / Air / Ticks 会直接出现在 Songs。
 
 ---
 

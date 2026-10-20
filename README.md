@@ -71,6 +71,8 @@ Quest 3 推荐直接打开 Cloudflare Pages 的固定 HTTPS 地址（部署步�
 cp xxx.parallax prototype/public/packages/
 ```
 
+并在 `prototype/public/packages/index.json` 里登记；游戏启动时会把索引条目放进 Songs，选中后才懒加载 `.parallax`。
+
 ```text
 http://127.0.0.1:5173/?pack=/packages/xxx.parallax
 ```
@@ -236,7 +238,7 @@ cd prototype && npm run dev
 | 做什么 | 怎么做 |
 | --- | --- |
 | 开始 | 进 VR 后在主页点 `START`（不再自动开谱） |
-| 选歌 / 加包 | 主页 `Songs` 打开可选取曲列表和详情；`How to add packs` 看 Desktop / Drag / Folder / URL 四种加包方式 |
+| 选歌 / 加包 | 主页 `Songs` 读取 `public/packages/index.json`，包条目在选中后才下载 `.parallax`；`How to add packs` 看 Desktop / Drag / Folder / URL 四种方式 |
 | 打键 | 手扫过判定带；hold 要按住扳机 / 侧握 |
 | 打 arc | 手跟着弧走；黄铜珠是关键物量 |
 | 点 UI | 手柄指向面板扣扳机，或直接戳 |

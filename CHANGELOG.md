@@ -17,6 +17,7 @@
 - VR 复刻 2D study：760×470 六屏重排，标签 / 按钮按 VR 可读性重新定字阶，2× 面板纹理；chart map / density 接真实谱面；Settings 增加 Metronome / Groove / Lead-in；新增 `?chrome=0` 干净截图开关。
 - VR 面板从 0.86m / 0.34m 调到 1.55m / 1.35m，中心抬高到 1.44m；优先保证 1.35m 聚焦距离，水平视角约 60°；新增 `?panelScale` / `?panelDistance` / `?panelY` 头显调参（生产站可用）。
 - 本地谱面包：IndexedDB 写操作等事务 commit 后再 reload，避免 18MB 包在 Quest 上保存失败；加载页显示 `LOADING PACKAGE`；文档明确 `public/packages/` 不是自动曲库。
+- 谱面包索引：`public/packages/index.json` + 选中后懒加载；启动不再预下载 18MB 包，Songs 先显示元数据，选中后加载并更新详情。
 
 ## 0.3.11 — 2026-10-18
 

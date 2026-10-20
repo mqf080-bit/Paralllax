@@ -103,6 +103,7 @@ let activeChart: Chart = TEST_CHART;
 let chartSource = 'BUILT-IN';
 let packedAudio: PackedAudio | null = null;
 let packedCover: PackedAudio | null = null;
+let activePackUrl: string | null = null;
 let localPack: ArrayBuffer | null = null;
 if (bootQuery.get('localPack') === '1') {
   try {
@@ -125,7 +126,9 @@ if (localPack) {
     console.warn('[pack] 本地谱面包解析失败，回退测试谱', cause);
   }
 } else if (packParam) {
-  const url = packParam.includes('/') || packParam.endsWith('.parallax') ? packParam : `/packages/${packParam}.parallax`;
+  const packPath = packParam.includes('/') || packParam.endsWith('.parallax') ? packParam : `/packages/${packParam}.parallax`;
+  const url = new URL(packPath, window.location.href).href;
+  activePackUrl = url;
   try {
     const pkg = await loadPackageUrl(url);
     activeChart = prepareChart(chartJsonFromPackage(pkg), url);
@@ -137,6 +140,7 @@ if (localPack) {
     );
   } catch (cause) {
     console.warn(`[pack] 载入 ${url} 失败，回退测试谱`, cause);
+    activePackUrl = null;
   }
 } else if (chartParam === 'demo') {
   activeChart = DEMO_CHART;
@@ -152,10 +156,13 @@ if (localPack) {
   }
 }
 
-interface ChartEntry extends Omit<SongView, 'preview'> {
-  chart: Chart;
+interface ChartEntry extends SongView {
+  /** null = 索引里已经有元数据，但 .parallax 还没下载 / 解析。 */
+  chart: Chart | null;
   audio: PackedAudio | null;
   cover: PackedAudio | null;
+  packUrl?: string;
+  loading?: Promise<void> | null;
 }
 
 function chartDuration(chart: Chart): number {
@@ -194,61 +201,138 @@ function chartPreview(chart: Chart, durationMs: number): SongView['preview'] {
 }
 
 function toSongView(entry: ChartEntry): SongView {
-  const durationMs = chartDuration(entry.chart);
   return {
     id: entry.id,
-    title: entry.chart.meta.title,
-    artist: entry.chart.meta.artist ?? '',
-    difficulty: entry.chart.meta.difficulty ?? '',
-    durationMs,
+    title: entry.title,
+    artist: entry.artist,
+    difficulty: entry.difficulty,
+    durationMs: entry.durationMs,
     source: entry.source,
-    preview: chartPreview(entry.chart, durationMs),
+    preview: entry.preview,
+    ready: entry.chart !== null,
+    ...(entry.error ? { error: entry.error } : {}),
+  };
+}
+
+function readyEntry(
+  id: string,
+  chart: Chart,
+  source: string,
+  audio: PackedAudio | null = null,
+  cover: PackedAudio | null = null,
+  packUrl?: string,
+): ChartEntry {
+  const durationMs = chartDuration(chart);
+  return {
+    id,
+    chart,
+    title: chart.meta.title,
+    artist: chart.meta.artist ?? '',
+    difficulty: chart.meta.difficulty ?? '',
+    durationMs,
+    source,
+    preview: chartPreview(chart, durationMs),
+    ready: true,
+    audio,
+    cover,
+    ...(packUrl ? { packUrl } : {}),
   };
 }
 
 const songEntries: ChartEntry[] = [];
-function addEntry(entry: ChartEntry): void {
-  if (!songEntries.some((existing) => existing.chart === entry.chart)) songEntries.push(entry);
+function addEntry(entry: ChartEntry): boolean {
+  if (songEntries.some((existing) => existing.id === entry.id)) return false;
+  if (entry.packUrl && songEntries.some((existing) => existing.packUrl === entry.packUrl)) return false;
+  if (
+    !entry.chart &&
+    songEntries.some((existing) => existing.title.toLowerCase() === entry.title.toLowerCase())
+  ) {
+    return false;
+  }
+  songEntries.push(entry);
+  return true;
 }
 if (activeChart !== TEST_CHART && activeChart !== DEMO_CHART) {
-  addEntry({
-    id: 'current',
-    chart: activeChart,
-    title: activeChart.meta.title,
-    artist: activeChart.meta.artist ?? '',
-    difficulty: activeChart.meta.difficulty ?? '',
-    durationMs: chartDuration(activeChart),
-    source: chartSource,
-    audio: packedAudio,
-    cover: packedCover,
-  });
+  addEntry(
+    readyEntry(
+      'current',
+      activeChart,
+      chartSource,
+      packedAudio,
+      packedCover,
+      activePackUrl ?? undefined,
+    ),
+  );
 }
-addEntry({
-  id: 'proving-ground',
-  chart: TEST_CHART,
-  title: TEST_CHART.meta.title,
-  artist: TEST_CHART.meta.artist ?? '',
-  difficulty: TEST_CHART.meta.difficulty ?? '',
-  durationMs: chartDuration(TEST_CHART),
-  source: 'BUILT-IN',
-  audio: null,
-  cover: null,
-});
-addEntry({
-  id: 'example-loop',
-  chart: DEMO_CHART,
-  title: DEMO_CHART.meta.title,
-  artist: DEMO_CHART.meta.artist ?? '',
-  difficulty: DEMO_CHART.meta.difficulty ?? '',
-  durationMs: chartDuration(DEMO_CHART),
-  source: 'BUILT-IN',
-  audio: null,
-  cover: null,
-});
+addEntry(readyEntry('proving-ground', TEST_CHART, 'BUILT-IN'));
+addEntry(readyEntry('example-loop', DEMO_CHART, 'BUILT-IN'));
 let selectedChartId =
   activeChart === TEST_CHART ? 'proving-ground' : activeChart === DEMO_CHART ? 'example-loop' : 'current';
 function selectedEntry(): ChartEntry {
   return songEntries.find((entry) => entry.id === selectedChartId) ?? songEntries[0]!;
+}
+
+interface PackageIndexEntry {
+  id?: unknown;
+  pack?: unknown;
+  title?: unknown;
+  artist?: unknown;
+  difficulty?: unknown;
+  durationMs?: unknown;
+  bpm?: unknown;
+  notes?: unknown;
+  shifts?: unknown;
+  types?: unknown;
+}
+
+/** public/packages/index.json：只带元数据，选中后才下载 .parallax。 */
+async function loadPackageIndex(): Promise<void> {
+  const indexUrl = new URL('packages/index.json', document.baseURI);
+  try {
+    const response = await fetch(indexUrl);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = (await response.json()) as { format?: unknown; version?: unknown; packages?: unknown };
+    if (data.format !== 'parallax.package-index' || !Array.isArray(data.packages)) {
+      throw new Error('index.json 格式不匹配');
+    }
+    let added = false;
+    for (const raw of data.packages as PackageIndexEntry[]) {
+      if (!raw || typeof raw.id !== 'string' || typeof raw.pack !== 'string') continue;
+      let packUrl: string;
+      try {
+        packUrl = new URL(raw.pack, indexUrl).href;
+      } catch {
+        continue;
+      }
+      const title = typeof raw.title === 'string' ? raw.title : raw.id;
+      const entry: ChartEntry = {
+        id: raw.id,
+        chart: null,
+        audio: null,
+        cover: null,
+        packUrl,
+        title,
+        artist: typeof raw.artist === 'string' ? raw.artist : '—',
+        difficulty: typeof raw.difficulty === 'string' ? raw.difficulty : '—',
+        durationMs: typeof raw.durationMs === 'number' ? raw.durationMs : 0,
+        source: 'PACKAGE',
+        preview: {
+          bpm: typeof raw.bpm === 'number' ? raw.bpm : 0,
+          noteCount: typeof raw.notes === 'number' ? raw.notes : 0,
+          shiftCount: typeof raw.shifts === 'number' ? raw.shifts : 0,
+          typeCount: typeof raw.types === 'number' ? raw.types : 0,
+          map: [],
+          shiftMarks: [],
+          density: [],
+        },
+        ready: false,
+      };
+      if (addEntry(entry)) added = true;
+    }
+    if (added) gameUi.setSongs(songEntries.map(toSongView), selectedChartId);
+  } catch (cause) {
+    console.info('[packages] index unavailable', cause);
+  }
 }
 
 // 键型预览与打击练习的开关；也接受 ?preview=1 / ?auto=1。
@@ -554,6 +638,7 @@ const gameUi = createGameUi(playSettings, audioSettings, uiStatus);
 gameUi.setChartInfo(toSongView(selectedEntry()));
 gameUi.setSongs(songEntries.map(toSongView), selectedChartId);
 scene.add(gameUi.group);
+void loadPackageIndex();
 
 type GameFlow = 'home' | 'songs' | 'playing' | 'paused' | 'settings' | 'result';
 let flow: GameFlow = 'home';
@@ -584,18 +669,20 @@ function showSongs(): void {
 }
 
 async function rebuildDisplay(entry: ChartEntry): Promise<void> {
+  const chart = entry.chart;
+  if (!chart) return;
   const cover = entry.cover
     ? await loadImageBytes(entry.cover.data, entry.cover.type)
-    : entry.chart.meta.cover
-      ? await loadImageUrl(entry.chart.meta.cover)
+    : chart.meta.cover
+      ? await loadImageUrl(chart.meta.cover)
       : null;
   scene.remove(display.group);
   display.dispose();
   displayTextures.dispose();
   displayTextures = createDisplayTextures({
-    title: entry.chart.meta.title,
-    artist: entry.chart.meta.artist,
-    difficulty: entry.chart.meta.difficulty,
+    title: chart.meta.title,
+    artist: chart.meta.artist,
+    difficulty: chart.meta.difficulty,
     cover,
   });
   display = buildDisplay(displayTextures, displayPlacement);
@@ -604,11 +691,68 @@ async function rebuildDisplay(entry: ChartEntry): Promise<void> {
   moveDisplay();
 }
 
+/** 索引条目真正被选中时才下载 / 解析 .parallax。 */
+async function ensureChartEntry(entry: ChartEntry): Promise<boolean> {
+  if (entry.chart) return true;
+  const packUrl = entry.packUrl;
+  if (!packUrl) {
+    entry.error = 'NO PACKAGE URL';
+    return false;
+  }
+  if (entry.loading) {
+    await entry.loading;
+    return entry.chart !== null;
+  }
+  entry.error = undefined;
+  entry.ready = false;
+  const task = (async () => {
+    const pkg = await loadPackageUrl(packUrl);
+    const chart = prepareChart(chartJsonFromPackage(pkg), packUrl);
+    const durationMs = chartDuration(chart);
+    entry.chart = chart;
+    entry.audio = audioFromPackage(pkg);
+    entry.cover = coverFromPackage(pkg);
+    entry.title = chart.meta.title;
+    entry.artist = chart.meta.artist ?? '';
+    entry.difficulty = chart.meta.difficulty ?? '';
+    entry.durationMs = durationMs;
+    entry.source = 'PACKAGE';
+    entry.preview = chartPreview(chart, durationMs);
+    entry.ready = true;
+  })();
+  entry.loading = task;
+  try {
+    await task;
+  } catch (cause) {
+    entry.error = 'PACKAGE LOAD FAILED';
+    console.warn(`[packages] ${entry.id} 加载失败`, cause);
+  } finally {
+    entry.loading = null;
+  }
+  return entry.chart !== null;
+}
+
+let chartSwitchToken = 0;
+
 async function switchChart(entry: ChartEntry): Promise<void> {
+  const token = ++chartSwitchToken;
+  selectedChartId = entry.id;
+
+  if (!entry.chart) {
+    gameUi.setSongs(songEntries.map(toSongView), selectedChartId);
+    const ok = await ensureChartEntry(entry);
+    if (token !== chartSwitchToken) return;
+    gameUi.setSongs(songEntries.map(toSongView), selectedChartId);
+    if (!ok) return;
+  }
+
+  const chart = entry.chart;
+  if (!chart || token !== chartSwitchToken) return;
+
   audio.pause();
   audio.clearTrack();
-  audioSettings.offsetMs = entry.chart.meta.offset;
-  audio.setTiming(entry.chart.timing);
+  audioSettings.offsetMs = chart.meta.offset;
+  audio.setTiming(chart.timing);
   if (entry.audio) {
     const url = URL.createObjectURL(new Blob([new Uint8Array(entry.audio.data).buffer], { type: entry.audio.type }));
     try {
@@ -617,8 +761,9 @@ async function switchChart(entry: ChartEntry): Promise<void> {
       URL.revokeObjectURL(url);
     }
   }
+  if (token !== chartSwitchToken) return;
 
-  activeChart = entry.chart;
+  activeChart = chart;
   chartSource = entry.source;
   packedAudio = entry.audio;
   packedCover = entry.cover;
@@ -728,6 +873,10 @@ if (import.meta.env.DEV) {
       return songEntries.map((entry) => entry.id);
     },
     start: startPlayback,
+    select: (id: string) => {
+      const entry = songEntries.find((candidate) => candidate.id === id);
+      if (entry) void switchChart(entry);
+    },
     pause: pausePlayback,
     resume: resumePlayback,
     home: showHome,
@@ -1039,7 +1188,12 @@ renderer.setAnimationLoop((frameTime: number) => {
 
   const action = gameUi.update(camera, hands.samples, playfield.score);
   if (action === 'start' || action === 'restart') {
-    startPlayback();
+    const selected = selectedEntry();
+    if (action === 'start' && !selected.chart) {
+      void switchChart(selected);
+    } else {
+      startPlayback();
+    }
   } else if (action === 'resume') {
     resumePlayback();
   } else if (action === 'home') {

@@ -4,7 +4,9 @@
   `theme/dark.json` 资源（当前游戏只携带、不消费主题）。
 - `infinity-heaven.parallax`：Infinity Heaven 初谱，约 18MB；首次从 Pages 打开会下载整包。
 
-这个目录不会自动出现在游戏的 Songs 列表。要加载：
+`index.json` 是本目录的懒加载索引：游戏启动时只读这个清单，选中条目后才下载 `.parallax`。新增包时同时更新 `index.json`。
+
+如果不想改索引，也可以直接打开：
 
 ```text
 ?pack=/packages/infinity-heaven.parallax
