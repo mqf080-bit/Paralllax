@@ -37,6 +37,35 @@ body {
   display: block;
 }
 
+/* 加载大谱面包（尤其 18MB 的 Infinity Heaven）时不要黑屏。 */
+.boot-status {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #06080b;
+  color: #9cc8ff;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+}
+
+.boot-status__mark {
+  width: 8px;
+  height: 8px;
+  background: #9cc8ff;
+  animation: boot-pulse 900ms steps(2, end) infinite;
+}
+
+@keyframes boot-pulse {
+  50% {
+    opacity: 0.16;
+  }
+}
+
 /* 截图 / 演示时只留 3D 画面，不把桌面调试工具拍进去。 */
 body.chrome-clean .panel,
 body.chrome-clean .package-loader,

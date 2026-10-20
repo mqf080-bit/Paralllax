@@ -88,6 +88,17 @@ function prepareChart(raw: unknown, label: string): Chart {
 const bootQuery = new URLSearchParams(window.location.search);
 const chartParam = bootQuery.get('chart');
 const packParam = bootQuery.get('pack');
+const bootStatus = document.getElementById('boot-status');
+const bootStatusText = document.getElementById('boot-status-text');
+let bootStatusCleared = false;
+function setBootStatus(value: string): void {
+  if (bootStatusText) bootStatusText.textContent = value;
+}
+if (bootQuery.get('localPack') === '1') {
+  setBootStatus('READING LOCAL PACKAGE');
+} else if (packParam) {
+  setBootStatus('LOADING PACKAGE');
+}
 let activeChart: Chart = TEST_CHART;
 let chartSource = 'BUILT-IN';
 let packedAudio: PackedAudio | null = null;
@@ -1118,6 +1129,10 @@ renderer.setAnimationLoop((frameTime: number) => {
 
   stats.update();
   renderer.render(scene, camera);
+  if (!bootStatusCleared) {
+    bootStatusCleared = true;
+    bootStatus?.remove();
+  }
 
   fpsFrames += 1;
   const span = frameTime - fpsWindowStart;

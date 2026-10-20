@@ -71,8 +71,16 @@ offset 18   头部 JSON（UTF-8）
 
 仓库自带示例：`public/packages/air-example.parallax`（只有谱面 + 一个主题 JSON，没有音轨）。
 
+`public/packages/` 只是一个静态目录，**不会自动扫描成曲目列表**；当前菜单只显示
+“当前加载的包 + 两张内置谱”。要加载包，必须用 `?pack=`，或在页面左下角 `LOAD .parallax`。
+一次只保留一个本地包，后加载的会替换前一个。
+
 **不想复制文件时**：游戏页左下角有 `LOAD .parallax`，选择 / 拖入导出的包会写进
 IndexedDB 然后 reload 成 `?localPack=1` 直接开始玩。适合桌面和 Quest 浏览器。
+
+> IndexedDB 按 **origin** 隔离：在 `localhost:5173` 加载的包不会出现在
+> `parallax-vr.pages.dev`。要在 Quest 的 Pages 页面里重新 Load，或直接用
+> `?pack=/packages/xxx.parallax`。
 
 旧的加载方式仍可用：
 

@@ -75,7 +75,15 @@ cp xxx.parallax prototype/public/packages/
 http://127.0.0.1:5173/?pack=/packages/xxx.parallax
 ```
 
-Quest 3 用同一个 URL；`adb reverse` 已配好时无需再传文件。
+Quest 3 用同一个 URL；不需要再传文件。
+
+> **`public/packages/` 不是包浏览器。** 放进这个目录不会自动出现在 Songs 列表；
+> 当前菜单只显示当前加载的包。要打开包，用 `?pack=` 或页面左下角 `LOAD .parallax`。
+> 18MB 的 `infinity-heaven.parallax` 可以用：
+> <https://parallax-vr.pages.dev/?pack=/packages/infinity-heaven.parallax>
+>
+> 本地 `LOAD` 存在 IndexedDB，按 origin 隔离：localhost 加的包不会出现在 Pages 上。
+
 包格式、主题 / 背景预留字段见 [`prototype/PACKAGE.md`](prototype/PACKAGE.md)。
 
 ### 4. 包内有什么

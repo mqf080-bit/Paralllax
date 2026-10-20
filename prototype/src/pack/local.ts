@@ -28,8 +28,16 @@ async function withStore<T>(mode: IDBTransactionMode, action: (store: IDBObjectS
     return await new Promise<T>((resolve, reject) => {
       const tx = db.transaction(STORE, mode);
       const request = action(tx.objectStore(STORE));
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error ?? new Error('IndexedDB 操作失败'));
+      let result!: T;
+      request.onsuccess = () => {
+        result = request.result;
+      };
+      request.onerror = () => reject(request.error ?? new Error('IndexedDB 请求失败'));
+      // 写操作必须等事务真正 commit 再返回；只等 request.onsuccess 就 reload，
+      // 在 Quest 上可能丢掉 18MB 的包，页面重开后包就不见了。
+      tx.oncomplete = () => resolve(result);
+      tx.onerror = () => reject(tx.error ?? new Error('IndexedDB 事务失败'));
+      tx.onabort = () => reject(tx.error ?? new Error('IndexedDB 事务中止'));
     });
   } finally {
     db.close();

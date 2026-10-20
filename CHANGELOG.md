@@ -16,6 +16,7 @@
 - 2D UI study（`design/ui-2d/`）：六屏可切换，A + C 的排版 / 浅蓝 + 稀有 lime；用于 VR 移植前的视觉与密度试验。
 - VR 复刻 2D study：760×470 六屏重排，标签 / 按钮按 VR 可读性重新定字阶，2× 面板纹理；chart map / density 接真实谱面；Settings 增加 Metronome / Groove / Lead-in；新增 `?chrome=0` 干净截图开关。
 - VR 面板从 0.86m / 0.34m 调到 1.55m / 1.35m，中心抬高到 1.44m；优先保证 1.35m 聚焦距离，水平视角约 60°；新增 `?panelScale` / `?panelDistance` / `?panelY` 头显调参（生产站可用）。
+- 本地谱面包：IndexedDB 写操作等事务 commit 后再 reload，避免 18MB 包在 Quest 上保存失败；加载页显示 `LOADING PACKAGE`；文档明确 `public/packages/` 不是自动曲库。
 
 ## 0.3.11 — 2026-10-18
 
