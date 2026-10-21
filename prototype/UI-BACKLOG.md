@@ -818,10 +818,16 @@ editor 的 3D 预览使用 `DEFAULT_PARAMS` + `buildTable()` + `createPlayer()`�
 - 用户明确：hit 可以出现在空中，**不能做上下不对称的“底座 + 键帽”**；也不能靠一圈 2D 冲击环做反馈。
 - 先在 `design/hit-lab/` 用 three.js 做独立设计样张，只比较体块与碎裂，不接游戏状态。
 - 三个方向都做上下对称：
-  - A / SANDWICH：上下两片釉面夹金属芯 + 光缝；缺点是容易读成两颗叠起来的键；
-  - B / SEAM：**整块厚釉面 + 中腰暗槽 + 手别色光缝**；选中；
-  - C / BLOCK：无附加结构，单靠倒角和釉面；手别色与远端可读性不足。
-- 最终 hit：`0.238 × 0.11 × 0.104m`，单块、上下对称；中腰 11mm 暗槽 + 4.2mm 手别色光缝，顶面 / 底面完全同形。
+  - A / SANDWICH：上下两片同形釉面夹窄金属芯 + 光缝；
+  - B / SEAM：整块厚釉面 + 中腰暗槽 + 手别色光缝；
+  - C / BLOCK：无附加结构，单靠倒角和釉面。
+- 第一轮选 B，理由是 A 的厚版容易读成两颗叠起来的键。
+- 第二轮用户反馈：**sandwich 更好，但整体太粗太厚**。于是把 A 压薄，并把光缝收进体块内部：
+  - 总尺寸 `0.232 × 0.084 × 0.096m`（上一版 B 是 `0.238 × 0.11 × 0.104m`）；
+  - 上下两片各 `0.039m` 高，中间 6mm 金属芯 + 2.8mm 手别色光缝；
+  - 光缝不再探出左右边缘，避免读成两片刀片；
+  - 空中 / 仰视时上下同形，仍然成立。
+- 最终采用 **A / SANDWICH（slim）**。
 - 打击反馈：移除冲击环。命中时直接碎成有厚度的陶瓷片（扁长方体，非四面体），按 perfect / good 分档；保留霜雾。
 - 音效：CC0 click 作为瞬态层，叠加 186→74Hz 的短低频“thock”；drag 仍走原来的轻量单层路径。
 - 触觉：hit 的震动比 arc / hold 更短、更实。
@@ -834,7 +840,7 @@ editor 的 3D 预览使用 `DEFAULT_PARAMS` + `buildTable()` + `createPlayer()`�
 - `src/audio/clock.ts`：双层打击音；`src/main.ts`：hit 触觉参数。
   - hit：click 瞬态 `0.33 / 0.22` + 低频 body `0.115 / 0.085`（perfect / good）；
   - drag：仍为单层 `0.17 / 0.11`，音色与速率未改。
-- 设计样张：`design/hit-lab/`，截图：`docs/ui-vr2/hit-lab-b.png`、`hit-lab-b-air.png`、`hit-lab-b-shatter.png`。
+- 设计样张：`design/hit-lab/`，截图：`docs/ui-vr2/hit-lab-a.png`、`hit-lab-a-air.png`、`hit-lab-a-shatter.png`。
 
 **验收**
 

@@ -49,7 +49,7 @@ const SHAPES = [
 
 const query = new URLSearchParams(location.search);
 const state = {
-  shape: query.get('shape') === 'all' ? 'all' : SHAPES.some((s) => s.id === query.get('shape')) ? query.get('shape') : 'all',
+  shape: query.get('shape') === 'all' ? 'all' : SHAPES.some((s) => s.id === query.get('shape')) ? query.get('shape') : 'sandwich',
   hand: ['left', 'right', 'none'].includes(query.get('hand')) ? query.get('hand') : 'left',
   air: query.get('air') === '1',
 };
@@ -175,18 +175,18 @@ function makeRounded(width, height, depth, radius, material) {
 function buildSandwich(materials) {
   const group = new THREE.Group();
 
-  const top = makeRounded(0.238, 0.043, 0.104, 0.012, materials.ceramic);
-  top.position.y = 0.0285;
+  const top = makeRounded(0.232, 0.039, 0.096, 0.01, materials.ceramic);
+  top.position.y = 0.0225;
   group.add(top);
 
-  const bottom = makeRounded(0.238, 0.043, 0.104, 0.012, materials.ceramic);
-  bottom.position.y = -0.0285;
+  const bottom = makeRounded(0.232, 0.039, 0.096, 0.01, materials.ceramic);
+  bottom.position.y = -0.0225;
   group.add(bottom);
 
-  const core = makeRounded(0.224, 0.017, 0.098, 0.004, materials.core);
+  const core = makeRounded(0.218, 0.006, 0.09, 0.002, materials.core);
   group.add(core);
 
-  const seam = makeRounded(0.232, 0.0032, 0.104, 0.0014, materials.line);
+  const seam = makeRounded(0.228, 0.0028, 0.092, 0.0012, materials.line);
   group.add(seam);
 
   return group;

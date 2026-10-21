@@ -9,7 +9,8 @@
 
 - 当前 hit 上下形状不对称，但 hit 可以出现在空中；
 - 不要用一圈 2D 冲击环，这是 3D 游戏，直接做碎裂；
-- 先把造型 / 碎裂在简单 three.js 环境里看，再放回游戏。
+- 先把造型 / 碎裂在简单 three.js 环境里看，再放回游戏；
+- 第二轮反馈：**sandwich 方向更好**，但整体有点太粗太厚。
 
 这个样张只回答这三件事，不接判定、音频、WebXR、谱面。
 
@@ -17,12 +18,12 @@
 
 | ID | 结构 | 结论 |
 | --- | --- | --- |
-| A / SANDWICH | 上下两片釉面 + 金属芯 + 光缝 | 上下对称，但容易读成两颗叠起来的键；不采用 |
-| **B / SEAM** | **整块厚釉面 + 中腰暗槽 + 手别色光缝** | **采用**；一个体块、上下同形、左右手可读 |
+| **A / SANDWICH** | **上下两片同形釉面 + 窄金属芯 + 内收光缝** | **最终采用**；压薄到总高 0.084m，缝收在体块内部，不再像两片刀片 |
+| B / SEAM | 整块厚釉面 + 中腰暗槽 + 手别色光缝 | 第一轮曾采用；第二轮被 A 取代 |
 | C / BLOCK | 整块厚釉面，无附加结构 | 造型太像肥皂，远端与低角度缺少手别色；不采用 |
 
-最终移植尺寸：`0.238 × 0.11 × 0.104m`。主代码见
-[`prototype/src/game/hitVisual.ts`](../../prototype/src/game/hitVisual.ts)。
+最终移植尺寸：`0.232 × 0.084 × 0.096m`，上下两片各 `0.039m` 高。
+主代码见 [`prototype/src/game/hitVisual.ts`](../../prototype/src/game/hitVisual.ts)。
 
 ## 碎裂
 
@@ -53,9 +54,9 @@ python3 -m http.server 5200
 ## 截图
 
 - [`docs/ui-vr2/hit-lab-all.png`](../../docs/ui-vr2/hit-lab-all.png) — 三方向并排
-- [`docs/ui-vr2/hit-lab-b.png`](../../docs/ui-vr2/hit-lab-b.png) — 选中的 B
-- [`docs/ui-vr2/hit-lab-b-air.png`](../../docs/ui-vr2/hit-lab-b-air.png) — 空中 / 右手
-- [`docs/ui-vr2/hit-lab-b-shatter.png`](../../docs/ui-vr2/hit-lab-b-shatter.png) — 碎裂
+- [`docs/ui-vr2/hit-lab-a.png`](../../docs/ui-vr2/hit-lab-a.png) — 最终选中的 A / SANDWICH
+- [`docs/ui-vr2/hit-lab-a-air.png`](../../docs/ui-vr2/hit-lab-a-air.png) — 空中 / 右手
+- [`docs/ui-vr2/hit-lab-a-shatter.png`](../../docs/ui-vr2/hit-lab-a-shatter.png) — 碎裂
 
 ## 边界
 

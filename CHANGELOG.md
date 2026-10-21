@@ -21,7 +21,7 @@
 - 游玩端流速变更现在会同步到已生成的 arc（`playfield.setFlowSpeed`），和 editor 3D 的行为一致。
 - 手感布局：单轨 0.23→0.27m，判定带近端距离 0.55→0.80m（前移 25cm）；editor 3D 预览共用同一套参数。新增 `?lane` / `?band` 调参。
 - 打击音：hit / drag 使用低通 Kenney UI Audio click；drag 保持原来的 0.17 / 0.11 单层轻击；hit 改为 click 瞬态 + 短低频“thock”双层，更有重量但不更尖。
-- hit 造型重做：先建 `design/hit-lab/` 独立设计样张，比较三个上下对称方向；主代码采用 B（整块厚釉面 + 中腰暗槽 + 手别色光缝），尺寸 0.238×0.11×0.104m。空中 / 仰视也完整，不再是底座 + 键帽。
+- hit 造型重做：先建 `design/hit-lab/` 独立设计样张，比较三个上下对称方向；最终采用压薄的 A / SANDWICH（上下同形釉面 + 窄金属芯 + 内收光缝），尺寸 0.232×0.084×0.096m。空中 / 仰视也完整，不再是底座 + 键帽，也不会读成两颗叠键。
 - hit 打击反馈：移除冲击环，改为直接碎裂成有厚度、受重力的陶瓷片；hit 碎片更大、按 perfect / good 分档，drag / arc / hold 使用更小的碎片。
 - 结算增加 GOOD TIMING：按 hit 的 offset 统计 early / late；hit 的 front z 容差从 0.4 收到 0.22m，减少提前挥入就结算。
 - 判定带增加引导网：竖直贴在 bandZ（同 editor 3D 编辑网格），默认全透明，hit 在 180ms 内接近时只点亮网格线（无底板 / 光晕），perfect ±80ms 时最亮、中心偏暖黄；editor 3D 也自动显示。

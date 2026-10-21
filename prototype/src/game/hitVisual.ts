@@ -7,12 +7,13 @@ import type { MaterialLibrary } from '../materials/library';
 import { HAND_LEFT, HAND_RIGHT } from '../materials/palette';
 
 /**
- * hit 的实体：一整块厚釉面，中腰开一圈暗槽，槽里是一条手别色光缝。
+ * hit 的实体：上下两片同形釉面，夹一层窄金属芯，中腰一条手别色光缝。
  *
- * 为什么不再用“底座 + 键帽”：
- * hit 可以出现在空中，从下方看时底座会读成一块多余的黑板；
- * 上下形状必须一致。也不能做成上下两片等大的“夹心”——那会被读成两颗叠起来的键。
- * 现在只有一个体块，俯视、仰视、平视都完整；手别色靠中腰的一圈窄光缝读出来。
+ * 用户确认 sandwich 方向更好。这里保留夹心，但把整体压薄：
+ * - 总高 0.084m（上一版 0.11m），比原版 0.055m 仍厚，但不再是一块砖；
+ * - 上下两片完全同形，空中 / 仰视不会出现“底座”；
+ * - 光缝收在体块内部，不探出左右边缘，避免读成两片刀片；
+ * - 缝仍然在，低角度和远处能读出左右手。
  *
  * 判定仍然只看时间；这里的尺寸只影响视觉。判定盒在 player.ts 里独立维护，
  * 所以 FEEL-02 调判定面积时不会被这套几何牵着走。
@@ -30,15 +31,17 @@ export interface HitVisualFactory {
 }
 
 export const HIT_VISUAL = {
-  width: 0.238,
-  height: 0.11,
-  depth: 0.104,
-  grooveWidth: 0.2395,
-  grooveHeight: 0.011,
-  grooveDepth: 0.105,
-  seamWidth: 0.2405,
-  seamHeight: 0.0042,
-  seamDepth: 0.106,
+  width: 0.232,
+  height: 0.084,
+  depth: 0.096,
+  halfHeight: 0.039,
+  halfY: 0.0225,
+  coreWidth: 0.218,
+  coreHeight: 0.006,
+  coreDepth: 0.09,
+  seamWidth: 0.228,
+  seamHeight: 0.0028,
+  seamDepth: 0.092,
 } as const;
 
 function withFade<T extends THREE.Material>(material: T, options: HitVisualOptions): T {
@@ -59,18 +62,20 @@ export function hitFragmentColor(hand?: Hand | 'none'): number {
 
 export function createHitVisualFactory(lib: MaterialLibrary, options: HitVisualOptions = {}): HitVisualFactory {
   // —— 共享几何：全部 hit 复用，只有材质按手别区分 ——
-  const bodyGeometry = new RoundedBoxGeometry(
+  // 上下两片共用一个居中几何，靠 position.y 镜像摆放；
+  // 不用负缩放，避免底面翻面。
+  const halfGeometry = new RoundedBoxGeometry(
     HIT_VISUAL.width,
-    HIT_VISUAL.height,
+    HIT_VISUAL.halfHeight,
     HIT_VISUAL.depth,
-    5,
-    0.016,
+    4,
+    0.01,
   );
 
-  const grooveGeometry = new RoundedBoxGeometry(
-    HIT_VISUAL.grooveWidth,
-    HIT_VISUAL.grooveHeight,
-    HIT_VISUAL.grooveDepth,
+  const coreGeometry = new RoundedBoxGeometry(
+    HIT_VISUAL.coreWidth,
+    HIT_VISUAL.coreHeight,
+    HIT_VISUAL.coreDepth,
     3,
     0.002,
   );
@@ -80,17 +85,17 @@ export function createHitVisualFactory(lib: MaterialLibrary, options: HitVisualO
     HIT_VISUAL.seamHeight,
     HIT_VISUAL.seamDepth,
     2,
-    0.0016,
+    0.0012,
   );
 
-  // —— 暗槽：比釉面宽 0.75mm，形成一圈很窄的机械凹槽 ——
-  const grooveMaterial = withFade(lib.steel.clone(), options);
-  grooveMaterial.color.setHex(0x20252c);
-  grooveMaterial.metalness = 0.72;
-  grooveMaterial.roughness = 0.34;
-  grooveMaterial.envMapIntensity = 0.85;
+  // —— 金属芯：只填在两片釉面之间，形成一道很窄的暗缝 ——
+  const coreMaterial = withFade(lib.steel.clone(), options);
+  coreMaterial.color.setHex(0x20252c);
+  coreMaterial.metalness = 0.72;
+  coreMaterial.roughness = 0.34;
+  coreMaterial.envMapIntensity = 0.85;
 
-  // —— 釉面：整块键共用同一材质，低角度才有“被灯打到”的边 ——
+  // —— 釉面：上下两片共用同一材质，低角度才有“被灯打到”的边 ——
   function createCapMaterial(source: THREE.MeshPhysicalMaterial, accent: number): THREE.MeshPhysicalMaterial {
     const material = withFade(source.clone(), options) as THREE.MeshPhysicalMaterial;
     material.roughness = 0.3;
@@ -136,15 +141,23 @@ export function createHitVisualFactory(lib: MaterialLibrary, options: HitVisualO
       const group = new THREE.Group();
       group.name = `hit-${key}`;
 
-      const body = new THREE.Mesh(bodyGeometry, capMaterials[key]);
-      body.renderOrder = 5;
-      body.frustumCulled = false;
-      group.add(body);
+      const core = new THREE.Mesh(coreGeometry, coreMaterial);
+      core.renderOrder = 4;
+      core.frustumCulled = false;
+      group.add(core);
 
-      const groove = new THREE.Mesh(grooveGeometry, grooveMaterial);
-      groove.renderOrder = 4;
-      groove.frustumCulled = false;
-      group.add(groove);
+      const capMaterial = capMaterials[key];
+      const top = new THREE.Mesh(halfGeometry, capMaterial);
+      top.position.y = HIT_VISUAL.halfY;
+      top.renderOrder = 5;
+      top.frustumCulled = false;
+      group.add(top);
+
+      const bottom = new THREE.Mesh(halfGeometry, capMaterial);
+      bottom.position.y = -HIT_VISUAL.halfY;
+      bottom.renderOrder = 5;
+      bottom.frustumCulled = false;
+      group.add(bottom);
 
       const seam = new THREE.Mesh(seamGeometry, seamMaterials[key]);
       seam.renderOrder = 6;
@@ -157,10 +170,10 @@ export function createHitVisualFactory(lib: MaterialLibrary, options: HitVisualO
     dispose(): void {
       if (disposed) return;
       disposed = true;
-      bodyGeometry.dispose();
-      grooveGeometry.dispose();
+      halfGeometry.dispose();
+      coreGeometry.dispose();
       seamGeometry.dispose();
-      grooveMaterial.dispose();
+      coreMaterial.dispose();
       for (const material of Object.values(capMaterials)) material.dispose();
       for (const material of Object.values(seamMaterials)) material.dispose();
     },

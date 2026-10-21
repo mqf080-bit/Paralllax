@@ -38,7 +38,7 @@
 - **arc 流速 / 包 offset（2026-10-20）**：Settings 改流速会同步缩放已生成的 arc；`meta.offset` 改为隐藏的 `chartOffsetMs`，与玩家校准 offset 分离。
 - **手感布局（2026-10-20）**：单轨宽 0.23→0.27m，所有 note / arc 的 x 按 lane 单位同比展开；判定带前移 25cm（近端内 0.80m）。editor 的 3D view 共享 `DEFAULT_PARAMS` / `deriveGeometry`，自动同步。
 - **打击反馈（2026-10-21）**：hit / drag 加打击音（hit 更响、drag 更轻）；结算加 GOOD early / late；判定带加竖直、只亮网格线的时间驱动引导网。hit 前侧 z 容差收到 0.22m，观察 early 偏多是否来自提前挥入。
-- **hit 造型 / 碎裂（2026-10-21）**：先在 [`design/hit-lab`](../design/hit-lab/) 比较三个上下对称方向，采用 B / SEAM；主代码改成 `0.238 × 0.11 × 0.104m` 的整块厚釉面 + 中腰暗槽 + 手别色光缝。命中不再画冲击环，直接碎成陶瓷片；打击音在原 click 上叠一层短低频。判定面积未改。
+- **hit 造型 / 碎裂（2026-10-21）**：先在 [`design/hit-lab`](../design/hit-lab/) 比较三个上下对称方向，最终采用压薄的 A / SANDWICH：`0.232 × 0.084 × 0.096m`，上下同形釉面 + 窄金属芯 + 内收手别色光缝。命中不再画冲击环，直接碎成陶瓷片；打击音在原 click 上叠一层短低频。判定面积未改。
 - **暂缓**：无物量时立即结算，暂不按包内 `meta.duration` 等待；等 Infinity Heaven 谱面补充完成后再处理。
 
 ---
