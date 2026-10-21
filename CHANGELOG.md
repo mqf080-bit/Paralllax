@@ -20,7 +20,9 @@
 - 谱面包索引：`public/packages/index.json` + 选中后懒加载；启动不再预下载 18MB 包，Songs 先显示元数据，选中后加载并更新详情。
 - 游玩端流速变更现在会同步到已生成的 arc（`playfield.setFlowSpeed`），和 editor 3D 的行为一致。
 - 手感布局：单轨 0.23→0.27m，判定带近端距离 0.55→0.80m（前移 25cm）；editor 3D 预览共用同一套参数。新增 `?lane` / `?band` 调参。
-- 打击音：hit / drag 使用低通 Kenney UI Audio click；hit 增益 0.40 / 0.26，drag 保持 0.17 / 0.11；不叠 arc / hold tick。
+- 打击音：hit / drag 使用低通 Kenney UI Audio click；drag 保持原来的 0.17 / 0.11 单层轻击；hit 改为 click 瞬态 + 短低频“thock”双层，更有重量但不更尖。
+- hit 造型重做：先建 `design/hit-lab/` 独立设计样张，比较三个上下对称方向；主代码采用 B（整块厚釉面 + 中腰暗槽 + 手别色光缝），尺寸 0.238×0.11×0.104m。空中 / 仰视也完整，不再是底座 + 键帽。
+- hit 打击反馈：移除冲击环，改为直接碎裂成有厚度、受重力的陶瓷片；hit 碎片更大、按 perfect / good 分档，drag / arc / hold 使用更小的碎片。
 - 结算增加 GOOD TIMING：按 hit 的 offset 统计 early / late；hit 的 front z 容差从 0.4 收到 0.22m，减少提前挥入就结算。
 - 判定带增加引导网：竖直贴在 bandZ（同 editor 3D 编辑网格），默认全透明，hit 在 180ms 内接近时只点亮网格线（无底板 / 光晕），perfect ±80ms 时最亮、中心偏暖黄；editor 3D 也自动显示。
 - 谱面 / 包自带 offset 与玩家 offset 分离：`meta.offset` 写入 `chartOffsetMs`，只在音频时钟内部生效，不再显示为 Settings 的 Offset。

@@ -3,20 +3,34 @@ import * as THREE from 'three';
 import { createGlowTexture } from '../materials/textures';
 
 /**
- * 命中反馈：碎屑 + 霜雾。
+ * 命中反馈：陶瓷碎片 + 霜雾。
  *
- * `parallax-idea.md` 4.1 给 drag 的反馈是「碎裂：手过处，冰条炸成细屑 + 霜雾」。
- * 这里就做这两件：
- * - 细屑：一批很小的四面体，受一点重力，边转边淡出；
- * - 霜雾：一批加法亮点，向外散、迅速衰减，读作「雾」而不是「火星」。
+ * 这是一个 3D 场景，不用贴地 / 朝向相机的冲击环。hit 被击中的瞬间，
+ * 直接碎成一批有厚度、会旋转、受重力的陶瓷片；drag 仍走更轻的细屑。
  *
- * 没有音频、没有后处理 bloom——都留到后面。
+ * 碎片形状用扁长方体而不是四面体：长条碎片更像“被打碎的键”，
+ * 四面体在远处会读成一堆白色纸屑。
  */
+
+export interface ShatterOptions {
+  /** 碎片尺寸倍率，默认 1。 */
+  size?: number;
+  /** 碎片寿命倍率，默认 1。 */
+  life?: number;
+  /** 起始位置的扩散倍率，默认 1；大键碎开时让碎片来自整个体块，而不是一个点。 */
+  spread?: number;
+}
 
 export interface Shatter {
   group: THREE.Group;
   /** 在 `center` 处炸开，`direction` 给一个初速方向（通常是手的运动方向）。 */
-  spawn(center: THREE.Vector3, direction: THREE.Vector3, color: number, count?: number): void;
+  spawn(
+    center: THREE.Vector3,
+    direction: THREE.Vector3,
+    color: number,
+    count?: number,
+    options?: ShatterOptions,
+  ): void;
   update(dt: number): void;
   dispose(): void;
 }
@@ -30,7 +44,7 @@ interface Shard {
   spin: number;
   age: number;
   ttl: number;
-  size: number;
+  scale: THREE.Vector3;
 }
 
 interface Mote {
@@ -45,7 +59,7 @@ interface Mote {
 const SHARD_CAPACITY = 120;
 const MOTE_CAPACITY = 90;
 const GRAVITY = -3.4;
-const SHARD_TTL = 0.52;
+const SHARD_TTL = 0.58;
 const MOTE_TTL = 0.4;
 
 export function createShatter(): Shatter {
@@ -53,16 +67,16 @@ export function createShatter(): Shatter {
   group.name = 'shatter';
   const disposable: Array<{ dispose(): void }> = [];
 
-  // —— 细屑 ——
-  const shardGeometry = new THREE.TetrahedronGeometry(0.007, 0);
-  const shardMaterial = new THREE.MeshStandardMaterial({
-    color: 0xd6ecf7,
-    roughness: 0.24,
-    metalness: 0.0,
-    emissive: 0x2a6a7e,
-    emissiveIntensity: 1.1,
+  // —— 陶瓷碎片 ——
+  // Lambert 没有镜面高光，实例颜色不会被灯打成一团白；
+  // 这对“碎片”比“冰晶”更重要——颜色要读得出手别。
+  const shardGeometry = new THREE.BoxGeometry(0.018, 0.007, 0.011);
+  const shardMaterial = new THREE.MeshLambertMaterial({
+    color: 0xffffff,
+    emissive: 0x0d1a1f,
+    emissiveIntensity: 0.24,
     transparent: true,
-    opacity: 0.95,
+    opacity: 0.96,
   });
   disposable.push(shardGeometry, shardMaterial);
 
@@ -81,7 +95,7 @@ export function createShatter(): Shatter {
     spin: 0,
     age: 0,
     ttl: SHARD_TTL,
-    size: 1,
+    scale: new THREE.Vector3(1, 1, 1),
   }));
   let shardCursor = 0;
 
@@ -127,26 +141,47 @@ export function createShatter(): Shatter {
   const quaternion = new THREE.Quaternion();
   const scale = new THREE.Vector3();
   const tmpColor = new THREE.Color();
+  const shardWhite = new THREE.Color(0xffffff);
 
   const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
-  for (let i = 0; i < SHARD_CAPACITY; i += 1) shards.setMatrixAt(i, hidden);
+  for (let i = 0; i < SHARD_CAPACITY; i += 1) {
+    shards.setMatrixAt(i, hidden);
+    // 必须在第一帧之前创建 instanceColor：否则着色器会先按“无实例色”编译，
+    // 第一次命中时碎片会先白一帧，甚至整批保持白色。
+    shards.setColorAt(i, shardWhite);
+  }
   shards.instanceMatrix.needsUpdate = true;
+  if (shards.instanceColor) shards.instanceColor.needsUpdate = true;
 
   return {
     group,
 
-    spawn(center: THREE.Vector3, direction: THREE.Vector3, color: number, count = 10): void {
+    spawn(
+      center: THREE.Vector3,
+      direction: THREE.Vector3,
+      color: number,
+      count = 10,
+      options: ShatterOptions = {},
+    ): void {
+      const sizeScale = options.size ?? 1;
+      const lifeScale = options.life ?? 1;
+      const spreadScale = options.spread ?? 1;
       const dir = direction.clone();
       if (dir.lengthSq() < 1e-6) dir.set(0, 1, 0);
       dir.normalize();
 
       for (let i = 0; i < count; i += 1) {
-        const shard = shardPool[shardCursor]!;
+        const index = shardCursor;
+        const shard = shardPool[index]!;
         shardCursor = (shardCursor + 1) % SHARD_CAPACITY;
 
         shard.active = true;
         shard.position.copy(center).add(
-          new THREE.Vector3((Math.random() - 0.5) * 0.11, (Math.random() - 0.5) * 0.03, (Math.random() - 0.5) * 0.05),
+          new THREE.Vector3(
+            (Math.random() - 0.5) * 0.11 * spreadScale,
+            (Math.random() - 0.5) * 0.03 * spreadScale,
+            (Math.random() - 0.5) * 0.05 * spreadScale,
+          ),
         );
 
         const scatter = new THREE.Vector3(
@@ -160,9 +195,17 @@ export function createShatter(): Shatter {
         shard.angle = Math.random() * Math.PI * 2;
         shard.spin = (Math.random() - 0.5) * 14;
         shard.age = 0;
-        shard.ttl = SHARD_TTL * (0.7 + Math.random() * 0.5);
-        shard.size = 0.45 + Math.random() * 0.55;
+        shard.ttl = SHARD_TTL * lifeScale * (0.7 + Math.random() * 0.5);
+        shard.scale.set(
+          (0.55 + Math.random() * 0.9) * sizeScale,
+          (0.5 + Math.random() * 0.7) * sizeScale,
+          (0.55 + Math.random() * 0.9) * sizeScale,
+        );
+
+        // 碎片跟着手别色走，但保留一点白，读起来仍是“陶瓷”而不是纯色纸片。
+        shards.setColorAt(index, tmpColor.setHex(color).lerp(shardWhite, 0.12));
       }
+      if (count > 0 && shards.instanceColor) shards.instanceColor.needsUpdate = true;
 
       const moteCount = Math.round(count * 0.9);
       for (let i = 0; i < moteCount; i += 1) {
@@ -204,7 +247,7 @@ export function createShatter(): Shatter {
         shard.angle += shard.spin * dt;
 
         const fade = 1 - Math.pow(shard.age / shard.ttl, 2);
-        scale.setScalar(shard.size * fade);
+        scale.copy(shard.scale).multiplyScalar(fade);
         quaternion.setFromAxisAngle(shard.axis, shard.angle);
         matrix.compose(shard.position, quaternion, scale);
         shards.setMatrixAt(i, matrix);

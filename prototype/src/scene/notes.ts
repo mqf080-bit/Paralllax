@@ -5,12 +5,13 @@ import { createFresnelGlowMaterial } from '../materials/glow';
 import type { TableGeometry, TableParams } from '../config';
 import type { MaterialLibrary } from '../materials/library';
 import { HAND_LEFT, HAND_RIGHT } from '../materials/palette';
+import { createHitVisualFactory } from '../game/hitVisual';
 
 /**
  * 四种键型的造型预览。
  *
  * 造型依据 `parallax-idea.md` 2 / 4.2，加上这一轮的修正：
- * - hit：厚实的陶瓷条，青釉 / 无釉 / 赤釉三枚并排，直接比色
+ * - hit：金属底座 + 釉面键帽的三层体块，青釉 / 无釉 / 赤釉三枚并排，直接比色
  * - drag：横置的细冰条（不是锥形——锥形在俯视下会被压成一点，读不出「一排」）
  * - hold：沿轨道方向的玻璃管，内部灌注（中性，不带手别）
  * - arc：弯曲玻璃管 + 内部光带 + 外圈泛光，青 / 赤两条并排
@@ -41,22 +42,25 @@ export function buildNotesPreview(params: TableParams, g: TableGeometry, lib: Ma
   group.name = 'notes-preview';
   const topY = params.tableHeight;
 
-  const hitY = topY + 0.085;
+  const hitY = topY + 0.07;
 
   // —— hit：三枚同一排、同一尺寸、同一 z ——
   // 手别的差别只剩颜色和「该用哪只手」，不掺任何造型差别。
   // 左边青、右边赤：和手的位置对齐，不用记「青是哪只手」。
+  const hitFactory = createHitVisualFactory(lib);
   const hitSpecs = [
-    { name: 'note-hit-left', x: g.laneX[0]!, material: lib.ceramicLeft },
-    { name: 'note-hit-neutral', x: g.laneX[1]!, material: lib.ceramic },
-    { name: 'note-hit-right', x: g.laneX[2]!, material: lib.ceramicRight },
+    { name: 'note-hit-left', x: g.laneX[0]!, hand: 'left' as const },
+    { name: 'note-hit-neutral', x: g.laneX[1]!, hand: undefined },
+    { name: 'note-hit-right', x: g.laneX[2]!, hand: 'right' as const },
   ];
 
   for (const spec of hitSpecs) {
-    const hit = new THREE.Mesh(new RoundedBoxGeometry(0.21, 0.055, 0.075, 3, 0.008), spec.material);
+    const hit = hitFactory.create(spec.hand);
     hit.name = spec.name;
     hit.position.set(spec.x, hitY, g.nearZ - 0.55);
-    hit.castShadow = true;
+    hit.traverse((object) => {
+      if (object instanceof THREE.Mesh) object.castShadow = true;
+    });
     group.add(hit);
   }
 
@@ -180,6 +184,7 @@ export function buildNotesPreview(params: TableParams, g: TableGeometry, lib: Ma
       for (const material of arcHaloMaterials) material.uniforms.uIntensity!.value = 0.3 + breath * 0.05;
     },
     dispose(): void {
+      hitFactory.dispose();
       group.traverse((object) => {
         if (object instanceof THREE.Mesh) object.geometry.dispose();
       });

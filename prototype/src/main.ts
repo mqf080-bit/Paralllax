@@ -627,7 +627,11 @@ const hands = createHands(renderer, scene, {
 
 const playHooks: PlayerHooks = {
   onJudge: (side, grade, _offsetMs, source) => {
-    if (grade !== 'miss') hands.pulse(side, 0.45, 35);
+    if (grade !== 'miss') {
+      // hit 用一次更短、更实的震动；arc / hold 仍是轻触。
+      const strength = source === 'hit' ? (grade === 'perfect' ? 0.55 : 0.45) : 0.35;
+      hands.pulse(side, strength, source === 'hit' ? 45 : 30);
+    }
     // 只给地面 hit / drag 加打击音；arc 物量和 hold tick 不叠 click，避免太吵。
     if (!playSettings.auto && grade !== 'miss' && (source === 'hit' || source === 'drag')) {
       audio.playHit(grade === 'perfect', source === 'drag');

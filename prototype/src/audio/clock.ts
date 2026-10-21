@@ -194,14 +194,17 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
     decodeHit();
     if (!hitBuffer) return;
     const now = ctx.currentTime;
+
+    // 瞬态层：保留原来的 CC0 click。它负责“打到了”的位置感，
+    // 但不靠继续加增益来变响——再推只会更尖。
     const source = ctx.createBufferSource();
     source.buffer = hitBuffer;
-    source.playbackRate.value = perfect ? 1 : 0.94;
+    source.playbackRate.value = drag ? 1 : perfect ? 1 : 0.96;
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.value = drag ? 5200 : perfect ? 5600 : 3800;
+    filter.frequency.value = drag ? 5200 : perfect ? 5400 : 4100;
     const gain = ctx.createGain();
-    const peak = drag ? (perfect ? 0.17 : 0.11) : (perfect ? 0.4 : 0.26);
+    const peak = drag ? (perfect ? 0.17 : 0.11) : perfect ? 0.33 : 0.22;
     gain.gain.setValueAtTime(0.0001, now);
     gain.gain.exponentialRampToValueAtTime(peak, now + 0.004);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
@@ -212,6 +215,32 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
       source.disconnect();
       filter.disconnect();
       gain.disconnect();
+    };
+
+    // 重量层：只给地面 hit。一个很短的低频正弦，从 180Hz 落到 70Hz，
+    // 补的是“击打的体积”，不是“更响的高频”。drag 保持原来的单层轻响。
+    if (drag) return;
+
+    const body = ctx.createOscillator();
+    body.type = 'sine';
+    const bodyFilter = ctx.createBiquadFilter();
+    bodyFilter.type = 'lowpass';
+    bodyFilter.frequency.value = 320;
+    bodyFilter.Q.value = 0.7;
+    const bodyGain = ctx.createGain();
+    const bodyPeak = perfect ? 0.115 : 0.085;
+    body.frequency.setValueAtTime(perfect ? 186 : 164, now);
+    body.frequency.exponentialRampToValueAtTime(perfect ? 74 : 66, now + 0.085);
+    bodyGain.gain.setValueAtTime(0.0001, now);
+    bodyGain.gain.exponentialRampToValueAtTime(bodyPeak, now + 0.006);
+    bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.115);
+    body.connect(bodyFilter).connect(bodyGain).connect(master);
+    body.start(now);
+    body.stop(now + 0.13);
+    body.onended = () => {
+      body.disconnect();
+      bodyFilter.disconnect();
+      bodyGain.disconnect();
     };
   }
 

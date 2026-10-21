@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HIT LAB — Parallax</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #05070a;
+        --ink: #e8f1fb;
+        --muted: #7f8ea3;
+        --line: #29323d;
+        --accent: #9cc8ff;
+        --lime: #c6f24e;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); }
+      body {
+        font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+      canvas { display: block; }
+      .hud {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 22px 24px 18px;
+      }
+      .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
+      .eyebrow { color: var(--muted); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; }
+      h1 { margin: 7px 0 0; font-size: 26px; font-weight: 600; letter-spacing: -0.03em; }
+      .note { max-width: 390px; color: #98a9bc; font-size: 12px; line-height: 1.6; text-align: right; }
+      .note b { color: var(--ink); font-weight: 500; }
+      .bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+      .controls { pointer-events: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+      button {
+        appearance: none;
+        border: 1px solid var(--line);
+        background: rgba(8, 12, 18, 0.82);
+        color: var(--muted);
+        padding: 8px 11px;
+        font: inherit;
+        font-size: 10px;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+      button:hover { border-color: #46566b; color: var(--ink); }
+      button[data-active="1"] { border-color: var(--accent); color: var(--accent); }
+      .legend { color: var(--muted); font-size: 10px; line-height: 1.6; text-align: right; }
+      .legend span { color: var(--ink); }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        border: 1px solid var(--line);
+        padding: 5px 8px;
+        color: var(--muted);
+        font-size: 9px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      .badge::before { content: ""; width: 5px; height: 5px; background: var(--lime); }
+      .caption {
+        margin-top: 10px;
+        display: flex;
+        gap: 28px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+      .caption b { color: var(--ink); font-weight: 500; }
+      @media (max-width: 720px) {
+        h1 { font-size: 20px; }
+        .note { display: none; }
+        .legend { display: none; }
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "../../prototype/node_modules/three/build/three.module.js",
+          "three/addons/": "../../prototype/node_modules/three/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div class="hud">
+      <div class="top">
+        <div>
+          <div class="eyebrow">Parallax / design fixture</div>
+          <h1>HIT LAB</h1>
+          <div class="caption">
+            <span>SHAPE <b id="shape-label">SANDWICH</b></span>
+            <span>HAND <b id="hand-label">LEFT</b></span>
+            <span>STATE <b id="state-label">FLOATING</b></span>
+          </div>
+        </div>
+        <div class="note">
+          设计样张，不接游戏状态。实际尺寸 <b>0.24m</b>；FOV 接近游戏，近距离检查材质与体块。<br />
+          三个方向都必须上下对称：hit 可以出现在空中。
+        </div>
+      </div>
+      <div class="bottom">
+        <div>
+          <div class="controls">
+            <button id="shape-sandwich" type="button">A / SANDWICH</button>
+            <button id="shape-seam" type="button">B / SEAM</button>
+            <button id="shape-block" type="button">C / BLOCK</button>
+            <button id="shape-all" type="button">ALL</button>
+            <button id="hand-left" type="button">L</button>
+            <button id="hand-right" type="button">R</button>
+            <button id="hand-none" type="button">N</button>
+            <button id="toggle-air" type="button">AIRBORNE</button>
+            <button id="shatter" type="button">SHATTER [SPACE]</button>
+          </div>
+          <div class="badge" style="margin-top: 10px">NOT GAMEPLAY RUNTIME</div>
+        </div>
+        <div class="legend">
+          DRAG TO ORBIT / SCROLL TO ZOOM<br />
+          <span>NO RING / ONLY 3D FRAGMENTS</span>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

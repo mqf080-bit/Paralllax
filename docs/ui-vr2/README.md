@@ -1,6 +1,7 @@
-# VR UI — 2D Study 复刻截图
+# VR UI / 打击反馈截图
 
-2026-10-20。把 [`design/ui-2d`](../../design/ui-2d/) 的六屏版式搬进 760×470 的 VR 面板后截的图。
+2026-10-20。把 [`design/ui-2d`](../../design/ui-2d/) 的六屏版式搬进 760×470 的 VR 面板后截的图；
+2026-10-21 追加 hit 造型、碎裂与设计样张。
 
 面板为 **1.55m 宽 × 0.959m 高，放在眼前 1.35m、中心高度 1.44m**；截图相机就是实际站姿 `0,1.60,0` 看向面板，和佩戴时的视野关系更接近。
 
@@ -15,6 +16,15 @@
 | `result.png` | 结算，91 Perfect / 100%；右侧 GOOD TIMING 显示 early / late |
 | `sheet.png` | 六屏总览 |
 | `guide.png` | 游玩中的竖直判定引导网：只点亮网格线，不画底板 / 光晕 |
+| `hit-after.png` | 新的对称厚 hit：整块釉面 + 中腰暗槽 + 手别色光缝 |
+| `hit-impact.png` | 命中后的直接碎裂；没有冲击环，碎片按 perfect / good 分档 |
+| `hit-lab-all.png` | 设计样张：三个对称方向；B / SEAM 被采用 |
+| `hit-lab-b.png` | 采用方向 B 的近距离材质检查 |
+| `hit-lab-b-air.png` | 方向 B 抬到空中、右手；上下同形 |
+| `hit-lab-b-shatter.png` | 方向 B 的碎裂设计样张 |
+
+`hit-lab-*` 来自 [`design/hit-lab`](../../design/hit-lab/)，是独立光照下的设计样张，不是游戏实拍；
+`hit-after.png` / `hit-impact.png` 才是主代码里的游戏画面。
 
 截图用开发服务器、正对面板的相机和干净背景：
 

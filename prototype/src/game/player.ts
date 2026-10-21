@@ -20,6 +20,7 @@ import type { MaterialLibrary } from '../materials/library';
 import { createArcNote, type ArcEvent, type ArcNote } from './arc';
 import { createJudgementGuide, type GuideHit } from './guide';
 import type { HandSample, HandSide } from './hands';
+import { createHitVisualFactory, hitFragmentColor } from './hitVisual';
 import type { Grade } from './judgement';
 import { createJudgementPopup, type JudgementPopup } from './popup';
 import { createScore, type ScoreState, type ScoreView } from './scoring';
@@ -176,7 +177,6 @@ export function createPlayer(
   group.add(popup.group);
 
   // —— 共享几何 ——
-  const hitGeometry = new RoundedBoxGeometry(0.21, 0.055, 0.075, 3, 0.008);
   const dragGeometry = new RoundedBoxGeometry(0.195, 0.011, 0.022, 2, 0.0035);
   // 辉光片只比冰条深一点：平铺的光片在俯视时被透视拉长，
   // 太深的话远处会变成「一团光、条子看不见」。
@@ -189,11 +189,7 @@ export function createPlayer(
   // 视距从判定带往前算：默认 7m 之外完全不画（台面再远的部分留给氛围）。
   const fadeFar = geometry.bandZ - params.visibleRange;
   const fadeSpan = FAR_FADE_SPAN;
-  const hitMaterials = {
-    left: applyDistanceFade(lib.ceramicLeft.clone(), { far: fadeFar, span: fadeSpan, power: 0.8 }),
-    right: applyDistanceFade(lib.ceramicRight.clone(), { far: fadeFar, span: fadeSpan, power: 0.8 }),
-    neutral: applyDistanceFade(lib.ceramic.clone(), { far: fadeFar, span: fadeSpan, power: 0.8 }),
-  };
+  const hitFactory = createHitVisualFactory(lib, { fade: { far: fadeFar, span: fadeSpan } });
   const dragBarMaterial = applyDistanceFade(lib.iceBar.clone(), { far: fadeFar, span: fadeSpan, power: 0.65 });
   // 冰条在远处只剩 1–2 px：自发光调成偏白青、亮度抬高，别被加法辉光盖过去。
   dragBarMaterial.emissive.setHex(0x9fe4ff);
@@ -310,13 +306,9 @@ export function createPlayer(
     };
 
     if (note.type === 'hit') {
-      const material =
-        note.hand === 'left' ? hitMaterials.left : note.hand === 'right' ? hitMaterials.right : hitMaterials.neutral;
-      const bar = new THREE.Mesh(hitGeometry, material);
-      bar.renderOrder = ORDER_BODY;
-      bar.frustumCulled = false;
-      // 不投影：影子不会跟着淡出，远处会变成一条黑杠（比 note 本身还显眼）。
-      noteGroup.add(bar);
+      // 视觉体积变大，但判定盒仍是上方的 HIT_HALF_X / HIT_ZONE_*，不跟着造型走。
+      const visual = hitFactory.create(note.hand);
+      noteGroup.add(visual);
       tagChildren();
       runtime.push({ kind: 'hit', chart: note, group: noteGroup, resolved: false });
     } else if (note.type === 'drag') {
@@ -454,10 +446,32 @@ export function createPlayer(
     if (event.type === 'held') {
       notePerfect(event.side, 0, event.position, event.key ? 0.78 : 1, 'arc');
       shatterDirection.set(0, 1, 0);
-      shatter.spawn(event.position, shatterDirection, 0xbfe9ff, event.key ? 7 : 3);
+      shatter.spawn(event.position, shatterDirection, 0xbfe9ff, event.key ? 7 : 3, { size: 0.55, life: 0.8 });
     } else {
       noteMiss(event.position, 'arc');
     }
+  }
+
+  /**
+   * 地面 / 空中 hit 的命中反馈：直接碎成陶瓷片，不再加 2D 冲击环。
+   * 碎片颜色取釉面基色，避免一整团纯白；霜雾保留，负责“粉尘”这一层。
+   */
+  function spawnHitFeedback(
+    hand: HandSide,
+    grade: Grade,
+    x: number,
+    y: number,
+    direction: THREE.Vector3,
+  ): void {
+    shatterDirection.copy(direction);
+    if (shatterDirection.lengthSq() < 1e-6) shatterDirection.set(0, 1, 0);
+    shatter.spawn(
+      new THREE.Vector3(x, y, geometry.bandZ),
+      shatterDirection,
+      hitFragmentColor(hand),
+      grade === 'perfect' ? 18 : 14,
+      { size: 1.3, life: 1.35, spread: 2 },
+    );
   }
 
   function judgeHit(note: Extract<RuntimeNote, { kind: 'hit' }>, hands: HandSample[]): void {
@@ -491,8 +505,7 @@ export function createPlayer(
       if (grade === 'perfect') stats.perfect += 1;
       else stats.good += 1;
       popup.spawn(grade, popupPosition.set(x, y + 0.1, geometry.bandZ));
-      shatterDirection.copy(hand.velocity);
-      shatter.spawn(new THREE.Vector3(x, y, geometry.bandZ), shatterDirection, 0xdfefff, 14);
+      spawnHitFeedback(hand.side, grade, x, y, hand.velocity);
       hooks.onJudge?.(hand.side, grade, offsetMs, 'hit');
       return;
     }
@@ -520,7 +533,10 @@ export function createPlayer(
       note.group.visible = false;
       notePerfect(hand.side, offsetMs, new THREE.Vector3(x, y, geometry.bandZ), 1, 'drag');
       shatterDirection.copy(hand.velocity);
-      shatter.spawn(new THREE.Vector3(x, y, geometry.bandZ), shatterDirection, 0xcfefff, 12);
+      shatter.spawn(new THREE.Vector3(x, y, geometry.bandZ), shatterDirection, 0xcfefff, 12, {
+        size: 0.55,
+        life: 0.75,
+      });
       return;
     }
   }
@@ -599,7 +615,10 @@ export function createPlayer(
         tick.resolved = true;
         notePerfect(side, 0, new THREE.Vector3(x, y, geometry.bandZ), 1, 'hold');
         shatterDirection.set(0, 1, 0);
-        shatter.spawn(new THREE.Vector3(x, y + 0.026, geometry.bandZ), shatterDirection, 0xbfe9ff, 4);
+        shatter.spawn(new THREE.Vector3(x, y + 0.026, geometry.bandZ), shatterDirection, 0xbfe9ff, 4, {
+          size: 0.4,
+          life: 0.8,
+        });
         continue;
       }
       const windowMs = note.tickWindow * 1000;
@@ -609,7 +628,10 @@ export function createPlayer(
           tick.held = true;
           notePerfect(side, 0, new THREE.Vector3(x, y, geometry.bandZ), 1, 'hold');
           shatterDirection.set(0, 1, 0);
-          shatter.spawn(new THREE.Vector3(x, y + 0.026, geometry.bandZ), shatterDirection, 0xbfe9ff, 4);
+          shatter.spawn(new THREE.Vector3(x, y + 0.026, geometry.bandZ), shatterDirection, 0xbfe9ff, 4, {
+            size: 0.4,
+            life: 0.8,
+          });
         }
       } else if (offsetMs > windowMs / 2) {
         tick.resolved = true;
@@ -669,8 +691,12 @@ export function createPlayer(
     note.group.visible = false;
     const at = new THREE.Vector3(xOf(note.chart), yOf(note.chart), geometry.bandZ);
     notePerfect(note.chart.hand ?? 'none', 0, at, 1);
-    shatterDirection.set(0, 1, 0);
-    shatter.spawn(at, shatterDirection, 0xdfefff, 10);
+    if (note.kind === 'hit') {
+      spawnHitFeedback(note.chart.hand ?? 'none', 'perfect', at.x, at.y, shatterDirection.set(0, 1, 0));
+    } else {
+      shatterDirection.set(0, 1, 0);
+      shatter.spawn(at, shatterDirection, 0xdfefff, 10, { size: 0.55, life: 0.75 });
+    }
   }
 
   return {
@@ -804,7 +830,7 @@ export function createPlayer(
     dispose(): void {
       for (const note of runtime) disposeNote(note);
       runtime.length = 0;
-      hitGeometry.dispose();
+      hitFactory.dispose();
       dragGeometry.dispose();
       dragGlowGeometry.dispose();
       holdSheetGeometry.dispose();
