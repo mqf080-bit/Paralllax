@@ -93,6 +93,9 @@ const HIT_GOOD_MS = 160;
 const DRAG_WINDOW_MS = 120;
 /** 手在 z 方向离判定带多远还算在判定带上。 */
 const HAND_ZONE = 0.4;
+/** hit 的 z 容差做成不对称：靠玩家的一侧收紧，减少提前挥入就结算。 */
+const HIT_ZONE_NEAR = 0.22;
+const HIT_ZONE_FAR = 0.38;
 const HIT_HALF_X = 0.13;
 const HIT_HALF_Y = 0.26;
 /** drag 的扫过门槛（手速）。 */
@@ -474,7 +477,8 @@ export function createPlayer(
       if (note.chart.hand && hand.side !== note.chart.hand) continue;
       if (Math.abs(hand.position.x - x) > HIT_HALF_X) continue;
       if (Math.abs(hand.position.y - y) > HIT_HALF_Y) continue;
-      if (Math.abs(hand.position.z - geometry.bandZ) > HAND_ZONE) continue;
+      const handZ = hand.position.z - geometry.bandZ;
+      if (handZ < -HIT_ZONE_FAR || handZ > HIT_ZONE_NEAR) continue;
       if (hand.velocity.length() < HIT_GOOD_SPEED) continue;
       if (hand.swing < HIT_MIN_SWING) continue;
 

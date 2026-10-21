@@ -747,8 +747,9 @@ editor 的 3D 预览使用 `DEFAULT_PARAMS` + `buildTable()` + `createPlayer()`�
 
 - 素材：Kenney **UI Audio** 的 `click5.wav`（CC0），放在
   `prototype/public/audio/hit-click.wav`。
-- 运行时低通（5.2kHz / good 3.8kHz）+ 低增益（0.17 / 0.11），不直接播原始 click。
+- 运行时低通；hit 增益提高到 0.40 / 0.26（perfect / good），drag 保持 0.17 / 0.11。
 - 只对地面 `hit` / `drag` 触发；arc 物量和 hold tick 不叠 click，避免连续音太吵。
+- hit 与 drag 使用不同增益：hit 更明显，drag 更轻。
 - `auto` 模式不触发打击音。
 - 预加载在 `AudioClock.preloadHit()`；AudioContext 解锁后解码，不在判定瞬间 fetch。
 
@@ -765,7 +766,14 @@ editor 的 3D 预览使用 `DEFAULT_PARAMS` + `buildTable()` + `createPlayer()`�
 - 默认完全透明；只对未判定的地面 hit 点亮。
 - 时间阈值：`|clockMs - hit.time| > 180ms` 完全不亮；80ms 内最亮；中间平滑过渡。
 - 亮度整体压低，网格线按到中心的距离衰减；被照区域不再是一块发光的板子。
-- 命中区是一小块软边网格，中心在 perfect 范围内泛暖黄；没有半透明底板，不裁硬椭圆。
+
+### early 偏多
+
+- 原 hit z 容差是 `±0.4m`：时间戳本身不会被 box 提前，但一次提前挥入 box 的挥击可以在 -160ms 就结算成 good。
+- 先把靠玩家一侧的 hit 容差从 0.4 收到 **0.22m**，靠远端保留 0.38m；drag 仍是 ±0.4m。
+- 如果 early 仍然远多于 late，优先怀疑音频 / 视觉延迟或包 offset，而不是 box；用 Settings 的 Offset 做对照测试。
+- 命中区只画网格线，不画底板 / 光晕；没有半透明面，也没有被矩形裁断的光晕。
+- 半径放大到约 0.25m × 0.16m，网格线由中心向外渐隐；perfect 附近中心几条线偏暖黄。
 - 同一帧多个 hit 可以各自点亮；没有 hit 时整块纹理清空并隐藏。
 - 放在 `player.group` 内，所以 editor 的 3D 预览也自动有；mesh 的 raycast 被关掉，
   不会干扰 editor 的 3D 选点。

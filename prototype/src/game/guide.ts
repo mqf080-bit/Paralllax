@@ -29,8 +29,8 @@ const TEXTURE_W = 512;
 const TEXTURE_H = 420;
 const CELL_X = 32;
 const CELL_Y = 22;
-const PATCH_RX = 84;
-const PATCH_RY = 52;
+const PATCH_RX = 118;
+const PATCH_RY = 72;
 const GUIDE_HEIGHT = 0.9;
 const GUIDE_START_MS = 180;
 const GUIDE_FULL_MS = 80;
@@ -78,22 +78,30 @@ export function createJudgementGuide(params: TableParams, geometry: TableGeometr
   group.add(mesh);
   group.visible = false;
 
+  function lineColor(alpha: number, warm: number): string {
+    const r = Math.round(154 + (255 - 154) * warm);
+    const g = Math.round(212 + (228 - 212) * warm);
+    const b = Math.round(255 + (138 - 255) * warm);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
   function drawPatch(px: number, py: number, intensity: number): void {
-    // 软边：不裁椭圆，只画一块渐变消失的网格；alpha 整体压低，避免变成发光的板子。
+    // 只照亮网格线，不画底板 / 光晕；线的两端和两侧都由渐变淡出。
     ctx.globalCompositeOperation = 'lighter';
 
     const x0 = Math.floor((px - PATCH_RX) / CELL_X) * CELL_X;
     const x1 = px + PATCH_RX;
     for (let x = x0; x <= x1; x += CELL_X) {
       const falloff = Math.max(0, 1 - Math.abs(x - px) / PATCH_RX);
-      const alpha = intensity * falloff * falloff * 0.34;
+      const alpha = intensity * falloff * falloff * 0.46;
       if (alpha < 0.008) continue;
-      const major = Math.abs(x / CELL_X - Math.round(x / CELL_X)) < 1e-6 && Math.round(x / CELL_X) % 4 === 0;
+      const major = Math.round(x / CELL_X) % 4 === 0;
+      const warm = intensity > 0.65 ? Math.max(0, 1 - Math.abs(x - px) / (CELL_X * 2.2)) : 0;
       const grad = ctx.createLinearGradient(0, py - PATCH_RY, 0, py + PATCH_RY);
-      grad.addColorStop(0, 'rgba(154, 212, 255, 0)');
-      grad.addColorStop(0.22, `rgba(154, 212, 255, ${alpha * (major ? 1.25 : 0.85)})`);
-      grad.addColorStop(0.78, `rgba(154, 212, 255, ${alpha * (major ? 1.25 : 0.85)})`);
-      grad.addColorStop(1, 'rgba(154, 212, 255, 0)');
+      grad.addColorStop(0, lineColor(0, warm));
+      grad.addColorStop(0.22, lineColor(alpha * (major ? 1.2 : 0.82), warm));
+      grad.addColorStop(0.78, lineColor(alpha * (major ? 1.2 : 0.82), warm));
+      grad.addColorStop(1, lineColor(0, warm));
       ctx.strokeStyle = grad;
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -106,37 +114,21 @@ export function createJudgementGuide(params: TableParams, geometry: TableGeometr
     const y1 = py + PATCH_RY;
     for (let y = y0; y <= y1; y += CELL_Y) {
       const falloff = Math.max(0, 1 - Math.abs(y - py) / PATCH_RY);
-      const alpha = intensity * falloff * falloff * 0.3;
+      const alpha = intensity * falloff * falloff * 0.4;
       if (alpha < 0.008) continue;
-      const major = Math.abs(y / CELL_Y - Math.round(y / CELL_Y)) < 1e-6 && Math.round(y / CELL_Y) % 4 === 0;
+      const major = Math.round(y / CELL_Y) % 4 === 0;
+      const warm = intensity > 0.65 ? Math.max(0, 1 - Math.abs(y - py) / (CELL_Y * 2.2)) : 0;
       const grad = ctx.createLinearGradient(px - PATCH_RX, 0, px + PATCH_RX, 0);
-      grad.addColorStop(0, 'rgba(154, 212, 255, 0)');
-      grad.addColorStop(0.22, `rgba(154, 212, 255, ${alpha * (major ? 1.25 : 0.85)})`);
-      grad.addColorStop(0.78, `rgba(154, 212, 255, ${alpha * (major ? 1.25 : 0.85)})`);
-      grad.addColorStop(1, 'rgba(154, 212, 255, 0)');
+      grad.addColorStop(0, lineColor(0, warm));
+      grad.addColorStop(0.22, lineColor(alpha * (major ? 1.2 : 0.82), warm));
+      grad.addColorStop(0.78, lineColor(alpha * (major ? 1.2 : 0.82), warm));
+      grad.addColorStop(1, lineColor(0, warm));
       ctx.strokeStyle = grad;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(px - PATCH_RX, y);
       ctx.lineTo(px + PATCH_RX, y);
       ctx.stroke();
-    }
-
-    const glow = ctx.createRadialGradient(px, py, 0, px, py, PATCH_RX);
-    glow.addColorStop(0, `rgba(112, 184, 255, ${0.1 + intensity * 0.14})`);
-    glow.addColorStop(0.55, `rgba(80, 148, 225, ${0.035 + intensity * 0.07})`);
-    glow.addColorStop(1, 'rgba(60, 120, 200, 0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(px - PATCH_RX, py - PATCH_RY, PATCH_RX * 2, PATCH_RY * 2);
-
-    if (intensity > 0.65) {
-      const core = (intensity - 0.65) / 0.35;
-      const warm = ctx.createRadialGradient(px, py, 0, px, py, 28);
-      warm.addColorStop(0, `rgba(255, 228, 138, ${0.5 * core})`);
-      warm.addColorStop(0.45, `rgba(255, 201, 94, ${0.2 * core})`);
-      warm.addColorStop(1, 'rgba(255, 180, 70, 0)');
-      ctx.fillStyle = warm;
-      ctx.fillRect(px - 30, py - 30, 60, 60);
     }
 
     ctx.globalCompositeOperation = 'source-over';

@@ -630,7 +630,7 @@ const playHooks: PlayerHooks = {
     if (grade !== 'miss') hands.pulse(side, 0.45, 35);
     // 只给地面 hit / drag 加打击音；arc 物量和 hold tick 不叠 click，避免太吵。
     if (!playSettings.auto && grade !== 'miss' && (source === 'hit' || source === 'drag')) {
-      audio.playHit(grade === 'perfect');
+      audio.playHit(grade === 'perfect', source === 'drag');
     }
   },
 };

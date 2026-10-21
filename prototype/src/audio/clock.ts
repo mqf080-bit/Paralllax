@@ -66,8 +66,8 @@ export interface AudioClock {
   loadTrack(url: string, name?: string): Promise<boolean>;
   /** 预加载打击音；解码要等 AudioContext 解锁。 */
   preloadHit(url: string): void;
-  /** 击打音效；perfect 稍亮，good 更闷更轻。 */
-  playHit(perfect: boolean): void;
+  /** 击打音效；perfect 稍亮，good 更闷更轻。drag 使用更轻的版本。 */
+  playHit(perfect: boolean, drag?: boolean): void;
   /** 卸掉音轨，退回合成鼓组。 */
   clearTrack(): void;
   /** 设置 timing（决定节拍网格）。 */
@@ -189,7 +189,7 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
       });
   }
 
-  function triggerHit(perfect: boolean): void {
+  function triggerHit(perfect: boolean, drag = false): void {
     if (!ctx || !master) return;
     decodeHit();
     if (!hitBuffer) return;
@@ -199,9 +199,9 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
     source.playbackRate.value = perfect ? 1 : 0.94;
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.value = perfect ? 5200 : 3800;
+    filter.frequency.value = drag ? 5200 : perfect ? 5600 : 3800;
     const gain = ctx.createGain();
-    const peak = perfect ? 0.17 : 0.11;
+    const peak = drag ? (perfect ? 0.17 : 0.11) : (perfect ? 0.4 : 0.26);
     gain.gain.setValueAtTime(0.0001, now);
     gain.gain.exponentialRampToValueAtTime(peak, now + 0.004);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
@@ -395,8 +395,8 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
         });
     },
 
-    playHit(perfect: boolean): void {
-      triggerHit(perfect);
+    playHit(perfect: boolean, drag = false): void {
+      triggerHit(perfect, drag);
     },
 
     async loadTrack(url: string, name?: string): Promise<boolean> {
