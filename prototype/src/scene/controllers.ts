@@ -77,7 +77,7 @@ export function createControllers(
     const tipMaterial = new THREE.MeshBasicMaterial({ color: HAND_COLOR.none });
     disposables.push(tipMaterial);
 
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.012, 12, 12), tipMaterial);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.02, 16, 16), tipMaterial);
     tip.name = `tip-${i}`;
     controller.add(tip);
 

@@ -24,6 +24,7 @@
 - hit 造型重做：先建 `design/hit-lab/` 独立设计样张，比较三个上下对称方向；最终采用压薄的 A / SANDWICH（上下同形釉面 + 窄金属芯 + 内收光缝），尺寸 0.232×0.084×0.096m。空中 / 仰视也完整，不再是底座 + 键帽，也不会读成两颗叠键。
 - hit 打击反馈：移除冲击环，改为直接碎裂成有厚度、受重力的陶瓷片；hit 碎片更大、按 perfect / good 分档，drag / arc / hold 使用更小的碎片。
 - 结算增加 GOOD TIMING：按 hit 的 offset 统计 early / late；hit 的 front z 容差从 0.4 收到 0.22m，减少提前挥入就结算。
+- 调试：dev GUI 新增 hit 判定盒 X / Z 倍率（只改空间体积，时间窗不变），显示当前宽 / 深并可单独复位；生产页可用 `?hitboxX` / `?hitboxZ`。XR 控制器端点球与桌面指针球增大。
 - 判定带增加引导网：竖直贴在 bandZ（同 editor 3D 编辑网格），默认全透明，hit 在 180ms 内接近时只点亮网格线（无底板 / 光晕），perfect ±80ms 时最亮、中心偏暖黄；editor 3D 也自动显示。
 - 谱面 / 包自带 offset 与玩家 offset 分离：`meta.offset` 写入 `chartOffsetMs`，只在音频时钟内部生效，不再显示为 Settings 的 Offset。
 

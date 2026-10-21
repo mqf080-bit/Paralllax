@@ -210,7 +210,7 @@ export function createHands(
   trails.push(pointerTrail);
 
   const pointerMarker = new THREE.Mesh(
-    new THREE.SphereGeometry(0.016, 12, 12),
+    new THREE.SphereGeometry(0.024, 16, 16),
     new THREE.MeshBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: 0.85, toneMapped: false }),
   );
   pointerMarker.visible = false;

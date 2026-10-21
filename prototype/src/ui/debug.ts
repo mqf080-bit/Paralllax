@@ -3,7 +3,7 @@ import type * as THREE from 'three';
 
 import type { AudioSettings } from '../audio/clock';
 import { DEFAULT_PARAMS, type TableParams } from '../config';
-import type { PlayerSettings } from '../game/player';
+import { HIT_JUDGE_BOX, type PlayerSettings } from '../game/player';
 import { DEFAULT_DISPLAY, type DisplayPlacement } from '../scene/display';
 
 /**
@@ -59,6 +59,35 @@ export function createDebug(options: DebugOptions): DebugHandle {
   playFolder.add(play, 'auto').name('自动打（演示）');
   playFolder.add({ restart: onPlayRestart }, 'restart').name('重开谱面');
 
+  // —— hit 判定盒：只改空间体积，时间窗保持不变 ——
+  const judgeFolder = gui.addFolder('hit 判定盒（时间窗不变）').open();
+  const hitboxReadout = {
+    width: Math.round(HIT_JUDGE_BOX.halfX * 2 * play.hitboxX * 100) / 100,
+    depth: Math.round((HIT_JUDGE_BOX.near + HIT_JUDGE_BOX.far) * play.hitboxZ * 100) / 100,
+  };
+  const syncHitbox = (): void => {
+    hitboxReadout.width = Math.round(HIT_JUDGE_BOX.halfX * 2 * play.hitboxX * 100) / 100;
+    hitboxReadout.depth = Math.round((HIT_JUDGE_BOX.near + HIT_JUDGE_BOX.far) * play.hitboxZ * 100) / 100;
+    judgeFolder.controllersRecursive().forEach((controller) => controller.updateDisplay());
+  };
+  judgeFolder.add(play, 'hitboxX', 0.5, 2, 0.05).name('X 宽倍率').onChange(syncHitbox);
+  judgeFolder.add(play, 'hitboxZ', 0.5, 2, 0.05).name('Z 深倍率').onChange(syncHitbox);
+  judgeFolder.add(hitboxReadout, 'width').name('当前宽 m').disable();
+  judgeFolder.add(hitboxReadout, 'depth').name('当前深 m').disable();
+  judgeFolder
+    .add(
+      {
+        reset: () => {
+          play.hitboxX = 1;
+          play.hitboxZ = 1;
+          syncHitbox();
+        },
+      },
+      'reset',
+    )
+    .name('恢复 1.0×');
+  syncHitbox();
+
   const audioFolder = gui.addFolder('音频');
   audioFolder.add(audio, 'leadInMs', 0, 6000, 100).name('起播留白 ms');
   audioFolder.add(audio, 'offsetMs', -200, 200, 1).name('校准偏移 ms');
@@ -84,6 +113,9 @@ export function createDebug(options: DebugOptions): DebugHandle {
         reset: () => {
           Object.assign(params, DEFAULT_PARAMS);
           Object.assign(display, DEFAULT_DISPLAY);
+          play.hitboxX = 1;
+          play.hitboxZ = 1;
+          syncHitbox();
           gui.controllersRecursive().forEach((controller) => controller.updateDisplay());
           onChange();
           onDisplayChange();

@@ -40,6 +40,10 @@ export interface PlayerSettings {
   flowSpeed: number;
   /** dev：自动打。 */
   auto: boolean;
+  /** dev：hit 判定盒 X 倍率（只改空间体积，不改时间窗）。 */
+  hitboxX: number;
+  /** dev：hit 判定盒 Z 倍率（只改空间体积，不改时间窗）。 */
+  hitboxZ: number;
 }
 
 export interface PlayerStats {
@@ -99,6 +103,13 @@ const HIT_ZONE_NEAR = 0.22;
 const HIT_ZONE_FAR = 0.38;
 const HIT_HALF_X = 0.13;
 const HIT_HALF_Y = 0.26;
+
+/** 调参面板显示用：hit 判定盒的默认半宽 / 前后深度。 */
+export const HIT_JUDGE_BOX = {
+  halfX: HIT_HALF_X,
+  near: HIT_ZONE_NEAR,
+  far: HIT_ZONE_FAR,
+} as const;
 /** drag 的扫过门槛（手速）。 */
 const MIN_SWEEP_SPEED = 0.4;
 /** hit 的挥击门槛：速度 + 120ms 内的位移。 */
@@ -486,13 +497,18 @@ export function createPlayer(
     }
     if (offsetMs < -HIT_GOOD_MS) return;
 
+    // 只缩放空间判定盒；HIT_PERFECT_MS / HIT_GOOD_MS 仍由上方的时间窗决定。
+    const halfX = HIT_HALF_X * Math.max(0.1, settings.hitboxX);
+    const zoneNear = HIT_ZONE_NEAR * Math.max(0.1, settings.hitboxZ);
+    const zoneFar = HIT_ZONE_FAR * Math.max(0.1, settings.hitboxZ);
+
     for (const hand of hands) {
       if (!hand.active) continue;
       if (note.chart.hand && hand.side !== note.chart.hand) continue;
-      if (Math.abs(hand.position.x - x) > HIT_HALF_X) continue;
+      if (Math.abs(hand.position.x - x) > halfX) continue;
       if (Math.abs(hand.position.y - y) > HIT_HALF_Y) continue;
       const handZ = hand.position.z - geometry.bandZ;
-      if (handZ < -HIT_ZONE_FAR || handZ > HIT_ZONE_NEAR) continue;
+      if (handZ < -zoneFar || handZ > zoneNear) continue;
       if (hand.velocity.length() < HIT_GOOD_SPEED) continue;
       if (hand.swing < HIT_MIN_SWING) continue;
 

@@ -346,7 +346,16 @@ async function loadPackageIndex(): Promise<void> {
 
 // 键型预览与打击练习的开关；也接受 ?preview=1 / ?auto=1。
 const previewState = { visible: false };
-const playSettings: PlayerSettings = { enabled: true, flowSpeed: 3.0, auto: false };
+// dev / 头显试打：判定盒空间倍率。只改 hit 的 x / z 体积，时间窗仍是 ±80 / ±160ms。
+const hitboxXParam = Number(bootQuery.get('hitboxX'));
+const hitboxZParam = Number(bootQuery.get('hitboxZ'));
+const playSettings: PlayerSettings = {
+  enabled: true,
+  flowSpeed: 3.0,
+  auto: false,
+  hitboxX: Number.isFinite(hitboxXParam) && bootQuery.has('hitboxX') ? Math.min(2.5, Math.max(0.25, hitboxXParam)) : 1,
+  hitboxZ: Number.isFinite(hitboxZParam) && bootQuery.has('hitboxZ') ? Math.min(2.5, Math.max(0.25, hitboxZParam)) : 1,
+};
 
 // —— 音频 ——
 // 谱面时间由音频时钟提供（见 src/audio/clock.ts）。没有音轨时它现场合成一条
