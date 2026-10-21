@@ -76,6 +76,8 @@ const NORMAL_WINDOW_MS = 200;
 /** 关键物量：半径与普通相同，只收窗口。 */
 const KEY_RADIUS = NORMAL_RADIUS;
 const KEY_WINDOW_MS = 80;
+/** 已过判定线、但没有手接上时的整体亮度。 */
+const UNCONNECTED_DIM = 0.18;
 /** 手在 z 方向离判定带多远还算在判定带上。 */
 const BAND_ZONE = 0.42;
 /** 构建管几何时的采样数。 */
@@ -211,6 +213,23 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   headHalo.renderOrder = ORDER_GLOW + 1;
   group.add(headHalo);
 
+  // 接上时，在被接住的那一端（弧头 / 手附近）叠一圈更宽的软光。
+  // 这不是判定环：只在跟随成立时出现，随 following 连续淡入淡出。
+  const contactMaterial = new THREE.SpriteMaterial({
+    map: headGlowTexture,
+    color: colors.core,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const contactGlow = new THREE.Sprite(contactMaterial);
+  contactGlow.scale.set(0.32, 0.32, 1);
+  contactGlow.renderOrder = ORDER_GLOW + 2;
+  contactGlow.visible = false;
+  group.add(contactGlow);
+
   // —— 关键物量的黄铜珠 ——
   const beadGeometry = new THREE.SphereGeometry(0.016, 16, 16);
   const beadMaterial = applyDistanceFade(
@@ -253,6 +272,7 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   ticks.sort((a, b) => a.time - b.time);
 
   let following = 0;
+  let dim = 1;
 
   return {
     group,
@@ -279,6 +299,7 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
       group.position.z = spec.bandZ + ((spec.scroll(clockMs) - spec.scroll(start)) * baseSpeed) / 1000;
       head.position.copy(local);
       headHalo.position.copy(local);
+      contactGlow.position.copy(local);
 
       // 轨道和光点也要按距离淡出：arc 还没到的时候，光点会停在「管子的起点」，
       // 那是台面之外很远的地方 —— 不淡掉就是一颗悬在黑暗里的红点。
@@ -287,8 +308,6 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
         0,
         1,
       );
-      headMaterial.opacity = headFade;
-      headHaloMaterial.opacity = 0.45 * headFade;
       head.visible = headFade > 0.01;
       headHalo.visible = headFade > 0.01;
 
@@ -305,10 +324,27 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
 
       const holder = findHand(FOLLOW_RADIUS);
       following += ((holder ? 1 : 0) - following) * 0.12;
-      shellMaterial.emissiveIntensity = following * 1.8;
-      glowMaterial.uniforms.uIntensity!.value = 0.35 + following * 0.55;
-      haloMaterial.uniforms.uIntensity!.value = 0.2 + following * 0.32;
-      headHaloMaterial.opacity = 0.4 + following * 0.35;
+
+      // 判定线已经扫过一段身体，但当前没有手接住 -> 变暗。
+      // auto 演示没有手，保持正常亮度，否则整条 arc 会一直灰着。
+      const hasCrossedLine = clockMs > start;
+      const targetDim = auto || !hasCrossedLine || holder ? 1 : UNCONNECTED_DIM;
+      dim += (targetDim - dim) * 0.18;
+
+      shellMaterial.opacity = 0.42 * dim;
+      shellMaterial.emissiveIntensity = following * 1.8 * dim;
+      coreMaterial.opacity = 0.9 * dim;
+      beadMaterial.opacity = dim;
+      glowMaterial.uniforms.uIntensity!.value = (0.35 + following * 0.55) * dim;
+      haloMaterial.uniforms.uIntensity!.value = (0.2 + following * 0.32) * dim;
+      headMaterial.opacity = headFade * dim;
+      headHaloMaterial.opacity = (0.4 + following * 0.35) * headFade * dim;
+      headHalo.scale.setScalar(0.15 + following * 0.13);
+
+      // 接住的一端：一圈更宽的手别色软光，只在 following 起来时出现。
+      contactMaterial.opacity = following * 0.55 * dim;
+      contactGlow.scale.setScalar(0.16 + following * 0.16);
+      contactGlow.visible = following > 0.015 && headFade > 0.01;
 
       for (const tick of ticks) {
         if (tick.resolved) continue;
@@ -361,6 +397,7 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
       headMaterial.dispose();
       headGlowTexture.dispose();
       headHaloMaterial.dispose();
+      contactMaterial.dispose();
       beadGeometry.dispose();
       beadMaterial.dispose();
       group.clear();

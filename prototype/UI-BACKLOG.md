@@ -802,7 +802,7 @@ editor 的 3D 预览使用 `DEFAULT_PARAMS` + `buildTable()` + `createPlayer()`�
 | --- | --- | --- | --- |
 | FEEL-01 | P0 | 重新设计更粗大的 hit，优化材质、打击效果与音效 | 本轮实现，待 Quest 3 验收 |
 | FEEL-02 | P1 | 调试界面：可调 hit 判定面积（x / z 缩放，与时间阈值无关） | 已实现，待头显验收 |
-| FEEL-03 | P1 | arc 接上时，接上的那一端手部区域高亮；已经过线但没接上的 arc 变黯淡 | 待做 |
+| FEEL-03 | P1 | arc 接上时，接上的那一端手部区域高亮；已经过线但没接上的 arc 变黯淡 | 已实现，待头显验收 |
 
 ### FEEL-01 — 更粗大的 hit / 材质 / 打击反馈 / 音效
 
@@ -875,9 +875,14 @@ editor 的 3D 预览使用 `DEFAULT_PARAMS` + `buildTable()` + `createPlayer()`�
 - 头显里 x / z 哪一档最跟手；
 - 0.02 / 0.024m 的手部球大小是否够看清、又不挡 note。
 
-### FEEL-03 — arc 接上 / 漏接的端点状态
+### FEEL-03 — arc 接上 / 漏接的端点状态（2026-10-21 已实现）
 
-- “接上”：arc 的端点手部区域高亮，强度跟手别色；
-- “没接上”：arc 至少有一部分身体已经过判定线、但没有被接住，整条逐渐变黯淡；
-- 尚未接触过判定线的 arc 不算“没接上”，保持正常亮度；
-- 需要区分“还没到”“正在接”“已经漏了”，不能只按时间一刀切。
+- “还没到”：`clockMs < start` 时保持正常亮度，不因为手没放上去而提前变暗。
+- “接上”：当前 `findHand(FOLLOW_RADIUS)` 成立时，`following` 平滑上升；在弧头 / 手附近叠一圈更大的手别色软光（Sprite），并让原有的 head halo 变大。
+- “没接上”：`clockMs > start`（身体已经扫过判定线）且当前没有手接住时，整条 arc 的目标亮度降到 `0.18`，平滑过渡；再次接上会回到 `1.0`。
+- “漏了之后”：失去连接会重新变暗；已经结束的 arc 仍按原来的 300ms 后隐藏。
+- `auto` 演示没有手，显式保持正常亮度，否则整条弧会一直灰着。
+- 只改 arc 的视觉材质（shell / core / glow / halo / bead / head / contact glow），**不改跟随判定、tick 判定或计分**。
+- 截图：`docs/ui-vr2/arc-before.png`、`arc-unconnected.png`、`arc-connected.png`。
+  `arc-connected.png` 用临时 dev hook 强制 following 验证材质，实际头显里由手触发。
+- 待验证：真实 Quest 3 里 `0.18` 的暗度是否够明确，以及 0.32m 的接触光是否会挡住手。

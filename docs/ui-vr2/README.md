@@ -23,6 +23,9 @@
 | `hit-lab-a-air.png` | 方向 A 抬到空中、右手；上下同形 |
 | `hit-lab-a-shatter.png` | 方向 A 的碎裂设计样张 |
 | `hitbox-gui.png` | dev 调试 GUI：hit 判定盒 X / Z 倍率与当前尺寸（时间窗不变） |
+| `arc-before.png` | arc 尚未过判定线，保持正常亮度 |
+| `arc-unconnected.png` | arc 身体已过线、没有手接住，整条变暗 |
+| `arc-connected.png` | 接上时弧头 / 手附近的接触光（临时 dev hook 强制 following 用于材质检查） |
 
 `hit-lab-*` 来自 [`design/hit-lab`](../../design/hit-lab/)，是独立光照下的设计样张，不是游戏实拍；
 `hit-after.png` / `hit-impact.png` 才是主代码里的游戏画面。
