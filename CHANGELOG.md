@@ -20,6 +20,9 @@
 - 谱面包索引：`public/packages/index.json` + 选中后懒加载；启动不再预下载 18MB 包，Songs 先显示元数据，选中后加载并更新详情。
 - 游玩端流速变更现在会同步到已生成的 arc（`playfield.setFlowSpeed`），和 editor 3D 的行为一致。
 - 手感布局：单轨 0.23→0.27m，判定带近端距离 0.55→0.80m（前移 25cm）；editor 3D 预览共用同一套参数。新增 `?lane` / `?band` 调参。
+- 打击音：hit / drag 使用低通 + 低增益的 Kenney UI Audio click；不叠 arc / hold tick。
+- 结算增加 GOOD TIMING：按 hit 的 offset 统计 early / late。
+- 判定带增加引导网：默认全透明，hit 在 180ms 内接近时点亮网格，perfect ±80ms 时最亮、中心暖黄；editor 3D 也自动显示。
 - 谱面 / 包自带 offset 与玩家 offset 分离：`meta.offset` 写入 `chartOffsetMs`，只在音频时钟内部生效，不再显示为 Settings 的 Offset。
 
 ## 0.3.11 — 2026-10-18

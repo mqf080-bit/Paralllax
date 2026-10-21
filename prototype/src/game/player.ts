@@ -18,6 +18,7 @@ import type { TableGeometry, TableParams } from '../config';
 import { applyDistanceFade } from '../materials/distanceFade';
 import type { MaterialLibrary } from '../materials/library';
 import { createArcNote, type ArcEvent, type ArcNote } from './arc';
+import { createJudgementGuide, type GuideHit } from './guide';
 import type { HandSample, HandSide } from './hands';
 import type { Grade } from './judgement';
 import { createJudgementPopup, type JudgementPopup } from './popup';
@@ -49,7 +50,7 @@ export interface PlayerStats {
 }
 
 export interface PlayerHooks {
-  onJudge?(side: HandSide, grade: Grade, offsetMs: number): void;
+  onJudge?(side: HandSide, grade: Grade, offsetMs: number, source: 'hit' | 'drag' | 'hold' | 'arc'): void;
 }
 
 export interface Player {
@@ -152,6 +153,8 @@ export function createPlayer(
   const group = new THREE.Group();
   group.name = 'player';
   const baseSpeed = () => settings.flowSpeed;
+  const guide = createJudgementGuide(params, geometry);
+  group.add(guide.group);
 
   /** 连续横向位置（轨号单位）→ 世界 x。 */
   const worldX = (x: number): number => (x - 2.5) * geometry.laneWidth;
@@ -418,33 +421,39 @@ export function createPlayer(
   }, 0);
   score = createScore(totalObjects);
 
-  function notePerfect(side: HandSide, offsetMs: number, at: THREE.Vector3, scale = 1): void {
+  function notePerfect(
+    side: HandSide,
+    offsetMs: number,
+    at: THREE.Vector3,
+    scale = 1,
+    source: 'hit' | 'drag' | 'hold' | 'arc' = 'hit',
+  ): void {
     score.judge('perfect');
     stats.perfect += 1;
     stats.lastGrade = 'perfect';
     stats.lastOffsetMs = Math.round(offsetMs);
     popupPosition.copy(at);
     popup.spawn('perfect', popupPosition, { scale: scale * 0.62, life: 0.32 });
-    hooks.onJudge?.(side, 'perfect', offsetMs);
+    hooks.onJudge?.(side, 'perfect', offsetMs, source);
   }
 
-  function noteMiss(at: THREE.Vector3): void {
+  function noteMiss(at: THREE.Vector3, source: 'hit' | 'drag' | 'hold' | 'arc' = 'hit'): void {
     score.judge('miss');
     stats.miss += 1;
     stats.lastGrade = 'miss';
     stats.lastOffsetMs = null;
     popupPosition.copy(at);
     popup.spawn('miss', popupPosition);
-    hooks.onJudge?.('none', 'miss', 0);
+    hooks.onJudge?.('none', 'miss', 0, source);
   }
 
   function handleArcEvent(event: ArcEvent): void {
     if (event.type === 'held') {
-      notePerfect(event.side, 0, event.position, event.key ? 0.78 : 1);
+      notePerfect(event.side, 0, event.position, event.key ? 0.78 : 1, 'arc');
       shatterDirection.set(0, 1, 0);
       shatter.spawn(event.position, shatterDirection, 0xbfe9ff, event.key ? 7 : 3);
     } else {
-      noteMiss(event.position);
+      noteMiss(event.position, 'arc');
     }
   }
 
@@ -474,13 +483,13 @@ export function createPlayer(
       const grade: Grade = Math.abs(offsetMs) <= HIT_PERFECT_MS ? 'perfect' : 'good';
       stats.lastGrade = grade;
       stats.lastOffsetMs = Math.round(offsetMs);
-      score.judge(grade);
+      score.judge(grade, offsetMs);
       if (grade === 'perfect') stats.perfect += 1;
       else stats.good += 1;
       popup.spawn(grade, popupPosition.set(x, y + 0.1, geometry.bandZ));
       shatterDirection.copy(hand.velocity);
       shatter.spawn(new THREE.Vector3(x, y, geometry.bandZ), shatterDirection, 0xdfefff, 14);
-      hooks.onJudge?.(hand.side, grade, offsetMs);
+      hooks.onJudge?.(hand.side, grade, offsetMs, 'hit');
       return;
     }
   }
@@ -505,7 +514,7 @@ export function createPlayer(
 
       note.resolved = true;
       note.group.visible = false;
-      notePerfect(hand.side, offsetMs, new THREE.Vector3(x, y, geometry.bandZ));
+      notePerfect(hand.side, offsetMs, new THREE.Vector3(x, y, geometry.bandZ), 1, 'drag');
       shatterDirection.copy(hand.velocity);
       shatter.spawn(new THREE.Vector3(x, y, geometry.bandZ), shatterDirection, 0xcfefff, 12);
       return;
@@ -584,7 +593,7 @@ export function createPlayer(
         if (clockMs < tick.time) continue;
         tick.held = true;
         tick.resolved = true;
-        notePerfect(side, 0, new THREE.Vector3(x, y, geometry.bandZ), 1);
+        notePerfect(side, 0, new THREE.Vector3(x, y, geometry.bandZ), 1, 'hold');
         shatterDirection.set(0, 1, 0);
         shatter.spawn(new THREE.Vector3(x, y + 0.026, geometry.bandZ), shatterDirection, 0xbfe9ff, 4);
         continue;
@@ -594,13 +603,13 @@ export function createPlayer(
       if (Math.abs(offsetMs) <= windowMs / 2) {
         if (!tick.held && contact) {
           tick.held = true;
-          notePerfect(side, 0, new THREE.Vector3(x, y, geometry.bandZ), 1);
+          notePerfect(side, 0, new THREE.Vector3(x, y, geometry.bandZ), 1, 'hold');
           shatterDirection.set(0, 1, 0);
           shatter.spawn(new THREE.Vector3(x, y + 0.026, geometry.bandZ), shatterDirection, 0xbfe9ff, 4);
         }
       } else if (offsetMs > windowMs / 2) {
         tick.resolved = true;
-        if (!tick.held) noteMiss(new THREE.Vector3(x, y - 0.02, geometry.bandZ));
+        if (!tick.held) noteMiss(new THREE.Vector3(x, y - 0.02, geometry.bandZ), 'hold');
       }
     }
 
@@ -703,6 +712,7 @@ export function createPlayer(
     update(dt: number, hands: HandSample[]): void {
       if (!settings.enabled) {
         finished = false;
+        guide.clear();
         for (const note of runtime) {
           if (note.kind === 'arc') note.arc.group.visible = false;
           else note.group.visible = false;
@@ -716,6 +726,14 @@ export function createPlayer(
       clockMs = timeSource ? timeSource() : clockMs + dt * 1000;
       windowValue = timeline.windowAt(clockMs);
       const samples = hands;
+
+      const approaching: GuideHit[] = [];
+      for (const note of runtime) {
+        if (note.kind !== 'hit' || note.resolved) continue;
+        if (Math.abs(clockMs - note.chart.time) > 180) continue;
+        approaching.push({ x: xOf(note.chart), time: note.chart.time });
+      }
+      guide.update(clockMs, windowValue, approaching);
 
       for (const note of runtime) {
         updateVisibility(note);
@@ -757,6 +775,7 @@ export function createPlayer(
       stats.miss = 0;
       stats.lastGrade = null;
       stats.lastOffsetMs = null;
+      guide.clear();
       for (const note of runtime) {
         note.resolved = false;
         if (note.kind === 'arc') {
@@ -789,6 +808,7 @@ export function createPlayer(
       holdAuraGeometry.dispose();
       shatter.dispose();
       popup.dispose();
+      guide.dispose();
       group.clear();
     },
   };

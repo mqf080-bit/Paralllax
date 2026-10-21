@@ -1092,6 +1092,33 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
     return spots;
   }
 
+  function drawTimingBias(
+    ctx: CanvasRenderingContext2D,
+    score: ScoreView | null,
+    x: number,
+    y: number,
+    w: number,
+  ): void {
+    const early = score?.goodEarly ?? 0;
+    const late = score?.goodLate ?? 0;
+    const total = early + late;
+    text(ctx, 'GOOD TIMING', x, y, 10, 500, INK.faint, 'left', MONO);
+    text(ctx, `EARLY ${early}`, x, y + 22, 11, 500, INK.accent, 'left', MONO);
+    text(ctx, `LATE ${late}`, x + w, y + 22, 11, 500, INK.dim, 'right', MONO);
+    const barY = y + 34;
+    ctx.fillStyle = INK.hair;
+    ctx.fillRect(x, barY, w, 5);
+    if (total > 0) {
+      const earlyW = Math.round((early / total) * w);
+      ctx.fillStyle = INK.accent;
+      ctx.fillRect(x, barY, earlyW, 5);
+      ctx.fillStyle = 'rgba(242,248,255,0.38)';
+      ctx.fillRect(x + earlyW, barY, w - earlyW, 5);
+    }
+    ctx.fillStyle = 'rgba(242,248,255,0.6)';
+    ctx.fillRect(x + Math.round(w / 2), barY - 3, 1, 11);
+  }
+
   function drawResult(ctx: CanvasRenderingContext2D, state: PanelDrawState): PanelHotspot[] {
     drawHeader(ctx);
     rule(ctx, M, BODY_TOP, 488);
@@ -1156,6 +1183,7 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
       text(ctx, String(value), dx + dw, y + 26, 30, 500, INK.text, 'right', MONO);
       rule(ctx, dx, y + 46, dw, INK.hair);
     });
+    drawTimingBias(ctx, score, dx, 324, dw);
     drawFooter(ctx);
     return spots;
   }

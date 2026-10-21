@@ -10,7 +10,7 @@ import { DEMO_CHART } from './chart/demo';
 import { TEST_CHART } from './chart/test';
 import type { Chart } from './chart/schema';
 import { createTimeline } from './chart/timeline';
-import { createPlayer, type Player, type PlayerSettings } from './game/player';
+import { createPlayer, type Player, type PlayerHooks, type PlayerSettings } from './game/player';
 import { unpackPackage } from './pack/format';
 import { audioFromPackage, chartJsonFromPackage, coverFromPackage, loadPackageUrl, type PackedAudio } from './pack/io';
 import { readLocalPackage, saveLocalPackage } from './pack/local';
@@ -359,6 +359,7 @@ const audioSettings: AudioSettings = {
   leadInMs: 2000,
 };
 const audio = createAudioClock(audioSettings);
+audio.preloadHit('/audio/hit-click.wav');
 audio.setTiming(activeChart.timing);
 if (packedAudio) {
   const copy = new Uint8Array(packedAudio.data);
@@ -624,9 +625,13 @@ const hands = createHands(renderer, scene, {
   menuButtonIndex,
 });
 
-const playHooks = {
-  onJudge: (side: 'left' | 'right' | 'none', grade: 'perfect' | 'good' | 'miss') => {
+const playHooks: PlayerHooks = {
+  onJudge: (side, grade, _offsetMs, source) => {
     if (grade !== 'miss') hands.pulse(side, 0.45, 35);
+    // 只给地面 hit / drag 加打击音；arc 物量和 hold tick 不叠 click，避免太吵。
+    if (!playSettings.auto && grade !== 'miss' && (source === 'hit' || source === 'drag')) {
+      audio.playHit(grade === 'perfect');
+    }
   },
 };
 

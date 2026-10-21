@@ -27,6 +27,9 @@ export interface ScoreView {
   maxCombo: number;
   perfect: number;
   good: number;
+  /** GOOD 中判定偏早 / 偏晚的数量（只看 hit 的 offset）。 */
+  goodEarly: number;
+  goodLate: number;
   miss: number;
   health: number;
   judged: number;
@@ -35,7 +38,7 @@ export interface ScoreView {
 }
 
 export interface ScoreState extends ScoreView {
-  judge(grade: Grade): void;
+  judge(grade: Grade, offsetMs?: number): void;
   reset(): void;
 }
 
@@ -47,12 +50,14 @@ export function createScore(total: number): ScoreState {
     maxCombo: 0,
     perfect: 0,
     good: 0,
+    goodEarly: 0,
+    goodLate: 0,
     miss: 0,
     health: MAX_HEALTH,
     judged: 0,
     total: Math.max(1, total),
     failed: false,
-    judge(grade: Grade): void {
+    judge(grade: Grade, offsetMs = 0): void {
       state.judged += 1;
 
       if (grade === 'perfect') {
@@ -62,6 +67,8 @@ export function createScore(total: number): ScoreState {
         state.health = Math.min(MAX_HEALTH, state.health + HEALTH_PERFECT);
       } else if (grade === 'good') {
         state.good += 1;
+        if (offsetMs < 0) state.goodEarly += 1;
+        else if (offsetMs > 0) state.goodLate += 1;
         state.combo += 1;
         state.maxCombo = Math.max(state.maxCombo, state.combo);
         state.health = Math.min(MAX_HEALTH, state.health + HEALTH_GOOD);
@@ -81,6 +88,8 @@ export function createScore(total: number): ScoreState {
       state.maxCombo = 0;
       state.perfect = 0;
       state.good = 0;
+      state.goodEarly = 0;
+      state.goodLate = 0;
       state.miss = 0;
       state.health = MAX_HEALTH;
       state.judged = 0;

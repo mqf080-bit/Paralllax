@@ -12,8 +12,9 @@
 | `packs.png` | Add packs |
 | `paused.png` | 暂停在 0:30，Score / Combo / Accuracy 有值 |
 | `settings.png` | 六个真实设置项 |
-| `result.png` | 结算，91 Perfect / 100% |
+| `result.png` | 结算，91 Perfect / 100%；右侧 GOOD TIMING 显示 early / late |
 | `sheet.png` | 六屏总览 |
+| `guide.png` | 游玩中的判定引导网：hit 接近 perfect 窗口时点亮一小块网格 |
 
 截图用开发服务器、正对面板的相机和干净背景：
 

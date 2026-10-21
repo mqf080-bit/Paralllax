@@ -64,6 +64,10 @@ export interface AudioClock {
   unlock(): void;
   /** 载入真实音轨（从谱面时间 0 开始对齐）。`name` 只用于显示。 */
   loadTrack(url: string, name?: string): Promise<boolean>;
+  /** 预加载打击音；解码要等 AudioContext 解锁。 */
+  preloadHit(url: string): void;
+  /** 击打音效；perfect 稍亮，good 更闷更轻。 */
+  playHit(perfect: boolean): void;
   /** 卸掉音轨，退回合成鼓组。 */
   clearTrack(): void;
   /** 设置 timing（决定节拍网格）。 */
@@ -107,6 +111,9 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
   let trackSource: AudioBufferSourceNode | null = null;
   let trackName = 'DRUMS';
   let error: string | null = null;
+  let hitBytes: ArrayBuffer | null = null;
+  let hitBuffer: AudioBuffer | null = null;
+  let hitDecoding = false;
 
   function latencyS(): number {
     if (!ctx) return 0;
@@ -164,6 +171,48 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
 
   function nowMs(): number {
     return rawNow() + totalOffsetMs();
+  }
+
+  function decodeHit(): void {
+    if (!ctx || !hitBytes || hitBuffer || hitDecoding) return;
+    hitDecoding = true;
+    void ctx
+      .decodeAudioData(hitBytes.slice(0))
+      .then((buffer) => {
+        hitBuffer = buffer;
+      })
+      .catch((cause) => {
+        console.warn('[audio] hit sample decode failed', cause);
+      })
+      .finally(() => {
+        hitDecoding = false;
+      });
+  }
+
+  function triggerHit(perfect: boolean): void {
+    if (!ctx || !master) return;
+    decodeHit();
+    if (!hitBuffer) return;
+    const now = ctx.currentTime;
+    const source = ctx.createBufferSource();
+    source.buffer = hitBuffer;
+    source.playbackRate.value = perfect ? 1 : 0.94;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = perfect ? 5200 : 3800;
+    const gain = ctx.createGain();
+    const peak = perfect ? 0.17 : 0.11;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(peak, now + 0.004);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.075);
+    source.connect(filter).connect(gain).connect(master);
+    source.start(now);
+    source.stop(now + 0.09);
+    source.onended = () => {
+      source.disconnect();
+      filter.disconnect();
+      gain.disconnect();
+    };
   }
 
   function buildChain(): void {
@@ -227,6 +276,7 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
       return false;
     }
     buildChain();
+    decodeHit();
     return true;
   }
 
@@ -327,6 +377,26 @@ export function createAudioClock(settings: AudioSettings): AudioClock {
       if (!ctx) return;
       if (ctx.state === 'suspended') void ctx.resume();
       // 真正的时间源切换在 update() 的 syncSource 里做（resume 是异步的）。
+    },
+
+    preloadHit(url: string): void {
+      if (hitBytes || hitBuffer) return;
+      void fetch(url)
+        .then((response) => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          return response.arrayBuffer();
+        })
+        .then((bytes) => {
+          hitBytes = bytes;
+          decodeHit();
+        })
+        .catch((cause) => {
+          console.warn('[audio] hit sample unavailable', cause);
+        });
+    },
+
+    playHit(perfect: boolean): void {
+      triggerHit(perfect);
     },
 
     async loadTrack(url: string, name?: string): Promise<boolean> {

@@ -736,3 +736,48 @@ editor 的 3D 预览使用 `DEFAULT_PARAMS` + `buildTable()` + `createPlayer()`�
 - 游戏页 `?lane=0.27&band=0.80` 下轨道宽度、判定带位置正确；
 - editor 3D 预览同一组参数下格宽与判定带同步；
 - 尚未在 Quest 3 里主观验收「手感」。
+
+---
+
+## 17. 打击音 / early-late / 判定引导网（2026-10-21）
+
+用户玩 Moonrider 后反馈：hit 没有打击音、early 太多、键偏小。键大小暂不改。
+
+### 打击音
+
+- 素材：Kenney **UI Audio** 的 `click5.wav`（CC0），放在
+  `prototype/public/audio/hit-click.wav`。
+- 运行时低通（5.2kHz / good 3.8kHz）+ 低增益（0.17 / 0.11），不直接播原始 click。
+- 只对地面 `hit` / `drag` 触发；arc 物量和 hold tick 不叠 click，避免连续音太吵。
+- `auto` 模式不触发打击音。
+- 预加载在 `AudioClock.preloadHit()`；AudioContext 解锁后解码，不在判定瞬间 fetch。
+
+### GOOD early / late
+
+- `ScoreView` 增加 `goodEarly / goodLate`，`Score.judge(grade, offsetMs)` 记录 good 的方向。
+- hit 的 `offsetMs = clockMs - note.time`：负 = early，正 = late。
+- 结算右栏增加 `GOOD TIMING`：EARLY / LATE 计数 + 中间有零点的双段条。
+- 目前只统计地面 hit 的 GOOD；drag / hold / arc 没有 good 分支。
+
+### 判定引导网
+
+- 模块：`src/game/guide.ts`，平面贴在 `bandZ` 上，随 4 轨窗口平移。
+- 默认完全透明；只对未判定的地面 hit 点亮。
+- 时间阈值：`|clockMs - hit.time| > 180ms` 完全不亮；80ms 内最亮；中间平滑过渡。
+- 命中区是一小块椭圆网格，中心在 perfect 范围内泛暖黄。
+- 同一帧多个 hit 可以各自点亮；没有 hit 时整块纹理清空并隐藏。
+- 放在 `player.group` 内，所以 editor 的 3D 预览也自动有；mesh 的 raycast 被关掉，
+  不会干扰 editor 的 3D 选点。
+
+### 已验证
+
+- `npm run typecheck` / `npm run build` 通过；
+- 冻结在 `hit.time - 50ms` 时，引导网正常点亮，远处 note 不亮；
+- 结算 early/late 段条用 2 early / 5 late 的测试数据渲染过；
+- 打击音素材路径 200，音频解码/播放仍需在 Quest 上主观确认音量与音色。
+
+### 暂缓
+
+- 键的尺寸（用户明确先不改）；
+- 无物量时按 `meta.duration` 延迟结算；
+- 引导网阈值 / 亮度在头显里可能还要微调。
