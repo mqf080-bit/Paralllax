@@ -731,7 +731,7 @@ export function createPlayer(
       for (const note of runtime) {
         if (note.kind !== 'hit' || note.resolved) continue;
         if (Math.abs(clockMs - note.chart.time) > 180) continue;
-        approaching.push({ x: xOf(note.chart), time: note.chart.time });
+        approaching.push({ x: xOf(note.chart), y: yOf(note.chart), time: note.chart.time });
       }
       guide.update(clockMs, windowValue, approaching);
 

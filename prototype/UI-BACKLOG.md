@@ -761,10 +761,11 @@ editor 的 3D 预览使用 `DEFAULT_PARAMS` + `buildTable()` + `createPlayer()`�
 
 ### 判定引导网
 
-- 模块：`src/game/guide.ts`，平面贴在 `bandZ` 上，随 4 轨窗口平移。
+- 模块：`src/game/guide.ts`，**竖直面**贴在 `bandZ` 上（和 editor 3D 编辑网格同方向），随 4 轨窗口平移。
 - 默认完全透明；只对未判定的地面 hit 点亮。
 - 时间阈值：`|clockMs - hit.time| > 180ms` 完全不亮；80ms 内最亮；中间平滑过渡。
-- 命中区是一小块椭圆网格，中心在 perfect 范围内泛暖黄。
+- 亮度整体压低，网格线按到中心的距离衰减；被照区域不再是一块发光的板子。
+- 命中区是一小块软边网格，中心在 perfect 范围内泛暖黄；没有半透明底板，不裁硬椭圆。
 - 同一帧多个 hit 可以各自点亮；没有 hit 时整块纹理清空并隐藏。
 - 放在 `player.group` 内，所以 editor 的 3D 预览也自动有；mesh 的 raycast 被关掉，
   不会干扰 editor 的 3D 选点。
