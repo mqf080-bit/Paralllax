@@ -272,7 +272,6 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   ticks.sort((a, b) => a.time - b.time);
 
   let following = 0;
-  let dim = 1;
 
   return {
     group,
@@ -325,11 +324,11 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
       const holder = findHand(FOLLOW_RADIUS);
       following += ((holder ? 1 : 0) - following) * 0.12;
 
-      // 判定线已经扫过一段身体，但当前没有手接住 -> 变暗。
+      // 判定线已经扫过一段身体，但当前没有手接住 -> 立即变暗。
+      // 状态切换不做渐变；接上 / 没接上是离散的，模糊过渡会削弱“漏了”的提示。
       // auto 演示没有手，保持正常亮度，否则整条 arc 会一直灰着。
       const hasCrossedLine = clockMs > start;
-      const targetDim = auto || !hasCrossedLine || holder ? 1 : UNCONNECTED_DIM;
-      dim += (targetDim - dim) * 0.18;
+      const dim = auto || !hasCrossedLine || holder ? 1 : UNCONNECTED_DIM;
 
       shellMaterial.opacity = 0.42 * dim;
       shellMaterial.emissiveIntensity = following * 1.8 * dim;
