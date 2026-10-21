@@ -77,7 +77,7 @@ const NORMAL_WINDOW_MS = 200;
 const KEY_RADIUS = NORMAL_RADIUS;
 const KEY_WINDOW_MS = 80;
 /** 已过判定线、但没有手接上时的整体亮度。 */
-const UNCONNECTED_DIM = 0.18;
+const UNCONNECTED_DIM = 0.42;
 /** 手在 z 方向离判定带多远还算在判定带上。 */
 const BAND_ZONE = 0.42;
 /** 构建管几何时的采样数。 */
