@@ -92,9 +92,9 @@ export function renderLockup(host, opts) {
   //   波浪↔波浪 = 1 个描边宽（两个波才分得开）
   //   波浪↔直线 = 半个描边宽（谷底到直线）
   //   直线↔直线 = 0.035 cap
-  // 波浪之间 4%，其余 4.5% —— 比等号稍紧一点，但视觉上是同一个量级。
+  // 波浪之间 5%，其余 5.5% —— 同一个量级，直线略松一点。
   const gapFor = (below, above) =>
-    below === 'wave' && above === 'wave' ? cap * 0.04 : cap * 0.045;
+    below === 'wave' && above === 'wave' ? cap * 0.05 : cap * 0.055;
 
   /*
    * 一行可能在另一行的上方，两行之间的距离不是简单“半高相加”：
