@@ -120,7 +120,7 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 
 站在腰高台面前（`local-floor`，台面默认 0.95m）：
 
-- **6 条轨的物理场**（单轨宽 0.23m、进深 10m），但只有 **4 轨窗口**会点亮；
+- **6 条轨的物理场**（单轨宽 0.27m、进深 10m），但只有 **4 轨窗口**会点亮；
   窗口随 shift 整体左 / 右滑一轨，隐藏轨在几何上真的不渲染。
 - **台面是一层平面**：没有凹槽、没有边框、没有底座；轨间只有细分割线。
 - **note 不一定在轨上**：hit / drag 有连续 `x` 和 `z`，可以浮空 / 落在轨间；
@@ -156,6 +156,7 @@ prototype/
 ├── index.html            # 游戏页
 ├── editor.html           # 制谱器页
 ├── public/charts/        # 导出的谱面（example.json / air-example.json）
+├── public/packages/      # .parallax 谱面包 + index.json 索引
 ├── vite.config.ts        # 多页构建入口
 └── src/
     ├── main.ts           # 游戏：渲染器 / 相机 / 会话 / 主循环

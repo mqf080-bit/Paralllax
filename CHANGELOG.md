@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## Unreleased — 2026-10-20
+## Unreleased — 2026-10-22
 
 ### UI
 

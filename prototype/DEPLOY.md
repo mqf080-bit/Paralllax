@@ -160,7 +160,7 @@ https://parallax-vr.pages.dev
 ?auto=1
 ```
 
-生产构建里 `?chrome=0` 不再生效（它只隐藏桌面 dev 覆盖层）；VR 里本来也看不到那层 DOM。
+生产构建里 `?chrome=0` 仍然生效（隐藏诊断面板 / Stats / lil-gui / 包加载器 / ENTER VR 按钮，只留 3D 画面）；但 VR 里本来也看不到那层 DOM，所以它对头显截图没用。
 
 ---
 

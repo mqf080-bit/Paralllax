@@ -263,7 +263,7 @@ cd prototype && npm run dev
 | `?flow=4` | 基准流速 m/s |
 | `?range=6` | 视距（米，从判定带算） |
 | `?panel=home\|songs\|packs\|paused\|settings\|result` | 直接摊开指定面板 |
-| `?chrome=0` | 隐藏诊断 / lil-gui / Stats / 包加载器，给面板截图留干净背景 |
+| `?chrome=0` | 隐藏诊断 / lil-gui / Stats / 包加载器 / `ENTER VR`，只留 3D 画面（生产页也生效） |
 | `?lane=0.27` `?band=0.70` | 调轨宽 / 判定带前移距离（米；生产页也可用） |
 | `?hitboxX=1.25` `?hitboxZ=1.2` | 调 hit 判定盒空间倍率（不改时间窗；生产页也可用） |
 | `?debug=0` `?debug=1` | 关闭 / 强制打开调试 GUI；检测到 immersive-vr 的浏览器默认打开 |
@@ -284,6 +284,8 @@ agent_old.md         Phase 1 旧施工协议（已归档，不再遵循）
 references/          空间 / 材质参考
 resources/           作者源素材（谱面 / 音频 / 主题 / 背景；运行时不用）
 design/ui-2d/        2D UI study（A + C 的排版 / 配色 / 密度试验）
+design/hit-lab/      hit 造型样张（A/B/C 三个方向，已定 slim sandwich）
+docs/                截图与验收证据（ui-2d / ui-p2 / ui-vr2 / images）
 prototype/
   src/
     chart/           谱面格式、时间轴（SV 积分 / shift / 小节）、示例谱、验收谱
@@ -293,6 +295,7 @@ prototype/
     scene/           台面、浮空显示、材质实验台、控制器
     materials/       材质库、配色、程序化贴图、视距淡出
     ui/              3D 面板、游戏内 UI、调试面板、诊断
+    xr/              WebXR 能力探测
     editor/          制谱器（时间轴 / 交互 / 预览 / 检查器 / 波形 / 存取）
   editor.html        制谱器独立入口
   public/charts/     旧格式谱面（example.json / air-example.json）
@@ -301,6 +304,9 @@ prototype/
   CHART.md           谱面格式说明
   EDITOR.md          制谱器操作与设计说明
   STATUS.md          迭代记录（每轮改了什么、为什么、踩了什么坑）
+  UI-BACKLOG.md      游玩端 VR UI 待办与验收
+  FUTURE.md          近期玩法 / 编辑器计划 + Unity / 资源库
+  DEPLOY.md          部署到 Cloudflare Pages
   README.md          原型自己的运行 / 链路说明
 ```
 

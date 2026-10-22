@@ -18,7 +18,7 @@
 | 构建 | `typecheck` / `build` 通过；没有自动测试 / CI |
 | 下一步 | 完成初谱 → 小修 → 外部试玩 → golden tests → Unity spike |
 
-### 2026-10-20 当前焦点
+### 近期进展（压缩日志，2026-10-20 → 10-22）
 
 - 完成个人初谱 **Infinity Heaven**，同时摸索制谱流程；
 - 期间可能做的小修：
@@ -36,7 +36,7 @@
 - **面板距离 / 尺寸（2026-10-20）**：1.55m 宽 × 0.959m 高，距离 1.35m、中心高 1.44m；优先保证聚焦距离，水平视角约 60°。可用 `?panelScale` / `?panelDistance` / `?panelY` 在头显里继续调。
 - **包索引 / 懒加载（2026-10-20）**：`public/packages/index.json` 在启动时只读元数据，选中条目后才下载 `.parallax`；Infinity Heaven / Air / Ticks 会直接出现在 Songs。
 - **arc 流速 / 包 offset（2026-10-20）**：Settings 改流速会同步缩放已生成的 arc；`meta.offset` 改为隐藏的 `chartOffsetMs`，与玩家校准 offset 分离。
-- **手感布局（2026-10-20）**：单轨宽 0.23→0.27m，所有 note / arc 的 x 按 lane 单位同比展开；判定带前移 25cm（近端内 0.80m）。editor 的 3D view 共享 `DEFAULT_PARAMS` / `deriveGeometry`，自动同步。
+- **手感布局（2026-10-20）**：单轨宽 0.23→0.27m，所有 note / arc 的 x 按 lane 单位同比展开；判定带前移 25cm（近端内 0.80m，10-22 头显实测后再下调到 0.70m）。editor 的 3D view 共享 `DEFAULT_PARAMS` / `deriveGeometry`，自动同步。
 - **打击反馈（2026-10-21）**：hit / drag 加打击音（hit 更响、drag 更轻）；结算加 GOOD early / late；判定带加竖直、只亮网格线的时间驱动引导网。hit 前侧 z 容差收到 0.22m，观察 early 偏多是否来自提前挥入。
 - **hit 造型 / 碎裂（2026-10-21）**：先在 [`design/hit-lab`](../design/hit-lab/) 比较三个上下对称方向，最终采用压薄的 A / SANDWICH：`0.232 × 0.084 × 0.096m`，上下同形釉面 + 窄金属芯 + 内收手别色光缝。命中不再画冲击环，直接碎成陶瓷片；打击音在原 click 上叠一层短低频。
 - **判定调试 / 手部球（2026-10-21）**：dev GUI 增加 `hit 判定盒（时间窗不变）`，X / Z 倍率即时生效，并显示当前 0.26m × 0.60m；可用 `?hitboxX` / `?hitboxZ` 在头显里调，默认值不变。XR 控制器端点球 0.012→0.02m，桌面指针球 0.016→0.024m。判定线距离继续用已有的 `?band` / GUI 台面项。
