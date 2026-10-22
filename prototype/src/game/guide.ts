@@ -7,7 +7,7 @@ import type { TableGeometry, TableParams } from '../config';
  *
  * 和 editor 的 3D 编辑网格一样，是一面竖在 bandZ 上的网格；默认完全透明。
  * 地面 hit 接近时，只在它附近的网格上点亮一小块，并随时钟平滑增强。
- * 时间阈值：180ms 内开始；perfect 的 early -120ms / late +80ms 内最亮；更远完全不亮。
+ * 时间阈值：180ms 内开始；perfect 的 early -100ms / late +80ms 内最亮；更远完全不亮。
  *
  * 网格不是贴花：没有半透明底板，只有局部软化的线条 / 冷光 / perfect 暖黄核心。
  */
@@ -33,7 +33,7 @@ const PATCH_RX = 118;
 const PATCH_RY = 72;
 const GUIDE_HEIGHT = 0.9;
 const GUIDE_START_MS = 180;
-const GUIDE_FULL_EARLY_MS = 120;
+const GUIDE_FULL_EARLY_MS = 100;
 const GUIDE_FULL_LATE_MS = 80;
 
 function smoothstep(edge0: number, edge1: number, value: number): number {

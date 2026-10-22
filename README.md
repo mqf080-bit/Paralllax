@@ -132,7 +132,7 @@ theme/ background/   提前预留的资源（游戏暂未消费）
 
 | 键型 | 窗口 | 等级 | 动作 |
 | --- | --- | --- | --- |
-| hit | perfect -120ms / +80ms；good ±160ms | PERFECT / GOOD / MISS | 扫过并达到速度 + 位移 |
+| hit | perfect -100ms / +80ms；good -140ms / +160ms | PERFECT / GOOD / MISS | 扫过并达到速度 + 位移 |
 | drag | ±120ms | PERFECT / MISS | 扫过即可（要一点手速） |
 | hold | 每个物量 200–600ms（按密度） | PERFECT / MISS | **按住扳机 / 侧握**贴在片子上 |
 | arc | 普通物量 200ms；关键物量（黄铜珠）80ms | PERFECT / MISS | 手沿着弧走 |

@@ -95,9 +95,9 @@ const ORDER_GLOW = 6;
 const ORDER_AURA = 7;
 
 /** 判定窗口（毫秒）——与流速无关。perfect 允许更早，good 两侧仍为 160ms。 */
-const HIT_PERFECT_EARLY_MS = 120;
+const HIT_PERFECT_EARLY_MS = 100;
 const HIT_PERFECT_LATE_MS = 80;
-const HIT_GOOD_EARLY_MS = 160;
+const HIT_GOOD_EARLY_MS = 140;
 const HIT_GOOD_LATE_MS = 160;
 const DRAG_WINDOW_MS = 120;
 /** 手在 z 方向离判定带多远还算在判定带上。 */

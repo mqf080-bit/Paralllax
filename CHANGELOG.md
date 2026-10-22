@@ -29,7 +29,7 @@
 - 手部加 0.18m 短棒，提示手腕敲击；默认 / hit 时全亮，接住 hold / arc 时淡到 0.28。
 - 头显实测后把默认判定线从近端内 0.80m 改为 0.70m；`bandZ` 从 −0.46m 变为 −0.36m。`?band` 仍可覆盖。
 - 调试 GUI 在 WebXR 浏览器里也显示；`?debug=0` 关闭，`?debug=1` 强制打开；`?chrome=0` 仍可隐藏全部桌面覆盖层。
-- hit perfect 窗口改为 early -120ms / late +80ms，good 仍 ±160ms；判定引导网的 full 窗口同步为不对称。
+- hit perfect 窗口改为 early -100ms / late +80ms，good 为 early -140ms / late +160ms；判定引导网的 full 窗口同步为不对称。
 - 判定带增加引导网：竖直贴在 bandZ（同 editor 3D 编辑网格），默认全透明，hit 在 180ms 内接近时只点亮网格线（无底板 / 光晕），perfect ±80ms 时最亮、中心偏暖黄；editor 3D 也自动显示。
 - 谱面 / 包自带 offset 与玩家 offset 分离：`meta.offset` 写入 `chartOffsetMs`，只在音频时钟内部生效，不再显示为 Settings 的 Offset。
 

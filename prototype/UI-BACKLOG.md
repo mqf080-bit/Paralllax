@@ -765,7 +765,7 @@ editor 的 3D 预览使用 `DEFAULT_PARAMS` + `buildTable()` + `createPlayer()`�
 
 - 模块：`src/game/guide.ts`，**竖直面**贴在 `bandZ` 上（和 editor 3D 编辑网格同方向），随 4 轨窗口平移。
 - 默认完全透明；只对未判定的地面 hit 点亮。
-- 时间阈值：`|clockMs - hit.time| > 180ms` 完全不亮；perfect 的 early -120ms / late +80ms 内最亮；中间平滑过渡。
+- 时间阈值：`|clockMs - hit.time| > 180ms` 完全不亮；perfect 的 early -100ms / late +80ms 内最亮；中间平滑过渡。
 - 亮度整体压低，网格线按到中心的距离衰减；被照区域不再是一块发光的板子。
 
 ### early 偏多
@@ -900,16 +900,17 @@ editor 的 3D 预览使用 `DEFAULT_PARAMS` + `buildTable()` + `createPlayer()`�
   - 视觉：细金属杆 + 手别色握把 / 尾环；接上状态由 `Player.sustain` 从 hold contact 和 arc `connectedSide` 汇总。
 - **调试 GUI**：不再只依赖 `import.meta.env.DEV`。检测到 WebXR 的浏览器也会显示；`?debug=0` 关闭，`?debug=1` 强制打开，`?chrome=0` 仍整层隐藏。
   - 注意：immersive VR 里浏览器不会合成 DOM，lil-gui 只在 2D 页面 / 桌面镜像里出现；头显内调参仍靠 URL 参数。
-- **hit perfect 时间窗**：从对称 `±80ms` 改为 **early `-120ms` / late `+80ms`**；good 仍两侧 `±160ms`。
+- **hit 时间窗**：perfect 为 **early `-100ms` / late `+80ms`**；good 为 **early `-140ms` / late `+160ms`**。
   - `judgeHit` 的 perfect 判断改成带符号区间，good 的 miss 边界不变。
-  - 判定引导网的 full 窗口同步为 early 120ms / late 80ms，避免“仍在 perfect 但网格已经暗了”。
+  - 判定引导网的 full 窗口同步为 early -100ms / late +80ms，避免“仍在 perfect 但网格已经暗了”。
 
 ### 后续调整
 
 - 2026-10-22 头显实测：默认判定线距离 `0.80 → 0.70m` 最好；`bandZ` −0.46 → −0.36。`?band=` 仍可覆盖。
+- 2026-10-22 进一步缩 early：perfect early **-100ms**、good early **-140ms**；late 保持 +80 / +160。
 
 ### 待验证
 
 - 短棒长度是否足够唤起手腕动作，又不至于让玩家以为要用棒尖判定；
 - 0.28 的 sustain 透明度是否够透、又不至于完全消失；
-- `-120 / +80` 是否让 early 的 good 分布更合理，还是需要继续放宽 good early。
+- `-100 / +80` 是否让 early 的 good 分布更合理，还是需要继续收紧 / 放宽 good early。

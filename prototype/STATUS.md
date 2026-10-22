@@ -42,7 +42,7 @@
 - **判定调试 / 手部球（2026-10-21）**：dev GUI 增加 `hit 判定盒（时间窗不变）`，X / Z 倍率即时生效，并显示当前 0.26m × 0.60m；可用 `?hitboxX` / `?hitboxZ` 在头显里调，默认值不变。XR 控制器端点球 0.012→0.02m，桌面指针球 0.016→0.024m。判定线距离继续用已有的 `?band` / GUI 台面项。
 - **判定线默认距离（2026-10-22）**：头显实测 0.70m 最好；`DEFAULT_PARAMS.bandDistance` 0.80→0.70，bandZ −0.46→−0.36。`?band` 仍可覆盖。
 - **arc 连接反馈（2026-10-21）**：身体过线且没有手接住时整条 arc 立即降到 0.42 亮度；接上时在弧头 / 手附近出现更大的手别色接触光，失去连接再变暗。`auto` 保持正常亮度。跟随 / tick / 计分不变。
-- **手腕短棒（2026-10-22）**：两只控制器各加一根 0.18m 短棒；默认与 hit 时全亮，接住 hold / arc 时淡到 0.28。WebXR 浏览器现在也会显示调试 GUI，`?debug=0` 可关。hit perfect 改为 early -120ms / late +80ms，good 仍 ±160ms；引导网同步为不对称 full 窗口。
+- **手腕短棒（2026-10-22）**：两只控制器各加一根 0.18m 短棒；默认与 hit 时全亮，接住 hold / arc 时淡到 0.28。WebXR 浏览器现在也会显示调试 GUI，`?debug=0` 可关。hit perfect 改为 early -100ms / late +80ms，good 为 early -140ms / late +160ms；引导网同步为不对称 full 窗口。
 - **暂缓**：无物量时立即结算，暂不按包内 `meta.duration` 等待；等 Infinity Heaven 谱面补充完成后再处理。
 
 ---
@@ -53,7 +53,7 @@
 | --- | --- | --- |
 | 台面 | ✅ | 0.95m 平面；6 轨物理场 / 4 轨窗口；隐藏轨几何不存在 |
 | 键型 | ✅ | hit / drag / hold / arc；hit 有 GOOD，其余只有 PERFECT / MISS |
-| 判定 | ✅ | 只看时间：hit perfect -120 / +80ms、good ±160ms；drag ±120ms；hold tick 200–600ms；arc 普通 200ms / 关键 80ms |
+| 判定 | ✅ | 只看时间：hit perfect -100 / +80ms、good -140 / +160ms；drag ±120ms；hold tick 200–600ms；arc 普通 200ms / 关键 80ms |
 | shift | ✅ | 谱面驱动；左 / 右一轨；约 350ms；0 / 5 进入窗口时暗一档 |
 | 谱面 / 播放器 | ✅ | v0 schema；SV 积分；arc 点列 + 每段缓动；高度上限；测试谱 41.6s / 79 notes |
 | 音频 | ✅ | AudioContext 主时钟；2s lead-in；offset；无音轨时合成鼓组；FLAC / MP3 标签与封面 |

@@ -346,7 +346,7 @@ async function loadPackageIndex(): Promise<void> {
 
 // 键型预览与打击练习的开关；也接受 ?preview=1 / ?auto=1。
 const previewState = { visible: false };
-// dev / 头显试打：判定盒空间倍率。只改 hit 的 x / z 体积，时间窗仍是 -120/+80 perfect、±160 good。
+// dev / 头显试打：判定盒空间倍率。只改 hit 的 x / z 体积，时间窗仍是 -100/+80 perfect、-140/+160 good。
 const hitboxXParam = Number(bootQuery.get('hitboxX'));
 const hitboxZParam = Number(bootQuery.get('hitboxZ'));
 const playSettings: PlayerSettings = {
