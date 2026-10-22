@@ -11,25 +11,25 @@
  *   - 横线 = 已经落定 → 落在基线以下（stack）。
  */
 
-// adv = 这一行到下一行的距离（cap height 的倍数）。
-// 波浪之间收得比“等号”略紧；等号两横比波浪更紧，像真的 ≅。
+// gapBelow = 这一行与它下面一行的**墨迹**间隙（cap height 的倍数）。
+// 量墨迹而不是量中心线：波浪加振幅时，它和下面那条线/字母的视觉间距才不会变。
 export const SYMBOLS = {
   APX: [
-    { kind: 'wave', adv: 0.245 },
+    { kind: 'wave', gapBelow: 0.1 },
     { kind: 'wave' },
   ],
   ASM: [
-    { kind: 'wave', adv: 0.225 },
+    { kind: 'wave', gapBelow: 0.07 },
     { kind: 'line' },
   ],
   CGR: [
-    { kind: 'wave', adv: 0.225 },
-    { kind: 'line', adv: 0.15 },
+    { kind: 'wave', gapBelow: 0.07 },
+    { kind: 'line', gapBelow: 0.035 },
     { kind: 'line' },
   ],
   IDN: [
-    { kind: 'line', adv: 0.15 },
-    { kind: 'line', adv: 0.15 },
+    { kind: 'line', gapBelow: 0.035 },
+    { kind: 'line', gapBelow: 0.035 },
     { kind: 'line' },
   ],
 };
@@ -78,8 +78,8 @@ export function renderLockup(host, opts) {
 
   // —— 2. 从字体里取网格 ——
   const stem = cap * 0.115; // 和 800 字重的字干接近
-  const amp = cap * 0.062; // 波纹振幅
-  const gap = cap * 0.16; // 符号的墨迹到字的距离
+  const amp = cap * 0.095; // 波纹振幅（够大才读得出是波浪，不是装饰线）
+  const gapToWord = cap * 0.16; // 最下面一行墨迹到 cap line 的距离
   const inset = stem * 0.75; // 视觉宽度：记号比字略窄，A / X 这类斜边才不会被记号压住
 
   const inkLeft = left + inset;
@@ -97,31 +97,31 @@ export function renderLockup(host, opts) {
   };
   const linePath = (y) => `M ${inkLeft} ${y} L ${inkRight} ${y}`;
 
-  // 每一行到下一行的距离，以及每一行的墨迹半高（gap 量的是墨迹到墨迹，不是中心线）
-  const advances = rows.map((row) => cap * (row.adv ?? 0.15));
+  // 每一行的墨迹半高
   const half = rows.map((row) => (row.kind === 'wave' ? amp + stem / 2 : stem / 2));
-  const stackHeight = advances.slice(0, -1).reduce((sum, v) => sum + v, 0);
+  const gapBelow = rows.map((row) => cap * (row.gapBelow ?? 0.05));
 
-  if (variant === 'above') {
-    // 整枚记号压在字的上方：最后一行的底边离 cap line 一个 gap，前面的行往上叠。
-    let y = top - gap - half[rows.length - 1] - stackHeight;
-    rows.forEach((row, index) => {
-      paths.push(row.kind === 'wave' ? wavePath(y) : linePath(y));
-      y += advances[index];
-    });
-  } else if (variant === 'below' || variant === 'stack') {
-    let y = baseline + gap + half[0];
-    rows.forEach((row, index) => {
-      paths.push(row.kind === 'wave' ? wavePath(y) : linePath(y));
-      y += advances[index];
-    });
-  } else {
-    // behind：行均匀铺在字高区间，作为背景层（对比用）
-    rows.forEach((row, index) => {
-      const y = top + (cap * index) / Math.max(1, rows.length - 1);
-      paths.push(row.kind === 'wave' ? wavePath(y) : linePath(y));
-    });
+  // 从下往上：最下面一行离字 gapToWord，其余按墨迹间隙叠上去。
+  const stackAbove = [];
+  stackAbove[rows.length - 1] = top - gapToWord - half[rows.length - 1];
+  for (let i = rows.length - 2; i >= 0; i -= 1) {
+    stackAbove[i] = stackAbove[i + 1] - half[i + 1] - gapBelow[i] - half[i];
   }
+
+  // 镜像：最上面一行离基线 gapToWord，其余往下叠。
+  const stackBelow = [];
+  stackBelow[0] = baseline + gapToWord + half[0];
+  for (let i = 1; i < rows.length; i += 1) {
+    stackBelow[i] = stackBelow[i - 1] + half[i - 1] + gapBelow[i - 1] + half[i];
+  }
+
+  const stacked = variant === 'above' || variant === 'below' || variant === 'stack';
+  const centers = variant === 'above' ? stackAbove : stackBelow;
+
+  rows.forEach((row, index) => {
+    const y = stacked ? centers[index] : top + (cap * index) / Math.max(1, rows.length - 1);
+    paths.push(row.kind === 'wave' ? wavePath(y) : linePath(y));
+  });
 
   for (const d of paths) {
     const path = document.createElementNS(SVG_NS, 'path');
@@ -135,11 +135,14 @@ export function renderLockup(host, opts) {
 
   // —— 3. 视口 ——
   const pad = cap * 0.24;
-  const above = variant === 'above';
-  const below = variant === 'below' || variant === 'stack';
-  const inkTop = rows.length ? top - gap - half[rows.length - 1] - stackHeight - half[0] : top;
-  const minY = above ? inkTop - pad : top - pad * 0.6;
-  const maxY = below ? baseline + gap + stackHeight + half[0] + half[rows.length - 1] + pad : baseline + pad;
+  const minY =
+    variant === 'above' ? stackAbove[0] - half[0] - pad : top - pad * 0.6;
+  const maxY =
+    variant === 'above'
+      ? baseline + pad
+      : variant === 'behind'
+        ? baseline + pad
+        : stackBelow[rows.length - 1] + half[rows.length - 1] + pad;
   const minX = left - pad;
   const maxX = right + pad;
   svg.setAttribute('viewBox', `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
@@ -159,6 +162,9 @@ export function renderLockup(host, opts) {
     };
     guide(top, 'rgba(156,200,255,.45)');
     guide(baseline, 'rgba(156,200,255,.45)');
-    guide(baseline + gap, 'rgba(198,242,78,.35)');
+    guide(
+      variant === 'above' ? top - gapToWord : baseline + gapToWord,
+      'rgba(198,242,78,.35)',
+    );
   }
 }
