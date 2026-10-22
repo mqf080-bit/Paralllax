@@ -1,8 +1,8 @@
 # prototype / STATUS
 
-> 更新：2026-10-20 ｜ 版本：**0.3.11** ｜ 阶段：**Phase 1 完成；Phase 2 未启动**
+> 更新：2026-10-22 ｜ 版本：**0.3.11** ｜ 阶段：**Phase 1 完成；手感调参基本合格**
 > 当前个人进度：**Infinity Heaven 初谱制作中**（用户估计约 1 周）；期间只做小修。
-> 设计真相：[`../parallax-idea.md`](../parallax-idea.md) ｜ Phase 1 旧协议：[`../agent_old.md`](../agent_old.md)（**OLD / 已归档**） ｜ 后续架构：[`FUTURE.md`](FUTURE.md)
+> 设计真相：[`../parallax-idea.md`](../parallax-idea.md) ｜ Phase 1 旧协议：[`../agent_old.md`](../agent_old.md)（**OLD / 已归档**） ｜ 后续架构 / 近期玩法计划：[`FUTURE.md`](FUTURE.md) §0
 > 完整逐轮历史（55 节 / 90KB）在 git：`git show ad37349:prototype/STATUS.md > /tmp/parallax-status-full.md`。本文件是 2026-10-20 的压缩版。
 
 ---

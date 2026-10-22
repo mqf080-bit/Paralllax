@@ -1,7 +1,7 @@
 # UI-BACKLOG — 游玩端 VR
 
 > 更新：2026-10-22 ｜ 状态：**主流程 / 六屏 / 手感调参已实现；用户反馈“手感基本合格”；剩余项见 §4** ｜ 设备基准：Meta Quest 3
-> 相关：[STATUS.md](STATUS.md) ｜ [main.ts](src/main.ts) ｜ [gameUi.ts](src/ui/gameUi.ts) ｜ [vrPanel.ts](src/ui/vrPanel.ts) ｜ [player.ts](src/game/player.ts) ｜ [设计工作流](../DESIGN-WORKFLOW.md)
+> 相关：[STATUS.md](STATUS.md) ｜ [FUTURE.md](FUTURE.md)（§0 近期玩法 / 编辑器计划） ｜ [main.ts](src/main.ts) ｜ [gameUi.ts](src/ui/gameUi.ts) ｜ [player.ts](src/game/player.ts) ｜ [设计工作流](../DESIGN-WORKFLOW.md)
 
 ---
 
@@ -79,7 +79,6 @@ Home → Songs → Playing → Paused → Settings
 | UI-14 | P2 | 本地包管理 | 没有移除 / 重命名；IndexedDB 按 origin 隔离，localhost 加的包不会出现在 pages.dev |
 | UI-15 | P2 | 无物量谱面立即结束 | 还没有按 `meta.duration` 等待；等 Infinity Heaven 补完再处理 |
 | UI-16 | P1 | Quest 3 主观验收 | 面板距离 / 字号、`buttons[6]` 是否真是 menu、hold 时是否还会误触、arc `0.42` 暗度 |
-| UI-17 | P2 | 文档偏移语义过期 | `parallax-idea.md` 仍把 `meta.offset` 描述成玩家校准；当前已拆为 `chartOffsetMs` + `offsetMs` |
 | FEEL-04 | P2 | 短棒与判定点 | 短棒只是视觉提示；如果玩家自然用棒尖打，需确认 0.18m 的偏移是否会造成手感偏差 |
 | FEEL-05 | P2 | early 分布 | 当前 perfect `-100/+80`、good `-140/+160`；根据结算的 EARLY / LATE 再决定是否继续收 / 放 |
 | FEEL-06 | P2 | 音色主观确认 | hit 双层音、drag 轻击仍需 Quest 3 上确认音量与“不尖” |

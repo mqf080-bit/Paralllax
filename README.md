@@ -3,7 +3,7 @@
 VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处沿 6 条轨道滑来，用手接住；
 台面只点亮其中 4 条轨，**窗口会随谱面整体左移 / 右移一轨**（shift）。
 
-> 版本：[`CHANGELOG.md`](CHANGELOG.md) ｜ 未来架构：[`prototype/FUTURE.md`](prototype/FUTURE.md) ｜ 设计真相：[`parallax-idea.md`](parallax-idea.md) ｜ 设计工作流：[`DESIGN-WORKFLOW.md`](DESIGN-WORKFLOW.md) ｜ Phase 1 旧协议：[`agent_old.md`](agent_old.md)（归档） ｜ 迭代记录：[`prototype/STATUS.md`](prototype/STATUS.md) ｜ 谱面格式：[`prototype/CHART.md`](prototype/CHART.md) ｜ 制谱器：[`prototype/EDITOR.md`](prototype/EDITOR.md) ｜ 谱面包：[`prototype/PACKAGE.md`](prototype/PACKAGE.md)
+> 版本：[`CHANGELOG.md`](CHANGELOG.md) ｜ 未来计划（玩法 / 编辑器 / Unity）：[`prototype/FUTURE.md`](prototype/FUTURE.md) §0 ｜ 设计真相：[`parallax-idea.md`](parallax-idea.md) ｜ 设计工作流：[`DESIGN-WORKFLOW.md`](DESIGN-WORKFLOW.md) ｜ Phase 1 旧协议：[`agent_old.md`](agent_old.md)（归档） ｜ 迭代记录：[`prototype/STATUS.md`](prototype/STATUS.md) ｜ 谱面格式：[`prototype/CHART.md`](prototype/CHART.md) ｜ 制谱器：[`prototype/EDITOR.md`](prototype/EDITOR.md) ｜ 谱面包：[`prototype/PACKAGE.md`](prototype/PACKAGE.md)
 
 ---
 

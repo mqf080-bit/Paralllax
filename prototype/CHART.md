@@ -9,7 +9,7 @@
 ## 1. 时间基
 
 - 一切都用**毫秒**，绝对时间（和 AFF 一样）。
-- `meta.offset`：音频偏移，和 AFF 的 `AudioOffset` 同义（**正值 = 谱面时间比音频提前**）。
+- `meta.offset`：**作者音频偏移**，和 AFF 的 `AudioOffset` 同义（正值 = 谱面时间比音频提前）。游戏内部映射为 `chartOffsetMs`；玩家校准是 Settings 的 `offsetMs`，两者独立。
 - **判定只看 note 的 `time`**，不看位置——这是前几轮定下的规则，谱面格式必须配合它。
 - **时钟是音频时钟**：运行时读的是 `AudioContext.currentTime`（含输出延迟补偿），不是逐帧累加。
   所以谱面必须写在 `timing` 的拍点上，否则音轨与键会各走各的。
@@ -19,7 +19,7 @@
 
 ```jsonc
 {
-  "meta":    { "title": "…", "offset": 0, "difficulty": "IN 7", … },
+  "meta":    { "title": "…", "offset": 0, "difficulty": "Ballistic 7", … },
   "audio":   "track.mp3",                                  // 只记录文件名
   "timing":  [ { "time": 0, "bpm": 150, "beats": 4 } ],
   "sections":[ { "time": 0, "label": "A" }, … ],           // 制谱器对齐用
@@ -31,9 +31,9 @@
 
 | 段 | 作用 | 备注 |
 | --- | --- | --- |
-| `meta` | 标题 / 难度 / offset / duration / cover | `offset` 正 = 谱面比音频提前；`duration` 毫秒，导入音频时默认为音频长度；`cover` 可放 URL / data URL（`.parallax` 用 header.cover） |
+| `meta` | 标题 / 难度 / offset / duration / cover | `offset` 正 = 谱面比音频提前，运行时进入 `chartOffsetMs`；`difficulty` 目前是自由字符串，tier / 主题色仍是未来计划；`duration` 毫秒；`cover` 可放 URL / data URL |
 | `audio` | 音轨文件名 | 只记录；`.parallax` 包里音频是真实文件，旧 JSON 用 `?audio=/track.mp3` |
-| `timing` | BPM + 每小节拍数 | 画小节 / 对齐；**也是合成音轨的拍点**；不参与滚动速度 |
+| `timing` | BPM + 每小节拍数 | 画小节 / 对齐；**也是合成音轨的拍点**；不参与滚动速度。v0 只支持整数 `beats`/小节，`n/d` 自由拍号是未来计划 |
 | `sections` | 段落标记 | 纯制谱器信息 |
 | `speed` | 视觉流速（SV） | 支持 0 / 负数 / 极端值 |
 | `shift` | 4 轨窗口滑动 | `duration` = shift 的速度 |
@@ -197,7 +197,7 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
 - 有真实音轨时（`?audio=/track.mp3`，文件放 `prototype/public/`），合成轨退化成可选节拍器（设置面板 / 调试面板）。
 - 主时钟优先用音频时钟；浏览器没给自动播放权限时退回 `performance.now()`，游戏照常跑，只是没声音。
 - 音频被系统挂起、或从 `performance` 切到音频时钟时，会**重打锚点**，谱面时间保持连续。
-- 校准：`meta.offset` 落到玩家的 offset 设置上，设置面板里可以 ±5ms 微调。
+- 校准：`meta.offset` 只进入 `chartOffsetMs`（作者偏移）；玩家校准用 Settings 的 `offsetMs`，可以 ±5ms 微调，两者不互相覆盖。
 
 ## 10. 校验
 
@@ -236,7 +236,7 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
 
 ## 13. 编辑器的数据约定
 
-- **时间吸附**按拍计算，参数是 `DIV`（每全音符几份）+ `DOT`（×1.5）+ `三连`（×2/3），网格来自 `timing`；`DIV 8` = 半个拍。
+- **时间吸附**按拍计算，参数是 `DIV`（每全音符几份）+ `DOT`（×1.5）+ `三连`（×2/3），网格来自 `timing`；`DIV 8` = 半个拍。当前只按整数 `beats`/小节生成网格，任意 `n/d` 拍号及菜单自适应仍是未来计划。
 - **坐标是 x / z**：hit / drag 用 `note.z`（中心高度），arc 用 `points[].z`；hold 固定贴地。
 - **地面键默认整轨对齐**：离轨要显式改 `x`（编辑器里 Ctrl / 检查器 / 关闭 SNAP XZ）。
 - **x 是连续轨号坐标**：`x = 2` 是 2 号轨的中心，`x = 2.5` 是 2 / 3 轨之间；
