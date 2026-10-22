@@ -69,6 +69,8 @@ export interface Player {
   readonly windowValue: number;
   /** 当前谱面时间（毫秒）。 */
   readonly timeMs: number;
+  /** 当前是否有手正在 sustain hold / 跟随 arc；给手部短棒控制透明度。 */
+  readonly sustain: { left: boolean; right: boolean };
   /** 谱面总时长（毫秒）。 */
   readonly duration: number;
   /** 物量总数（hit / drag 各 1，hold 与 arc 按 tick 数）。 */
@@ -92,9 +94,11 @@ const ORDER_BODY = 5;
 const ORDER_GLOW = 6;
 const ORDER_AURA = 7;
 
-/** 判定窗口（毫秒）——与流速无关。 */
-const HIT_PERFECT_MS = 80;
-const HIT_GOOD_MS = 160;
+/** 判定窗口（毫秒）——与流速无关。perfect 允许更早，good 两侧仍为 160ms。 */
+const HIT_PERFECT_EARLY_MS = 120;
+const HIT_PERFECT_LATE_MS = 80;
+const HIT_GOOD_EARLY_MS = 160;
+const HIT_GOOD_LATE_MS = 160;
 const DRAG_WINDOW_MS = 120;
 /** 手在 z 方向离判定带多远还算在判定带上。 */
 const HAND_ZONE = 0.4;
@@ -179,6 +183,7 @@ export function createPlayer(
     params.tableHeight + noteHeight(note);
 
   const stats: PlayerStats = { perfect: 0, good: 0, miss: 0, lastGrade: null, lastOffsetMs: null };
+  const sustain = { left: false, right: false };
   let score: ScoreState = createScore(1);
   let finished = false;
 
@@ -489,15 +494,15 @@ export function createPlayer(
     const x = xOf(note.chart);
     const y = yOf(note.chart);
     const offsetMs = clockMs - note.chart.time;
-    if (offsetMs > HIT_GOOD_MS) {
+    if (offsetMs > HIT_GOOD_LATE_MS) {
       note.resolved = true;
       noteMiss(new THREE.Vector3(x, y, geometry.bandZ));
       note.group.visible = false;
       return;
     }
-    if (offsetMs < -HIT_GOOD_MS) return;
+    if (offsetMs < -HIT_GOOD_EARLY_MS) return;
 
-    // 只缩放空间判定盒；HIT_PERFECT_MS / HIT_GOOD_MS 仍由上方的时间窗决定。
+    // 只缩放空间判定盒；时间窗仍由上方的不对称窗口决定。
     const halfX = HIT_HALF_X * Math.max(0.1, settings.hitboxX);
     const zoneNear = HIT_ZONE_NEAR * Math.max(0.1, settings.hitboxZ);
     const zoneFar = HIT_ZONE_FAR * Math.max(0.1, settings.hitboxZ);
@@ -514,7 +519,8 @@ export function createPlayer(
 
       note.resolved = true;
       note.group.visible = false;
-      const grade: Grade = Math.abs(offsetMs) <= HIT_PERFECT_MS ? 'perfect' : 'good';
+      const grade: Grade =
+        offsetMs >= -HIT_PERFECT_EARLY_MS && offsetMs <= HIT_PERFECT_LATE_MS ? 'perfect' : 'good';
       stats.lastGrade = grade;
       stats.lastOffsetMs = Math.round(offsetMs);
       score.judge(grade, offsetMs);
@@ -610,6 +616,9 @@ export function createPlayer(
         );
     const contact = auto || contactHand !== null;
     const side: HandSide = contactHand?.side ?? note.chart.hand ?? 'none';
+    if (contactHand && (contactHand.side === 'left' || contactHand.side === 'right')) {
+      sustain[contactHand.side] = true;
+    }
 
     const targetGlow = contact ? 1 : 0;
     note.glow += (targetGlow - note.glow) * Math.min(1, dt * 12);
@@ -736,6 +745,10 @@ export function createPlayer(
       return clockMs;
     },
 
+    get sustain(): { left: boolean; right: boolean } {
+      return sustain;
+    },
+
     get duration(): number {
       return timeline.duration;
     },
@@ -756,6 +769,8 @@ export function createPlayer(
     },
 
     update(dt: number, hands: HandSample[]): void {
+      sustain.left = false;
+      sustain.right = false;
       if (!settings.enabled) {
         finished = false;
         guide.clear();
@@ -786,6 +801,9 @@ export function createPlayer(
 
         if (note.kind === 'arc') {
           for (const event of note.arc.update(clockMs, samples, settings.auto)) handleArcEvent(event);
+          if (note.arc.connectedSide === 'left' || note.arc.connectedSide === 'right') {
+            sustain[note.arc.connectedSide] = true;
+          }
           const lastTick = note.arc.ticks[note.arc.ticks.length - 1];
           if (lastTick && clockMs > lastTick.time + 300) {
             note.resolved = true;

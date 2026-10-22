@@ -132,7 +132,7 @@ theme/ background/   提前预留的资源（游戏暂未消费）
 
 | 键型 | 窗口 | 等级 | 动作 |
 | --- | --- | --- | --- |
-| hit | perfect ±80ms / good ±160ms | PERFECT / GOOD / MISS | 扫过并达到速度 + 位移 |
+| hit | perfect -120ms / +80ms；good ±160ms | PERFECT / GOOD / MISS | 扫过并达到速度 + 位移 |
 | drag | ±120ms | PERFECT / MISS | 扫过即可（要一点手速） |
 | hold | 每个物量 200–600ms（按密度） | PERFECT / MISS | **按住扳机 / 侧握**贴在片子上 |
 | arc | 普通物量 200ms；关键物量（黄铜珠）80ms | PERFECT / MISS | 手沿着弧走 |
@@ -265,6 +265,8 @@ cd prototype && npm run dev
 | `?panel=home\|songs\|packs\|paused\|settings\|result` | 直接摊开指定面板 |
 | `?chrome=0` | 隐藏诊断 / lil-gui / Stats / 包加载器，给面板截图留干净背景 |
 | `?lane=0.27` `?band=0.80` | 调轨宽 / 判定带前移距离（米；生产页也可用） |
+| `?hitboxX=1.25` `?hitboxZ=1.2` | 调 hit 判定盒空间倍率（不改时间窗；生产页也可用） |
+| `?debug=0` `?debug=1` | 关闭 / 强制打开调试 GUI；检测到 immersive-vr 的浏览器默认打开 |
 | `?panelScale=1.05` `?panelDistance=0.65` `?panelY=1.45` | 调 VR 面板尺寸 / 距离 / 高度（生产也可用） |
 | `?vr=1` | 假装在 VR 里（检查 `EXIT VR` 等只在头显出现的元素） |
 | `?menuButton=6` | 改 menu 键的 gamepad 索引（默认 6；读不到时用左手 Y 长按） |

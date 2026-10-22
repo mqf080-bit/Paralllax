@@ -60,6 +60,8 @@ export interface ArcNote {
   group: THREE.Group;
   hand: HandSide;
   ticks: ArcTick[];
+  /** 当前接住弧头的手；没有接住时为 null。只用于视觉 / 手部短棒。 */
+  readonly connectedSide: HandSide | null;
   update(clockMs: number, hands: HandSample[], auto?: boolean): ArcEvent[];
   /** 自动演示用：当前判定点的世界坐标。 */
   pointAt(clockMs: number): THREE.Vector3;
@@ -272,11 +274,16 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
   ticks.sort((a, b) => a.time - b.time);
 
   let following = 0;
+  let connectedSide: HandSide | null = null;
 
   return {
     group,
     hand: spec.hand,
     ticks,
+
+    get connectedSide(): HandSide | null {
+      return connectedSide;
+    },
 
     pointAt(clockMs: number): THREE.Vector3 {
       const tRel = Math.min(Math.max(clockMs - start, 0), duration);
@@ -322,6 +329,7 @@ export function createArcNote(spec: ArcSpec, lib: MaterialLibrary): ArcNote {
       };
 
       const holder = findHand(FOLLOW_RADIUS);
+      connectedSide = holder?.side ?? null;
       following += ((holder ? 1 : 0) - following) * 0.12;
 
       // 判定线已经扫过一段身体，但当前没有手接住 -> 立即变暗。

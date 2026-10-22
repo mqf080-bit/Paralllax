@@ -346,7 +346,7 @@ async function loadPackageIndex(): Promise<void> {
 
 // 键型预览与打击练习的开关；也接受 ?preview=1 / ?auto=1。
 const previewState = { visible: false };
-// dev / 头显试打：判定盒空间倍率。只改 hit 的 x / z 体积，时间窗仍是 ±80 / ±160ms。
+// dev / 头显试打：判定盒空间倍率。只改 hit 的 x / z 体积，时间窗仍是 -120/+80 perfect、±160 good。
 const hitboxXParam = Number(bootQuery.get('hitboxX'));
 const hitboxZParam = Number(bootQuery.get('hitboxZ'));
 const playSettings: PlayerSettings = {
@@ -952,7 +952,7 @@ if (import.meta.env.DEV) {
 // ?autostart=1 / ?warp / ?panel / ?auto 保持旧的「直接进游玩」调试路径。
 const devFlags = import.meta.env.DEV ? new URLSearchParams(window.location.search) : null;
 // dev：?chrome=0 隐藏桌面镜像上的诊断 / lil-gui / 包加载器，给面板截图留干净背景。
-if (devFlags?.get('chrome') === '0') document.body.classList.add('chrome-clean');
+if (bootQuery.get('chrome') === '0') document.body.classList.add('chrome-clean');
 const clockOff = devFlags?.get('clock') === '0';
 /** dev：?vr=1 假装在头显里，用来检查 EXIT VR 等只有 VR 才出现的元素。 */
 const fakeVr = devFlags?.get('vr') === '1';
@@ -1148,8 +1148,23 @@ stats.dom.style.top = 'auto';
 stats.dom.className = 'perf-stats';
 document.body.append(stats.dom);
 
-// —— 调试面板（仅 dev）——
-if (import.meta.env.DEV) {
+// —— 调试面板 ——
+// dev 默认显示；生产页在检测到 WebXR 的浏览器里也显示，方便头显前调参。
+// `?debug=0` 可关闭，`?debug=1` 可在任意浏览器强制打开，`?chrome=0` 仍可整层隐藏。
+const debugQuery = bootQuery.get('debug');
+const xrSystem = (navigator as Navigator & {
+  xr?: { isSessionSupported?: (mode: string) => Promise<boolean> };
+}).xr;
+let xrDebugSupported = false;
+if (xrSystem?.isSessionSupported) {
+  try {
+    xrDebugSupported = await xrSystem.isSessionSupported('immersive-vr');
+  } catch {
+    xrDebugSupported = false;
+  }
+}
+const debugRequested = debugQuery !== '0' && (import.meta.env.DEV || debugQuery === '1' || xrDebugSupported);
+if (debugRequested) {
   void import('./ui/debug').then(({ createDebug }) => {
     debugHandle = createDebug({
       params,
@@ -1198,6 +1213,8 @@ renderer.setAnimationLoop((frameTime: number) => {
     hands.update(dt, camera);
     if (flow === 'playing') playfield.update(dt, hands.samples);
   }
+  const sustaining = !frozen && flow === 'playing';
+  controllers.setSustaining(sustaining && playfield.sustain.left, sustaining && playfield.sustain.right);
   audio.update();
 
   uiStatus.inVr = fakeVr || renderer.xr.isPresenting;
