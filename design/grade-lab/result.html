@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GRADE LAB — 结算画面排版</title>
+    <link rel="stylesheet" href="./base.css" />
+    <style>
+      /* 结算画面按 760×470 逻辑画布排，和 VR 面板一致。 */
+      main {
+        max-width: 1560px;
+      }
+      .stage {
+        border: 1px solid var(--line);
+        background: #0b1016;
+        padding: 18px;
+        display: grid;
+        justify-items: center;
+        gap: 0;
+      }
+
+      .result {
+        width: 760px;
+        height: 470px;
+        background: var(--bg-2);
+        color: var(--ink);
+        font-family: var(--display);
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        padding: 0 0 0 0;
+        overflow: hidden;
+      }
+
+      .r-head {
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        border-bottom: 1px solid var(--hair);
+        font: 600 11px/1 var(--mono);
+        letter-spacing: 0.16em;
+        color: var(--faint);
+      }
+
+      .r-status {
+        color: var(--lime);
+      }
+
+      .r-status.bad {
+        color: #ff8a8a;
+      }
+
+      .r-body {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 488px 1px 214px;
+        gap: 0;
+        padding: 0 24px;
+        min-height: 0;
+      }
+
+      .r-left {
+        position: relative;
+        padding-top: 22px;
+      }
+
+      .r-right {
+        padding: 22px 0 0 24px;
+        position: relative;
+      }
+
+      .r-divider {
+        background: var(--hair);
+        margin: 16px 0;
+      }
+
+      .r-eyebrow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font: 600 10px/1 var(--mono);
+        letter-spacing: 0.16em;
+        color: var(--faint);
+      }
+
+      .r-eyebrow b {
+        color: var(--accent);
+        font-weight: 600;
+      }
+
+      .r-score {
+        margin-top: 20px;
+        font: 500 46px/1 var(--mono);
+        letter-spacing: -0.02em;
+      }
+
+      .r-title {
+        margin-top: 14px;
+        font: 600 21px/1.15 var(--display);
+      }
+
+      .r-sub {
+        margin-top: 5px;
+        font: 500 10px/1 var(--mono);
+        letter-spacing: 0.08em;
+        color: var(--faint);
+      }
+
+      .r-rule {
+        height: 1px;
+        background: var(--line);
+        margin: 16px 0 12px;
+      }
+
+      .r-facts {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+      }
+
+      .r-fact span {
+        display: block;
+        font: 600 9px/1 var(--mono);
+        letter-spacing: 0.1em;
+        color: var(--faint);
+      }
+
+      .r-fact b {
+        display: block;
+        margin-top: 6px;
+        font: 500 16px/1 var(--mono);
+        color: var(--ink);
+      }
+
+      .r-bar {
+        margin-top: 18px;
+        height: 8px;
+        border: 1px solid var(--hair);
+        display: flex;
+      }
+
+      .r-bar i {
+        display: block;
+        height: 100%;
+      }
+
+      .r-judges {
+        margin-top: 10px;
+        display: flex;
+        gap: 24px;
+        font: 500 10px/1 var(--mono);
+        letter-spacing: 0.08em;
+        color: var(--faint);
+      }
+
+      .r-buttons {
+        position: absolute;
+        left: 0;
+        bottom: 18px;
+        display: flex;
+        gap: 8px;
+      }
+
+      .r-btn {
+        height: 40px;
+        display: grid;
+        place-items: center;
+        font: 600 14px/1 var(--display);
+        border: 1px solid var(--line);
+        color: var(--dim);
+        background: rgba(255, 255, 255, 0.03);
+        min-width: 148px;
+        letter-spacing: 0.02em;
+      }
+
+      .r-btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #071018;
+      }
+
+      .r-grade {
+        display: grid;
+        justify-items: center;
+        color: var(--ink);
+      }
+
+      .r-grade .lock {
+        --cap-h: 56px;
+      }
+
+      .r-caption {
+        margin-top: 10px;
+        font: 500 10px/1 var(--mono);
+        letter-spacing: 0.14em;
+        color: var(--faint);
+        text-align: center;
+      }
+
+      .r-rows {
+        margin-top: 18px;
+        display: grid;
+        gap: 0;
+      }
+
+      .r-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--hair);
+      }
+
+      .r-row span {
+        font: 500 10px/1 var(--mono);
+        letter-spacing: 0.1em;
+        color: var(--faint);
+      }
+
+      .r-row b {
+        font: 500 22px/1 var(--mono);
+      }
+
+      .r-timing {
+        position: absolute;
+        left: 24px;
+        right: 0;
+        bottom: 20px;
+      }
+
+      .r-timing .label {
+        font: 600 9px/1 var(--mono);
+        letter-spacing: 0.14em;
+        color: var(--faint);
+      }
+
+      .r-timing .values {
+        margin-top: 8px;
+        display: flex;
+        justify-content: space-between;
+        font: 500 10px/1 var(--mono);
+        color: var(--accent);
+      }
+
+      .r-timing .track {
+        margin-top: 6px;
+        height: 4px;
+        background: var(--hair);
+        position: relative;
+      }
+
+      .r-timing .needle {
+        position: absolute;
+        top: -2px;
+        width: 2px;
+        height: 8px;
+        background: var(--dim);
+      }
+
+      .states {
+        display: grid;
+        grid-template-columns: repeat(2, max-content);
+        gap: 18px;
+        justify-content: center;
+      }
+
+      .states .stage {
+        padding: 12px;
+        zoom: 0.8;
+      }
+
+      .controls {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-bottom: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <div class="crumb"><a href="./index.html">GRADE LAB</a> / RESULT</div>
+        <h1>结算画面</h1>
+        <p class="sub">760 × 470 逻辑画布 · 1.35m 观看 · 评级是主视觉，分数是第一信息</p>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <h2>方案 A · 评级在右栏（推荐）</h2>
+        <div class="stage" data-panel data-state="cgr"></div>
+      </section>
+
+      <section>
+        <h2>四种状态</h2>
+        <div class="states">
+          <div class="stage" data-panel data-state="perfect"></div>
+          <div class="stage" data-panel data-state="apx"></div>
+          <div class="stage" data-panel data-state="cgr"></div>
+          <div class="stage" data-panel data-state="failed"></div>
+        </div>
+      </section>
+
+      <section>
+        <h2>说明</h2>
+        <p class="note">
+          左栏仍然是「分数 → 曲名 → 判定统计」；右栏最上方是评级锁版，下面接 Perfect / Good / Miss
+          和 GOOD TIMING。评级字号（cap 56）比分数（46px）大，但因为分数是等宽数字、顶格排，
+          读起来仍是第一个信息。FAILED 时评级用 D，状态条变红。
+        </p>
+      </section>
+    </main>
+
+    <script type="module">
+      import { renderLockup } from './lockup.js';
+
+      const STATES = {
+        perfect: {
+          status: 'CLEAR',
+          title: 'PROVING GROUND',
+          difficulty: 'IN 8',
+          score: 10000000,
+          perfect: 128,
+          good: 0,
+          miss: 0,
+          combo: 128,
+          early: 0,
+          late: 0,
+          accuracy: 100,
+        },
+        apx: {
+          status: 'CLEAR',
+          title: 'PROVING GROUND',
+          difficulty: 'IN 8',
+          score: 9610000,
+          perfect: 123,
+          good: 5,
+          miss: 0,
+          combo: 128,
+          early: 3,
+          late: 2,
+          accuracy: 96.1,
+        },
+        cgr: {
+          status: 'CLEAR',
+          title: 'PROVING GROUND',
+          difficulty: 'IN 8',
+          score: 9820000,
+          perfect: 126,
+          good: 2,
+          miss: 0,
+          combo: 128,
+          early: 1,
+          late: 1,
+          accuracy: 98.2,
+        },
+        failed: {
+          status: 'FAILED',
+          title: 'PROVING GROUND',
+          difficulty: 'IN 8',
+          score: 7100000,
+          perfect: 90,
+          good: 15,
+          miss: 23,
+          combo: 41,
+          early: 9,
+          late: 6,
+          accuracy: 71,
+        },
+      };
+
+      const GRADES = [
+        { key: 'IDN+', symbol: 'IDN', min: 100, max: 100, name: 'identical+' },
+        { key: 'IDN', symbol: 'IDN', min: 99, max: 100, name: 'identical' },
+        { key: 'CGR', symbol: 'CGR', min: 98, max: 99, name: 'congruent' },
+        { key: 'ASM', symbol: 'ASM', min: 97, max: 98, name: 'asymptotic' },
+        { key: 'APX', symbol: 'APX', min: 95, max: 97, name: 'approximate' },
+        { key: 'A', symbol: null, min: 90, max: 95, name: 'A' },
+        { key: 'B', symbol: null, min: 85, max: 90, name: 'B' },
+        { key: 'C', symbol: null, min: 80, max: 85, name: 'C' },
+        { key: 'D', symbol: null, min: 0, max: 80, name: 'D' },
+      ];
+
+      const gradeFor = (acc) =>
+        GRADES.find((g) => acc > g.min - 1e-9 && acc <= g.max + 1e-9 && (g.max !== 100 || acc >= g.min)) ??
+        GRADES[GRADES.length - 1];
+
+      const fmt = (n) => n.toLocaleString('en-US');
+
+      function buildPanel(host) {
+        const state = STATES[host.dataset.state];
+        const grade = gradeFor(state.accuracy);
+        const total = state.perfect + state.good + state.miss;
+        const perfectW = (state.perfect / total) * 100;
+        const goodW = (state.good / total) * 100;
+        const missW = 100 - perfectW - goodW;
+        const failed = state.status === 'FAILED';
+
+        host.innerHTML = `
+          <div class="result">
+            <div class="r-head">
+              <span>PARALLAX</span>
+              <span class="r-status ${failed ? 'bad' : ''}">${state.status}</span>
+            </div>
+            <div class="r-body">
+              <div class="r-left">
+                <div class="r-eyebrow"><b>06</b><span>RESULT</span><span style="margin-left:auto;color:var(--faint)">${state.accuracy.toFixed(1)}%</span></div>
+                <div class="r-score">${fmt(state.score)}</div>
+                <div class="r-title">${state.title}</div>
+                <div class="r-sub">${state.difficulty} · ${total} NOTES · ACCURACY ${state.accuracy.toFixed(1)}%</div>
+                <div class="r-rule"></div>
+                <div class="r-facts">
+                  <div class="r-fact"><span>MAX COMBO</span><b>${state.combo}</b></div>
+                  <div class="r-fact"><span>ACCURACY</span><b>${state.accuracy.toFixed(1)}%</b></div>
+                  <div class="r-fact"><span>NOTES</span><b>${total}</b></div>
+                  <div class="r-fact"><span>DIFFICULTY</span><b>${state.difficulty}</b></div>
+                </div>
+                <div class="r-bar">
+                  <i style="width:${perfectW}%;background:var(--accent)"></i>
+                  <i style="width:${goodW}%;background:rgba(156,200,255,.32)"></i>
+                  <i style="width:${missW}%;background:#ff8a8a"></i>
+                </div>
+                <div class="r-judges">
+                  <span>PERFECT ${state.perfect}</span>
+                  <span>GOOD ${state.good}</span>
+                  <span>MISS ${state.miss}</span>
+                </div>
+                <div class="r-buttons">
+                  <div class="r-btn primary">Retry</div>
+                  <div class="r-btn">Home</div>
+                </div>
+              </div>
+              <div class="r-divider"></div>
+              <div class="r-right">
+                <div class="r-grade" data-grade></div>
+                <div class="r-caption">${grade.symbol ? (grade.key === 'IDN+' ? 'IDENTICAL+' : grade.name.toUpperCase()) : `${grade.key} · ${state.accuracy.toFixed(1)}%`}</div>
+                <div class="r-rows">
+                  <div class="r-row"><span>PERFECT</span><b>${state.perfect}</b></div>
+                  <div class="r-row"><span>GOOD</span><b>${state.good}</b></div>
+                  <div class="r-row"><span>MISS</span><b>${state.miss}</b></div>
+                </div>
+                <div class="r-timing">
+                  <div class="label">GOOD TIMING</div>
+                  <div class="values"><span>EARLY ${state.early}</span><span>LATE ${state.late}</span></div>
+                  <div class="track"><div class="needle" style="left:${50 + (state.late - state.early) * 6}%"></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const gradeHost = host.querySelector('[data-grade]');
+        if (grade.symbol) {
+          renderLockup(gradeHost, { word: grade.key, symbol: grade.symbol, variant: 'above', size: 90 });
+        } else {
+          gradeHost.innerHTML = `<div style="font: 800 56px/1 var(--display);letter-spacing:-0.03em">${grade.key}</div>`;
+        }
+      }
+
+      document.querySelectorAll('[data-panel]').forEach(buildPanel);
+    </script>
+  </body>
+</html>

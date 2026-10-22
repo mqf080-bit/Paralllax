@@ -97,7 +97,10 @@
 - 评级字体作为独立设计项：大字号、窄体 / 几何 display 字、纸面 / 仪表两种方向都先出样张；
   不使用默认 UI 字体直接放大，不加大面积金色 / 渐变 / 奖杯拟物。
 - 样张放在独立环境（`design/`），选定后再移植进 Result。
-- Result 上评级是主视觉之一，但分数仍是第一信息；Perfect / Good / Miss 继续保留。
+- Result 排版样张：[`../design/grade-lab/result.html`](../design/grade-lab/result.html)（760×470）。
+  左栏 = 分数 / 曲名 / MAX COMBO / 准确率 / 物量 / 难度 / 判定条 / 按钮；
+  右栏 = 评级锁版 + PERFECT / GOOD / MISS + GOOD TIMING。评级 cap 56 > 分数 46px，
+  但分数等宽顶格，仍是第一个信息。尚未移植进 `gameUi.ts`。
 - 需要覆盖：FAIL / 低分 / 满分 / 长标题 / 小屏 VR 面板。
 
 验收：

@@ -18,6 +18,7 @@
 | [`asm.html`](asm.html) | `ASM` ≃ asymptotic · 97–98% |
 | [`cgr.html`](cgr.html) | `CGR` ≅ congruent · 98–99% |
 | [`idn.html`](idn.html) | `IDN` ≡ identical · 99–100%；恰好 100% 记作 `IDN+` |
+| [`result.html`](result.html) | 结算画面排版：760×470、评级在右栏、四种状态（满分 / 96% / 98% / FAILED） |
 
 每个字母页都有：大号锁版、三种摆法（above / below / behind）、面板尺度预览、
 以及「构造网格」开关（cap line / baseline / 符号行）。
