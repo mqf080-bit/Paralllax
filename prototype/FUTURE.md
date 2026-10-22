@@ -100,7 +100,8 @@
 - Result 排版样张：[`../design/grade-lab/result.html`](../design/grade-lab/result.html)（760×470）。
   左栏 = 分数 / 曲名 / MAX COMBO / 准确率 / 物量 / 难度 / 判定条 / 按钮；
   右栏 = 评级锁版 + PERFECT / GOOD / MISS + GOOD TIMING。评级 cap 56 > 分数 46px，
-  但分数等宽顶格，仍是第一个信息。尚未移植进 `gameUi.ts`。
+  但分数等宽顶格，仍是第一个信息。**已迁移进 `gameUi.ts` 的 `drawResult`**（2026-10-23），
+  评级锁版用 canvas 复刻同一套几何。
 - 需要覆盖：FAIL / 低分 / 满分 / 长标题 / 小屏 VR 面板。
 
 验收：

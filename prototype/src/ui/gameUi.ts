@@ -119,6 +119,10 @@ const GAP = 18;
 const LEFT_W = CONTENT_W - RIGHT_W - GAP;
 const RIGHT_X = W - M - RIGHT_W;
 
+/** Result 页的表头更高：CLEAR / FAILED 是大字。 */
+const RESULT_HEADER_H = 58;
+const RESULT_BODY_TOP = 80;
+
 /** Songs 列表一次显示几行；超过就滚动（摇杆 / 箭头）。 */
 const SONGS_ROWS = 4;
 /** 摇杆推到满时每秒滚几行。 */
@@ -297,7 +301,53 @@ function emptyPreview(): ChartPreview {
   };
 }
 
-function drawHeader(ctx: CanvasRenderingContext2D): void {
+/** 字距拉开的文字（CLEAR / FAILED 这种“状态章”用）。 */
+function spacedText(
+  ctx: CanvasRenderingContext2D,
+  value: string,
+  x: number,
+  y: number,
+  size: number,
+  weight: number,
+  color: string,
+  align: CanvasTextAlign,
+  spacingPx: number,
+): void {
+  const spacing = ctx as CanvasRenderingContext2D & { letterSpacing?: string };
+  const prev = spacing.letterSpacing;
+  try {
+    spacing.letterSpacing = `${spacingPx}px`;
+  } catch {
+    // 不支持 letterSpacing 就按普通字距画
+  }
+  text(ctx, value, x, y, size, weight, color, align);
+  try {
+    spacing.letterSpacing = prev ?? '0px';
+  } catch {
+    // ignore
+  }
+}
+
+function drawHeader(
+  ctx: CanvasRenderingContext2D,
+  status?: { label: string; bad: boolean },
+): void {
+  if (status) {
+    text(ctx, 'PARALLAX', M, RESULT_HEADER_H / 2, 14, 600);
+    spacedText(
+      ctx,
+      status.label,
+      W - M,
+      RESULT_HEADER_H / 2,
+      27,
+      700,
+      status.bad ? INK.bad : INK.lime,
+      'right',
+      4.5,
+    );
+    rule(ctx, 0, RESULT_HEADER_H, W);
+    return;
+  }
   text(ctx, 'PARALLAX', M, 20, 14, 600);
   const quest = 'QUEST 3 / WEBXR';
   text(ctx, quest, W - M, 20, 10, 500, INK.faint, 'right', MONO);
@@ -436,6 +486,127 @@ function drawFact(
 ): void {
   text(ctx, label.toUpperCase(), x, y, 10, 500, INK.faint);
   text(ctx, value || '—', x, y + 17, valueSize, 500, INK.text, 'left', MONO);
+}
+
+interface GradeMark {
+  key: string;
+  /** 评级记号（≈ / ≃ / ≅ / ≡）；null = D–A，只有字。 */
+  symbol: string | null;
+  word: string;
+}
+
+/** 阈值见 FUTURE.md §0.2：<80 D → 80/85/90/95 → 95/97/98/99/100。 */
+const GRADE_STEPS: Array<{ min: number; key: string; symbol: string | null; word: string }> = [
+  { min: 100, key: 'IDN+', symbol: 'IDN', word: 'IDENTICAL+' },
+  { min: 99, key: 'IDN', symbol: 'IDN', word: 'IDENTICAL' },
+  { min: 98, key: 'CGR', symbol: 'CGR', word: 'CONGRUENT' },
+  { min: 97, key: 'ASM', symbol: 'ASM', word: 'ASYMPTOTIC' },
+  { min: 95, key: 'APX', symbol: 'APX', word: 'APPROXIMATE' },
+  { min: 90, key: 'A', symbol: null, word: 'A' },
+  { min: 85, key: 'B', symbol: null, word: 'B' },
+  { min: 80, key: 'C', symbol: null, word: 'C' },
+  { min: 0, key: 'D', symbol: null, word: 'D' },
+];
+
+const GRADE_SYMBOLS: Record<string, Array<'wave' | 'line'>> = {
+  APX: ['wave', 'wave'],
+  ASM: ['wave', 'line'],
+  CGR: ['wave', 'line', 'line'],
+  IDN: ['line', 'line', 'line'],
+};
+
+function gradeFor(accuracy: number): GradeMark {
+  const clamped = Math.min(100, Math.max(0, accuracy));
+  const step = GRADE_STEPS.find((item) => clamped >= item.min) ?? GRADE_STEPS[GRADE_STEPS.length - 1]!;
+  return { key: step.key, symbol: step.symbol, word: step.word };
+}
+
+/**
+ * 评级锁版：三个字母 + 上方的数学记号。
+ * 几何和 design/grade-lab/lockup.js 一致：同宽、描边 = 字干（11.5% cap）、
+ * 记号底边离 cap line 16%，波浪之间 5%、其余 5.5%（都量墨迹）。
+ */
+function drawGradeLockup(
+  ctx: CanvasRenderingContext2D,
+  grade: GradeMark,
+  cx: number,
+  wordBaseline: number,
+  cap: number,
+): void {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = INK.text;
+
+  // 以 H 的墨迹高度定字号，保证 cap 正好是 cap（D–A 的单字也用它）
+  ctx.font = `800 100px ${FONT}`;
+  const ratio = ctx.measureText('H').actualBoundingBoxAscent / 100 || 0.72;
+  const size = cap / ratio;
+
+  if (!grade.symbol) {
+    ctx.font = `800 ${size}px ${FONT}`;
+    ctx.fillText(grade.key, cx, wordBaseline);
+    ctx.restore();
+    return;
+  }
+
+  ctx.font = `800 ${size}px ${FONT}`;
+  const width = ctx.measureText(grade.key).width;
+  ctx.fillText(grade.key, cx, wordBaseline);
+
+  const rows = GRADE_SYMBOLS[grade.symbol] ?? [];
+  if (rows.length === 0) {
+    ctx.restore();
+    return;
+  }
+
+  const stem = cap * 0.115;
+  const amp = cap * 0.075;
+  const gapToWord = cap * 0.16;
+  const inset = stem * 0.75;
+  const x0 = cx - width / 2 + inset;
+  const x1 = cx + width / 2 - inset;
+  const inkW = x1 - x0;
+  const capTop = wordBaseline - cap;
+
+  const gapFor = (below: 'wave' | 'line', above: 'wave' | 'line') =>
+    below === 'wave' && above === 'wave' ? cap * 0.05 : cap * 0.055;
+  const extra = (below: 'wave' | 'line', above: 'wave' | 'line') => {
+    if (below === 'wave' && above === 'wave') return 0;
+    return (below === 'wave' ? amp : 0) + (above === 'wave' ? amp : 0);
+  };
+
+  const centers = new Array<number>(rows.length);
+  const last = rows.length - 1;
+  centers[last] = capTop - gapToWord - (rows[last] === 'wave' ? amp : 0) - stem / 2;
+  for (let i = rows.length - 2; i >= 0; i -= 1) {
+    const below = rows[i]!;
+    const above = rows[i + 1]!;
+    centers[i] = centers[i + 1]! - (stem + gapFor(below, above) + extra(below, above));
+  }
+
+  ctx.strokeStyle = INK.text;
+  ctx.lineWidth = stem;
+  ctx.lineCap = 'round';
+  rows.forEach((row, index) => {
+    const y = centers[index]!;
+    ctx.beginPath();
+    if (row === 'line') {
+      ctx.moveTo(x0, y);
+      ctx.lineTo(x1, y);
+    } else {
+      // 四个拱；控制点给 2×amp，二次贝塞尔的峰值才等于 amp
+      const q = inkW / 4;
+      ctx.moveTo(x0, y);
+      for (let i = 0; i < 4; i += 1) {
+        const dir = i % 2 === 0 ? -1 : 1;
+        ctx.quadraticCurveTo(x0 + q * i + q / 2, y + dir * 2 * amp, x0 + q * (i + 1), y);
+      }
+    }
+    ctx.stroke();
+  });
+
+  ctx.restore();
 }
 
 function drawSpecRow(
@@ -1197,24 +1368,41 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
   }
 
   function drawResult(ctx: CanvasRenderingContext2D, state: PanelDrawState): PanelHotspot[] {
-    drawHeader(ctx);
-    rule(ctx, M, BODY_TOP, 488);
     const score = resultScore;
     const total = (score?.perfect ?? 0) + (score?.good ?? 0) + (score?.miss ?? 0);
-    drawEyebrow(ctx, '06', 'Result', M, 62);
-    text(ctx, score?.failed ? 'FAILED' : 'CLEAR', M + 88, 62, 10, 600, score?.failed ? INK.bad : INK.lime);
+    const failed = score?.failed ?? false;
+    const acc = total > 0 ? ((score!.perfect + score!.good * 0.6) / total) * 100 : 0;
+    const grade = gradeFor(acc);
 
-    text(ctx, formatInt(score?.score ?? 0), M, 98, 48, 500, INK.text, 'left', MONO);
-    text(ctx, fit(ctx, titleCase(chartInfo.title), 400, 22, 600), M, 150, 22, 600);
+    drawHeader(ctx, { label: failed ? 'FAILED' : 'CLEAR', bad: failed });
 
-    rule(ctx, M, 174, 488);
-    drawFact(ctx, 'Max combo', String(score?.maxCombo ?? 0), M, 186, 14);
-    drawFact(ctx, 'Difficulty', chartInfo.difficulty || '—', M + 126, 186, 14);
-    drawFact(ctx, 'Accuracy', accuracy(score), M + 252, 186, 14);
-    drawFact(ctx, 'Notes', String(score?.total || chartInfo.preview.noteCount), M + 378, 186, 14);
+    // 左栏
+    drawEyebrow(ctx, '06', 'Result', M, RESULT_BODY_TOP + 2);
+    text(ctx, `${acc.toFixed(1)}%`, 512, RESULT_BODY_TOP + 2, 10, 500, INK.faint, 'right', MONO);
+
+    text(ctx, formatInt(score?.score ?? 0), M, 122, 46, 500, INK.text, 'left', MONO);
+    text(ctx, fit(ctx, titleCase(chartInfo.title), 440, 21, 600), M, 162, 21, 600);
+    text(
+      ctx,
+      `${chartInfo.difficulty || '—'}   ·   ${total} NOTES   ·   ACCURACY ${acc.toFixed(1)}%`,
+      M,
+      182,
+      10,
+      500,
+      INK.faint,
+      'left',
+      MONO,
+    );
+
+    rule(ctx, M, 196, 488);
+
+    drawFact(ctx, 'Max combo', String(score?.maxCombo ?? 0), M, 210, 16);
+    drawFact(ctx, 'Accuracy', `${acc.toFixed(1)}%`, M + 122, 210, 16);
+    drawFact(ctx, 'Notes', String(total), M + 244, 210, 16);
+    drawFact(ctx, 'Difficulty', chartInfo.difficulty || '—', M + 366, 210, 16);
 
     const barX = M;
-    const barY = 222;
+    const barY = 254;
     const barW = 488;
     ctx.strokeStyle = INK.hair;
     ctx.lineWidth = 1;
@@ -1230,38 +1418,53 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
       ctx.fillStyle = INK.bad;
       ctx.fillRect(barX + 1 + perfectW + goodW, barY + 1, missW, 6);
     }
-    text(ctx, `PERFECT ${score?.perfect ?? 0}`, M, 244, 10, 500, INK.faint, 'left', MONO);
-    text(ctx, `GOOD ${score?.good ?? 0}`, M + 130, 244, 10, 500, INK.faint, 'left', MONO);
-    text(ctx, `MISS ${score?.miss ?? 0}`, M + 236, 244, 10, 500, INK.faint, 'left', MONO);
+    text(ctx, `PERFECT ${score?.perfect ?? 0}`, M, 276, 10, 500, INK.faint, 'left', MONO);
+    text(ctx, `GOOD ${score?.good ?? 0}`, M + 130, 276, 10, 500, INK.faint, 'left', MONO);
+    text(ctx, `MISS ${score?.miss ?? 0}`, M + 236, 276, 10, 500, INK.faint, 'left', MONO);
 
     const spots: PanelHotspot[] = [
-      drawButton(ctx, state, { id: 'restart', x: M, y: 386, w: 240, h: 42 }, 'Retry', {
+      drawButton(ctx, state, { id: 'restart', x: M, y: 402, w: 240, h: 40 }, 'Retry', {
         tone: 'primary',
         meta: '↵',
       }),
-      drawButton(ctx, state, { id: 'home', x: M + 248, y: 386, w: 240, h: 42 }, 'Home', {
+      drawButton(ctx, state, { id: 'home', x: M + 248, y: 402, w: 240, h: 40 }, 'Home', {
         tone: 'quiet',
         meta: '⌂',
       }),
     ];
 
-    vrule(ctx, 512, BODY_TOP, BODY_BOTTOM - BODY_TOP);
-    const dx = 522;
-    const dw = 214;
-    text(ctx, 'ACCURACY', dx, 62, 10, 500, INK.faint, 'left', MONO);
-    const rows: Array<[string, number]> = [
+    // 右栏：评级锁版 + 三个判定数 + GOOD TIMING
+    vrule(ctx, 512, RESULT_BODY_TOP, H - RESULT_BODY_TOP - 24);
+    const rx = 536;
+    const rw = 200;
+    const rcx = rx + rw / 2;
+
+    drawGradeLockup(ctx, grade, rcx, 164, 52);
+    text(
+      ctx,
+      grade.symbol ? grade.word : `${grade.key}   ·   ${acc.toFixed(1)}%`,
+      rcx,
+      188,
+      10,
+      500,
+      INK.faint,
+      'center',
+      MONO,
+    );
+
+    const judgeRows: Array<[string, number]> = [
       ['Perfect', score?.perfect ?? 0],
       ['Good', score?.good ?? 0],
       ['Miss', score?.miss ?? 0],
     ];
-    rows.forEach(([label, value], index) => {
-      const y = 92 + index * 74;
-      text(ctx, label.toUpperCase(), dx, y, 10, 500, INK.dim);
-      text(ctx, String(value), dx + dw, y + 26, 30, 500, INK.text, 'right', MONO);
-      rule(ctx, dx, y + 46, dw, INK.hair);
+    judgeRows.forEach(([label, value], index) => {
+      const y = 226 + index * 36;
+      text(ctx, label.toUpperCase(), rx, y, 10, 500, INK.faint, 'left', MONO);
+      text(ctx, String(value), rx + rw, y, 22, 500, INK.text, 'right', MONO);
+      rule(ctx, rx, y + 12, rw, INK.hair);
     });
-    drawTimingBias(ctx, score, dx, 324, dw);
-    drawFooter(ctx);
+
+    drawTimingBias(ctx, score, rx, 386, rw);
     return spots;
   }
 

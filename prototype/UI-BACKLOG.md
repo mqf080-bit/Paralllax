@@ -41,6 +41,7 @@ Home → Songs → Playing → Paused → Settings
 | 输入安全 | 游玩中 `GameUi` 不接收点击；hold 的扳机与 UI 点击分离；切面板有 `pressLock` |
 | 六屏 | 双栏、可选歌曲列表、Add packs 二级页、Settings 六个真实控件、Result 判定条 + GOOD early/late |
 | Songs 滚动 | 超过 4 首时列表滚动：**摇杆上下推**为主路径；另有 ↑/↓ 箭头、滚动条、`n–m / total` 计数；换歌自动把选中项滚进视野 |
+| Result 评级 | 右栏顶部是评级锁版（D–A 单字 / APX–IDN 三字母 + 数学记号），阈值 80/85/90/95/97/98/99/100，恰好 100 记 `IDN+`；CLEAR / FAILED 大字 |
 | Combo HUD | 游玩中独立数字 HUD，世界固定在判定带中线上方；0 时隐藏，MISS 快速淡出；只做反馈，不计分 |
 | 面板 | 1.55m / 1.35m；`?panelScale`、`?panelDistance`、`?panelY` 可调；去圆角 / 去拟物 |
 | 曲库 | 内置谱 + `packages/index.json` 懒加载；选中后才下载 `.parallax`；18MB 包有 loading 覆盖层 |
