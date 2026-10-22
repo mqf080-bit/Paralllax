@@ -77,30 +77,48 @@ export function renderLockup(host, opts) {
   const paths = [];
 
   const wavePath = (y) => {
-    // 四个拱：接近字体里的 ≈，不是装饰性的波浪线。
+    // 四个拱。二次贝塞尔的峰值只有控制点偏移的一半，所以这里给 2×amp，
+    // 让波峰/波谷真的落在 ±amp —— 否则实际振幅只有标称的一半，间距也会算错。
     const q = inkWidth / 4;
-    let d = `M ${inkLeft} ${y} q ${q / 2} ${-amp} ${q} 0`;
+    const ctrl = -2 * amp;
+    let d = `M ${inkLeft} ${y} q ${q / 2} ${ctrl} ${q} 0`;
     for (let i = 0; i < 3; i += 1) d += ` t ${q} 0`;
     return d;
   };
   const linePath = (y) => `M ${inkLeft} ${y} L ${inkRight} ${y}`;
 
-  // 每一行的墨迹半高
-  const half = rows.map((row) => (row.kind === 'wave' ? amp + stem / 2 : stem / 2));
-  const gapBelow = rows.map(() => cap * 0.035); // 统一墨迹间隙（和等号两横一致）
+  const gap = cap * 0.035; // 唯一间隙：所有相邻两行都是它
 
-  // 从下往上：最下面一行离字 gapToWord，其余按墨迹间隙叠上去。
+  /*
+   * 一行可能在另一行的上方，两行之间的距离不是简单“半高相加”：
+   * - 直线 ↔ 直线：距离 = stem + gap；
+   * - 波浪 ↔ 直线：波浪的谷底才是最近点，距离 = amp + stem + gap；
+   * - 波浪 ↔ 波浪（同相位）：两条曲线平行，振幅互相抵消，距离仍是 stem + gap。
+   * 下面的 below / above 就是“这一段额外要预留的振幅”。
+   */
+  const extra = (below, above) => {
+    if (below === 'wave' && above === 'wave') return 0;
+    let e = 0;
+    if (below === 'wave') e += amp;
+    if (above === 'wave') e += amp;
+    return e;
+  };
+
+  // 从下往上：最下面一行的底线离 cap line 是 gapToWord。
   const stackAbove = [];
-  stackAbove[rows.length - 1] = top - gapToWord - half[rows.length - 1];
+  const last = rows.length - 1;
+  stackAbove[last] = top - gapToWord - (rows[last].kind === 'wave' ? amp : 0) - stem / 2;
   for (let i = rows.length - 2; i >= 0; i -= 1) {
-    stackAbove[i] = stackAbove[i + 1] - half[i + 1] - gapBelow[i] - half[i];
+    const gapBetween = stem + gap + extra(rows[i].kind, rows[i + 1].kind);
+    stackAbove[i] = stackAbove[i + 1] - gapBetween;
   }
 
   // 镜像：最上面一行离基线 gapToWord，其余往下叠。
   const stackBelow = [];
-  stackBelow[0] = baseline + gapToWord + half[0];
+  stackBelow[0] = baseline + gapToWord + (rows[0].kind === 'wave' ? amp : 0) + stem / 2;
   for (let i = 1; i < rows.length; i += 1) {
-    stackBelow[i] = stackBelow[i - 1] + half[i - 1] + gapBelow[i - 1] + half[i];
+    const gapBetween = stem + gap + extra(rows[i - 1].kind, rows[i].kind);
+    stackBelow[i] = stackBelow[i - 1] + gapBetween;
   }
 
   const stacked = variant === 'above' || variant === 'below' || variant === 'stack';
@@ -123,14 +141,15 @@ export function renderLockup(host, opts) {
 
   // —— 3. 视口 ——
   const pad = cap * 0.24;
+  const half = (row) => (row.kind === 'wave' ? amp : 0) + stem / 2;
   const minY =
-    variant === 'above' ? stackAbove[0] - half[0] - pad : top - pad * 0.6;
+    variant === 'above' ? stackAbove[0] - half(rows[0]) - pad : top - pad * 0.6;
   const maxY =
     variant === 'above'
       ? baseline + pad
       : variant === 'behind'
         ? baseline + pad
-        : stackBelow[rows.length - 1] + half[rows.length - 1] + pad;
+        : stackBelow[rows.length - 1] + half(rows[rows.length - 1]) + pad;
   const minX = left - pad;
   const maxX = right + pad;
   svg.setAttribute('viewBox', `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
