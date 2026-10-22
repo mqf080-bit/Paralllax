@@ -28,6 +28,7 @@ import {
   snapLabel,
   snapPreset,
   snapPresetFor,
+  snapPresetsFor,
   snapTime,
   sortChart,
   timingAt,
@@ -170,6 +171,8 @@ export class EditorController implements EditorHost, InspectorHost {
   private uiDirty = true;
   private lastUiTime = Number.NaN;
   private readonly lastUi = { play: '', overview: '', time: '', audio: '', reverse: '', status: '' };
+  /** 播放头所在段的拍号分母；SNAP 预设按它重建。 */
+  private snapDenominator = 4;
   private follow = true;
 
   constructor(elements: EditorElements) {
@@ -319,7 +322,7 @@ export class EditorController implements EditorHost, InspectorHost {
     }
     this.syncSnapUi();
     this.elements.snap.addEventListener('change', () => {
-      const preset = snapPreset(this.elements.snap.value);
+      const preset = snapPreset(this.elements.snap.value, this.snapDenominator);
       if (preset && preset.id !== 'custom') this.setSnap(preset.spec);
     });
     this.elements.snapDiv.addEventListener('change', () => {
@@ -709,8 +712,25 @@ export class EditorController implements EditorHost, InspectorHost {
     this.updateUi();
   }
 
+  /** 按拍号重建 SNAP 下拉：分母一变，预设的数字就跟着变。 */
+  private rebuildSnapOptions(denominator: number): void {
+    const select = this.elements.snap;
+    select.replaceChildren();
+    for (const preset of snapPresetsFor(denominator)) {
+      const node = document.createElement('option');
+      node.value = preset.id;
+      node.textContent = preset.label;
+      select.append(node);
+    }
+    // 当前 DIV 不在新拍号的预设里：把 CUSTOM 标签写清楚，别只剩一个 CUSTOM…
+    if (snapPresetFor(this.snap, denominator) === 'custom') {
+      const custom = select.querySelector<HTMLOptionElement>('option[value="custom"]');
+      if (custom) custom.textContent = `CUSTOM · 1/${this.snap.div}`;
+    }
+  }
+
   private syncSnapUi(): void {
-    this.elements.snap.value = snapPresetFor(this.snap);
+    this.elements.snap.value = snapPresetFor(this.snap, this.snapDenominator);
     this.elements.snapDiv.value = String(this.snap.div);
     this.elements.snapDot.classList.toggle('is-active', this.snap.dotted);
     this.elements.snapTriplet.classList.toggle('is-active', this.snap.triplet);
@@ -1056,6 +1076,12 @@ export class EditorController implements EditorHost, InspectorHost {
   private refreshStatus(): void {
     const info = this.timeline.barBeat(this.preview.state.timeMs);
     const meter = info ? `${info.numerator}/${info.denominator} · BAR ${info.bar + 1}` : '—';
+    const denominator = info?.denominator ?? 4;
+    if (denominator !== this.snapDenominator) {
+      this.snapDenominator = denominator;
+      this.rebuildSnapOptions(denominator);
+      this.syncSnapUi();
+    }
     const status = `${TOOL_LABELS[this.tool]} · SNAP ${snapLabel(this.snap)} · ${meter} · ${this.chart.notes.length} NOTES · ${countObjects(this.chart)} OBJECTS · ${formatTime(chartDuration(this.chart))}`;
     if (status === this.lastUi.status) return;
     this.lastUi.status = status;

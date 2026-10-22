@@ -1,0 +1,40 @@
+[
+  {
+    "file": "page.png",
+    "state": null,
+    "size": "1600x1000",
+    "zoom": 1,
+    "animationWaitMs": 0,
+    "issues": [],
+    "lint": [
+      {
+        "rule": "contrastLow",
+        "label": "文字对比度不达标（正文低于 4.5:1，大字低于 3:1）",
+        "count": 44,
+        "examples": [
+          "span.brand__sub「CHART EDITOR · v0.3.11」（2.59:1）",
+          "span.topbar__label「TOOL」（2.59:1）",
+          "span.topbar__label「SNAP」（2.59:1）"
+        ]
+      },
+      {
+        "rule": "smallText",
+        "label": "正文小于 13px",
+        "count": 9,
+        "examples": [
+          "div#preview-hint.preview__hint「3D EDIT · 白点=自由 · 青点=X ·」（9px）",
+          "li「2D 多选：Shift+点 note 加减选；拖」（10px）",
+          "li「3D 左键：空处放置（时间吸附）；拖白点 = x」（10px）"
+        ]
+      },
+      {
+        "rule": "tightLeading",
+        "label": "多行正文行高过紧",
+        "count": 1,
+        "examples": [
+          "div#preview-hint.preview__hint「3D EDIT · 白点=自由 · 青点=X ·」（1.20）"
+        ]
+      }
+    ]
+  }
+]

@@ -68,7 +68,29 @@ export interface SnapPreset {
   spec: SnapSpec;
 }
 
-/** 只保留常用预设；五连 / 附点 / 自定义拍号由 DIV、DOT、3 三个控件直接改。 */
+/**
+ * 按拍号给 SNAP 预设：分母就是基准拍，k = 每拍细分几份。
+ * `4/4` → 1/4 · 1/8 · 1/12(三连) · 1/16 · 1/20(五连) · 1/24 · 1/32；
+ * `x/6` → 1/6 · 1/12 · 1/18(三连) · 1/24 · 1/30(五连) · 1/36 · 1/48。
+ * `div` 始终按“每全音符几份”记，所以标签的数字就是真实音值。
+ */
+export function snapPresetsFor(denominator: number): SnapPreset[] {
+  const d = Math.max(1, Math.round(denominator));
+  const spec = (div: number): SnapSpec => ({ div, dotted: false, triplet: false });
+  return [
+    { id: 'off', label: 'OFF（自由）', spec: SNAP_OFF },
+    { id: `1/${d}`, label: `1/${d}`, spec: spec(d) },
+    { id: `1/${d * 2}`, label: `1/${d * 2}`, spec: spec(d * 2) },
+    { id: `1/${d * 3}`, label: `1/${d * 3}（三连）`, spec: spec(d * 3) },
+    { id: `1/${d * 4}`, label: `1/${d * 4}`, spec: spec(d * 4) },
+    { id: `1/${d * 5}`, label: `1/${d * 5}（五连）`, spec: spec(d * 5) },
+    { id: `1/${d * 6}`, label: `1/${d * 6}`, spec: spec(d * 6) },
+    { id: `1/${d * 8}`, label: `1/${d * 8}`, spec: spec(d * 8) },
+    { id: 'custom', label: 'CUSTOM…', spec: spec(d * 2) },
+  ];
+}
+
+/** 4/4 的默认预设（页面初始 / 还没读到谱面时用）。 */
 export const SNAP_PRESETS: SnapPreset[] = [
   { id: 'off', label: 'OFF（自由）', spec: SNAP_OFF },
   { id: '1/4', label: '1/4', spec: { div: 4, dotted: false, triplet: false } },
@@ -98,14 +120,14 @@ export function snapLabel(spec: SnapSpec): string {
   return label;
 }
 
-export function snapPreset(id: string): SnapPreset | undefined {
-  return SNAP_PRESETS.find((preset) => preset.id === id);
+export function snapPreset(id: string, denominator = 4): SnapPreset | undefined {
+  return snapPresetsFor(denominator).find((preset) => preset.id === id);
 }
 
 /** 当前参数对应的预设 id；没有完全匹配的就是 CUSTOM。 */
-export function snapPresetFor(spec: SnapSpec): string {
+export function snapPresetFor(spec: SnapSpec, denominator = 4): string {
   if (spec.div <= 0) return 'off';
-  const match = SNAP_PRESETS.find(
+  const match = snapPresetsFor(denominator).find(
     (preset) =>
       preset.id !== 'custom' &&
       preset.spec.div === spec.div &&
@@ -204,8 +226,8 @@ export interface GridLine {
 /**
  * 收集 [from, to] 内的小节 / 拍 / 细分线。
  *
- * `subBeats` 是细分步长（拍）：0.25 = 每拍 4 格。> 1 只在拍线上画，
- * 避免 1/3（4/3 拍）这种吸附把网格画成非整数拍。
+ * `subBeats` 以**四分音符**为单位（和 `snapBeats` 一致）：0.25 = 十六分音符。
+ * 段内再按拍号换算成“拍”：`x/6` 的 1/8 音符 = 0.75 拍，网格照样对齐。
  */
 export function collectGridLines(chart: Chart, from: number, to: number, subBeats: number): GridLine[] {
   const lines: GridLine[] = [];
@@ -222,8 +244,10 @@ export function collectGridLines(chart: Chart, from: number, to: number, subBeat
     if (end < start) continue;
 
     const beat = beatMsOf(point);
-    const stepMs = beat * step;
-    const beatsPerBar = meterOf(point).numerator;
+    const { denominator, numerator: beatsPerBar } = meterOf(point);
+    // 1 个四分音符 = 4/denominator 拍
+    const stepBeats = (step * denominator) / 4;
+    const stepMs = beat * stepBeats;
     // 从段起点往前找第一个 >= start 的网格。
     const firstIndex = Math.ceil((start - point.time) / stepMs - 1e-9);
     for (let index = firstIndex; ; index += 1) {
@@ -231,10 +255,10 @@ export function collectGridLines(chart: Chart, from: number, to: number, subBeat
       if (time > end + 1e-6) break;
       if (time < from - 1e-6) continue;
       // 落在整拍上才是拍 / 小节，其余都是细分（对 1/16、1/12、1/8 … 都成立）。
-      const beatIndex = index * step;
-      const rounded = Math.round(beatIndex);
+      const beatPos = (time - point.time) / beat;
+      const rounded = Math.round(beatPos);
       const kind: GridLine['kind'] =
-        Math.abs(beatIndex - rounded) < 1e-6
+        Math.abs(beatPos - rounded) < 1e-6
           ? rounded % beatsPerBar === 0
             ? 'bar'
             : 'beat'
@@ -243,6 +267,32 @@ export function collectGridLines(chart: Chart, from: number, to: number, subBeat
       if (lines.length > 4000) return lines;
     }
   }
+
+  // 网格步长不一定整除小节（5/6 上用 1/8 音符时就是这样），
+  // 所以小节线再单独补一遍，保证换拍号后小节不会被漏画。
+  const seen = new Set<number>(lines.map((line) => Math.round(line.time * 2)));
+  for (let i = 0; i < timing.length; i += 1) {
+    const point = timing[i]!;
+    const next = timing[i + 1];
+    const segmentEnd = next ? next.time : to;
+    const barMs = beatMsOf(point) * meterOf(point).numerator;
+    if (!(barMs > 0)) continue;
+    const start = Math.max(point.time, from);
+    const end = Math.min(segmentEnd, to);
+    if (end < start) continue;
+    const firstBar = Math.ceil((start - point.time) / barMs - 1e-9);
+    for (let n = firstBar; ; n += 1) {
+      const time = point.time + n * barMs;
+      if (time > end + 1e-6) break;
+      const key = Math.round(time * 2);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      lines.push({ time, kind: 'bar' });
+      if (lines.length > 4000) break;
+    }
+  }
+
+  lines.sort((a, b) => a.time - b.time);
   return lines;
 }
 

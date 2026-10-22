@@ -48,7 +48,7 @@
 - **Songs 滚动（2026-10-22）**：列表从固定 4 行改为 4 行窗口 + 摇杆滚动（`hands.stickY`，axes[3] / axes[1]）；另有 ↑/↓ 箭头、滚动条、`n–m / total` 计数；换歌自动把选中项滚进视野。
 - **Combo HUD（2026-10-22）**：[`src/scene/comboHud.ts`](src/scene/comboHud.ts) 世界固定 Sprite，位置 `(0, 1.80, −2.60)`（高于眼高与最高 note；玩家靠近 1.9m 内淡出）；大数字 + 小标签；0 隐藏、MISS 快速淡出、命中轻微脉冲；只在 combo 变化时重绘纹理；`?comboX` / `?comboY` / `?comboZ` 可调。修过一次实现 bug：缺 `?comboZ` 时 `Number(null) === 0` 把 HUD 放到 `(0, 0, 0)`（玩家头里）。
 - **默认难度 / tier 色（2026-10-22）**：编辑器新谱默认难度改为空字符串（不再写 `IN 1`）；五个 tier 的主题色 + 动效定稿，记录在 [`../parallax-idea.md`](../parallax-idea.md) §3 与 [`FUTURE.md`](FUTURE.md) §0.1，**未实现 tier UI**。
-- **自由拍号（2026-10-23）**：`TimingPoint` 增加 `numerator` / `denominator`（`4/4`、`5/6`、`4/3` 都能写），BPM 以四分音符为参照；编辑器 timing 行改成 `N / D` 两个输入，网格按段重算、小节号跨段累加，状态栏实时显示 `N/D · BAR n`；合成鼓组按拍号配重音。旧谱 `beats` 仍兼容。
+- **自由拍号（2026-10-23）**：`TimingPoint` 增加 `numerator` / `denominator`（`4/4`、`5/6`、`4/3` 都能写），BPM 以四分音符为参照；编辑器 timing 行改成 `N / D` 两个输入，网格按段重算、小节号跨段累加，状态栏实时显示 `N/D · BAR n`；SNAP 预设跟着拍号变（5/6 下是 1/6、1/12、1/18…）；合成鼓组按拍号配重音。旧谱 `beats` 仍兼容。
 - **结算评级（2026-10-23）**：Result 改为双栏新版——左栏分数 / 曲名 / 四事实 / 判定条 / 按钮，右栏评级锁版（canvas 复刻，cap 52）+ PERFECT/GOOD/MISS + GOOD TIMING；CLEAR / FAILED 27px。阈值 `<80 D … 99 EQV- / 100 EQV`。
 - **暂停路径确认（2026-10-22）**：Quest 3 浏览器不暴露 menu 键，实际只有左手 Y 长按 400ms 可用；UI 文案与文档同步。
 - **暂缓**：无物量时立即结算，暂不按包内 `meta.duration` 等待；等 Infinity Heaven 谱面补充完成后再处理。
