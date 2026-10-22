@@ -18,7 +18,7 @@ export const SYMBOLS = {
   APX: [{ kind: 'wave' }, { kind: 'wave' }],
   ASM: [{ kind: 'wave' }, { kind: 'line' }],
   CGR: [{ kind: 'wave' }, { kind: 'line' }, { kind: 'line' }],
-  IDN: [{ kind: 'line' }, { kind: 'line' }, { kind: 'line' }],
+  EQV: [{ kind: 'line' }, { kind: 'line' }, { kind: 'line' }],
 };
 
 

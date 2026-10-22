@@ -377,8 +377,8 @@
       };
 
       const GRADES = [
-        { key: 'IDN+', symbol: 'IDN', min: 100, max: 100, name: 'identical+' },
-        { key: 'IDN', symbol: 'IDN', min: 99, max: 100, name: 'identical' },
+        { key: 'EQV', symbol: 'EQV', min: 100, max: 100, name: 'equivalence' },
+        { key: 'EQV-', symbol: 'EQV', min: 99, max: 100, name: 'equivalence' },
         { key: 'CGR', symbol: 'CGR', min: 98, max: 99, name: 'congruent' },
         { key: 'ASM', symbol: 'ASM', min: 97, max: 98, name: 'asymptotic' },
         { key: 'APX', symbol: 'APX', min: 95, max: 97, name: 'approximate' },
@@ -440,7 +440,7 @@
               <div class="r-divider"></div>
               <div class="r-right">
                 <div class="r-grade" data-grade></div>
-                <div class="r-caption">${grade.symbol ? (grade.key === 'IDN+' ? 'IDENTICAL+' : grade.name.toUpperCase()) : `${grade.key} · ${state.accuracy.toFixed(1)}%`}</div>
+                <div class="r-caption">${grade.symbol ? grade.name.toUpperCase() : `${grade.key} · ${state.accuracy.toFixed(1)}%`}</div>
                 <div class="r-rows">
                   <div class="r-row"><span>PERFECT</span><b>${state.perfect}</b></div>
                   <div class="r-row"><span>GOOD</span><b>${state.good}</b></div>

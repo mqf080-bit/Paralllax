@@ -497,8 +497,8 @@ interface GradeMark {
 
 /** 阈值见 FUTURE.md §0.2：<80 D → 80/85/90/95 → 95/97/98/99/100。 */
 const GRADE_STEPS: Array<{ min: number; key: string; symbol: string | null; word: string }> = [
-  { min: 100, key: 'IDN+', symbol: 'IDN', word: 'IDENTICAL+' },
-  { min: 99, key: 'IDN', symbol: 'IDN', word: 'IDENTICAL' },
+  { min: 100, key: 'EQV', symbol: 'EQV', word: 'EQUIVALENCE' },
+  { min: 99, key: 'EQV-', symbol: 'EQV', word: 'EQUIVALENCE' },
   { min: 98, key: 'CGR', symbol: 'CGR', word: 'CONGRUENT' },
   { min: 97, key: 'ASM', symbol: 'ASM', word: 'ASYMPTOTIC' },
   { min: 95, key: 'APX', symbol: 'APX', word: 'APPROXIMATE' },
@@ -512,7 +512,7 @@ const GRADE_SYMBOLS: Record<string, Array<'wave' | 'line'>> = {
   APX: ['wave', 'wave'],
   ASM: ['wave', 'line'],
   CGR: ['wave', 'line', 'line'],
-  IDN: ['line', 'line', 'line'],
+  EQV: ['line', 'line', 'line'],
 };
 
 function gradeFor(accuracy: number): GradeMark {

@@ -71,8 +71,9 @@
   （cap height 的 11.5%）、记号底边离 cap line 0.16 cap；行距按行类型给：
   波浪之间 5% cap，波浪到横线 / 横线之间 5.5% cap；波纹振幅 7.5% cap。
   默认摆法是「整枚记号压在字上方」。
-- 恰好 100% 记为 **`IDN+`**（`IDN` 覆盖 99–100%，`IDN+` 只在满分时出现）。
-- 字母词表待定（当前提案 `APX / ASM / CGR / IDN`）。
+- 恰好 100% 记为 **`EQV`**（`EQV-` 覆盖 99–100%，`EQV` 只在满分时出现）。
+  命名是 equivalence；`IDN`（identical）和三条杠的组合容易读成 IDF 宣传风格，已弃用。
+- 字母词表：`APX / ASM / CGR / EQV`（`EQV` 对应 equivalence）。
 - 其它候选族（仅记录）：
   1. **公差 / 计量**：`FINE` → `TIGHT` → `EXACT` → `ZERO`
   2. **相位锁定**：`SYNC` → `LOCK` → `PHASE` → `COHERENT`

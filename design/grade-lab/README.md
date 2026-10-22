@@ -13,11 +13,11 @@
 
 | 页面 | 内容 |
 | --- | --- |
-| [`index.html`](index.html) | 完整阶梯、四个符号入口、恰好 100% 的 `IDN+`、构造规则 |
+| [`index.html`](index.html) | 完整阶梯、四个符号入口、`EQV-` / `EQV`（100%）、构造规则 |
 | [`apx.html`](apx.html) | `APX` ≈ approximate · 95–97% |
 | [`asm.html`](asm.html) | `ASM` ≃ asymptotic · 97–98% |
 | [`cgr.html`](cgr.html) | `CGR` ≅ congruent · 98–99% |
-| [`idn.html`](idn.html) | `IDN` ≡ identical · 99–100%；恰好 100% 记作 `IDN+` |
+| [`eqv.html`](eqv.html) | `EQV` ≡ equivalence · 99–100%；恰好 100% 记作 `EQV`（`EQV-` 表示 99–100） |
 | [`result.html`](result.html) | 结算画面排版：760×470、评级在右栏、四种状态（满分 / 96% / 98% / FAILED） |
 
 每个字母页都有：大号锁版、三种摆法（above / below / behind）、面板尺度预览、
@@ -45,7 +45,7 @@
 
 ## 没定的部分
 
-- 字母词表：`APX / ASM / CGR / IDN` 是当前提案；
+- 字母词表：`APX / ASM / CGR / EQV`；`EQV` = equivalence。
 - 字体：样张用系统 sans（Space Grotesk 缺失时回退），正式做要选一款 display 字或自绘字形；
 - 动效（波纹收拢 / 评级跳动）不在这个样张里。
 

@@ -83,12 +83,12 @@
         <h2>恰好 100%</h2>
         <div class="idnplus">
           <figure>
-            <div class="lock" data-lock data-variant="above" data-size="130" data-word="IDN"></div>
-            <figcaption><b>IDN</b> · 99–100%</figcaption>
+            <div class="lock" data-lock data-variant="above" data-size="130" data-word="EQV-"></div>
+            <figcaption><b>EQV-</b> · 99–100%</figcaption>
           </figure>
           <figure>
-            <div class="lock" data-lock data-variant="above" data-size="130" data-word="IDN+"></div>
-            <figcaption><b>IDN+</b> · 恰好 100%，只出现一次</figcaption>
+            <div class="lock" data-lock data-variant="above" data-size="130" data-word="EQV"></div>
+            <figcaption><b>EQV</b> · 恰好 100%，只出现一次</figcaption>
           </figure>
         </div>
       </section>
@@ -103,7 +103,7 @@
           </p>
           <p>
             <b>语义参与布局</b>：波纹 = 还没收敛，横线 = 已经落定。整枚记号压在字的上方，
-            从 APX 到 IDN，波纹从两条减到零、横线从零加到三条——记号的“抖动”逐级消失。
+            从 APX 到 EQV，波纹从两条减到零、横线从零加到三条——记号的“抖动”逐级消失。
           </p>
           <p>点进任意一个字母页可以打开「构造网格」，看到 cap line / baseline / 符号行距。</p>
         </div>
@@ -121,13 +121,14 @@
         { key: 'APX', range: '95–97%' },
         { key: 'ASM', range: '97–98%' },
         { key: 'CGR', range: '98–99%' },
-        { key: 'IDN', range: '99–100%' },
+        { key: 'EQV-', range: '99–100%' },
       ];
 
       document.getElementById('ladder').innerHTML = GRADES.map((g) => {
-        const symbol = ['APX', 'ASM', 'CGR', 'IDN'].includes(g.key);
+        const symbol = ['APX', 'ASM', 'CGR', 'EQV', 'EQV-'].includes(g.key);
+        const page = g.key.replace(/[-+]/g, '').toLowerCase();
         return `
-        <a class="step" href="${symbol ? `./${g.key.toLowerCase()}.html` : '#'}">
+        <a class="step" href="${symbol ? `./${page}.html` : '#'}">
           ${symbol ? `<div class="lock" data-lock data-variant="above" data-size="64" data-word="${g.key}"></div>` : `<b class="letter">${g.key}</b>`}
           <span>${g.range}</span>
         </a>`;
@@ -137,7 +138,7 @@
         ['APX', 'approximate', '95–97%'],
         ['ASM', 'asymptotic', '97–98%'],
         ['CGR', 'congruent', '98–99%'],
-        ['IDN', 'identical', '99–100%'],
+        ['EQV', 'equivalence', '99–100%'],
       ];
 
       document.getElementById('cards').innerHTML = CARDS.map(
@@ -152,7 +153,7 @@
       function drawAll() {
         document.querySelectorAll('[data-lock]').forEach((host) => {
           const word = host.dataset.word;
-          const symbol = word.replace('+', '');
+          const symbol = word.replace(/[-+]/g, '');
           renderLockup(host, {
             word,
             symbol,
