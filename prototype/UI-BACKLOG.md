@@ -67,7 +67,7 @@ Home → Songs → Playing → Paused → Settings
 | 计分 | 总分 `10,000,000`；PERFECT 100% / **GOOD 60%** / MISS 0；GOOD 血量 +0.25（PERFECT +0.5）；combo 不计分 |
 | arc 暗度 | 未接住 `0.42`，接上 / 未过线 `1.0`；状态切换立即生效 |
 | 短棒 | `0.18m`；sustain 透明度 `0.28`，关闭 depthWrite；判定点仍在控制器原点 |
-| Combo HUD | 世界固定 `(0, 1.60, −1.80)`；Sprite 宽 `0.26m`；`?comboY` / `?comboZ` 可调；0 时隐藏 |
+| Combo HUD | 世界固定 `(0, 1.80, −2.60)`；Sprite 宽 `0.50m`；离头 1.9m 起淡出、1.1m 消失；`?comboX` / `?comboY` / `?comboZ` 可调；0 时隐藏 |
 | Songs 滚动 | 4 行窗口（行高 `41px`）；摇杆满推约 `7 行/秒`；滚轮不参与 |
 
 `?debug=1` 可在生产页强制显示调试 GUI；注意 immersive VR 不会合成 DOM，lil-gui 只在 2D 页面 / 桌面镜像里可见。

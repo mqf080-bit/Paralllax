@@ -269,7 +269,7 @@ cd prototype && npm run dev
 | `?hitboxX=1.25` `?hitboxZ=1.2` | 调 hit 判定盒空间倍率（不改时间窗；生产页也可用） |
 | `?debug=0` `?debug=1` | 关闭 / 强制打开调试 GUI；检测到 immersive-vr 的浏览器默认打开 |
 | `?panelScale=1.05` `?panelDistance=0.65` `?panelY=1.45` | 调 VR 面板尺寸 / 距离 / 高度（生产也可用） |
-| `?comboY=1.6` `?comboZ=-1.8` | 调 Combo HUD 高度 / 前后位置（生产也可用） |
+| `?comboX=0` `?comboY=1.8` `?comboZ=-2.6` | 调 Combo HUD 左右 / 高度 / 前后位置（生产也可用） |
 | `?vr=1` | 假装在 VR 里（检查 `EXIT VR` 等只在头显出现的元素） |
 | `?menuButton=6` | 改 menu 键的 gamepad 索引（默认 6；读不到时用左手 Y 长按） |
 | `?clock=0` | 关掉音频时钟（无头截图用） |

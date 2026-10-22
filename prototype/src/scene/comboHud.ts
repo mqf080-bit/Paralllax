@@ -23,17 +23,25 @@ export interface ComboHudOptions {
 
 export interface ComboHud {
   group: THREE.Group;
-  /** 每帧调用；`dt` 用于脉冲 / 淡出。 */
-  update(combo: number, dt: number): void;
+  /** 每帧调用；`dt` 用于脉冲 / 近身淡出，`eye` 是头显 / 相机位置。 */
+  update(combo: number, dt: number, eye: THREE.Vector3): void;
   /** 只在游玩中显示；暂停 / 结算 / 主页直接隐藏。 */
   setVisible(visible: boolean): void;
   dispose(): void;
 }
 
 /** 默认位置：台面中线、判定带更远处；世界固定，不跟头走。
- *  抬到 1.6m 是因为 1.5m 以下会压住近处飞来的 note；这个高度只和头顶附近的 arc 相撞。 */
-export const DEFAULT_COMBO_PLACEMENT = { x: 0, y: 1.6, z: -1.8 } as const;
-const DEFAULT_WIDTH = 0.26;
+ *  两个约束：
+ *  1) 高于玩家眼高（约 1.6m）与谱面最高点（0.95 + 0.81 = 1.76m）——正前方视线高度是看 note 的方向，
+ *     放在那里会被读成「贴在脸上」；
+ *  2) 离玩家至少 2.5m 以上，并在玩家贴近时淡出（见 NEAR_FADE）——打谱时人会前倾，
+ *     固定 HUD 不能因此怼到脸上。 */
+export const DEFAULT_COMBO_PLACEMENT = { x: 0, y: 1.8, z: -2.6 } as const;
+const DEFAULT_WIDTH = 0.5;
+
+/** 头离 HUD 多近就开始淡出 / 完全消失（米）。 */
+const NEAR_FADE_START = 1.9;
+const NEAR_FADE_END = 1.1;
 
 const TEXTURE_W = 640;
 const TEXTURE_H = 320;
@@ -99,15 +107,15 @@ export function createComboHud(options: ComboHudOptions = {}): ComboHud {
     ctx.textBaseline = 'middle';
 
     // 标签：拉开字距，读起来像仪表，不像标题。
-    ctx.font = `600 12px ${MONO}`;
+    ctx.font = `600 19px ${MONO}`;
     const spacing = ctx as CanvasRenderingContext2D & { letterSpacing?: string };
     try {
-      spacing.letterSpacing = '3px';
+      spacing.letterSpacing = '4px';
     } catch {
       // 老浏览器不支持 letterSpacing，保持默认。
     }
     ctx.fillStyle = LABEL_COLOR;
-    ctx.fillText('COMBO', LOGICAL_W / 2, 26, LOGICAL_W - 16);
+    ctx.fillText('COMBO', LOGICAL_W / 2, 24, LOGICAL_W - 16);
     try {
       spacing.letterSpacing = '0px';
     } catch {
@@ -116,12 +124,12 @@ export function createComboHud(options: ComboHudOptions = {}): ComboHud {
 
     // 数字：宽度不够时缩字号，不换行。
     const digits = String(combo);
-    const size = digits.length >= 4 ? 62 : digits.length === 3 ? 76 : 88;
+    const size = digits.length >= 4 ? 64 : digits.length === 3 ? 80 : 92;
     ctx.font = `700 ${size}px ${MONO}`;
     ctx.shadowColor = GLOW_COLOR;
-    ctx.shadowBlur = 16;
+    ctx.shadowBlur = 14;
     ctx.fillStyle = NUMBER_COLOR;
-    ctx.fillText(digits, LOGICAL_W / 2, 98, LOGICAL_W - 12);
+    ctx.fillText(digits, LOGICAL_W / 2, 100, LOGICAL_W - 12);
     ctx.shadowBlur = 0;
 
     // 一条极细的亮线收底，避免数字悬空。
@@ -143,7 +151,7 @@ export function createComboHud(options: ComboHudOptions = {}): ComboHud {
   return {
     group,
 
-    update(combo: number, dt: number): void {
+    update(combo: number, dt: number, eye: THREE.Vector3): void {
       const next = Math.max(0, Math.round(combo));
       if (next !== value) {
         if (next > value) pulse = 1;
@@ -155,13 +163,22 @@ export function createComboHud(options: ComboHudOptions = {}): ComboHud {
       pulse = Math.max(0, pulse - dt / PULSE_TIME);
       applyScale();
 
-      const target = active && shown > 0 ? 1 : 0;
+      // 玩家前倾 / 走近时淡出，避免 HUD 贴在脸上或被头穿过去。
+      const distance = eye.distanceTo(group.position);
+      const near =
+        distance >= NEAR_FADE_START
+          ? 1
+          : distance <= NEAR_FADE_END
+            ? 0
+            : (distance - NEAR_FADE_END) / (NEAR_FADE_START - NEAR_FADE_END);
+
+      const target = active && shown > 0 && near > 0 ? 1 : 0;
       const rate = target > alpha ? 22 : 14;
       alpha += (target - alpha) * Math.min(1, dt * rate);
       if (alpha < 0.004 && target === 0) alpha = 0;
 
-      material.opacity = alpha * 0.97;
-      sprite.visible = alpha > 0.004;
+      material.opacity = alpha * 0.97 * near;
+      sprite.visible = alpha > 0.004 && near > 0;
     },
 
     setVisible(visible: boolean): void {

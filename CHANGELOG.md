@@ -5,7 +5,8 @@
 ### UI
 
 - Songs 列表超过 4 首可滚动：控制器摇杆上下推（`hands.stickY`，兼容 axes[3] / axes[1]），另有 ↑/↓ 箭头与滚动条；计数显示 `n–m / total`，换歌自动把选中项滚进视野。
-- 游玩中新增独立 Combo HUD（`src/scene/comboHud.ts`）：世界固定在判定带中线正上方，大数字 + 小标签；0 时隐藏、MISS 快速淡出、命中轻微脉冲；只在 combo 变化时重绘纹理；`?comboY` / `?comboZ` 可调。
+- 游玩中新增独立 Combo HUD（`src/scene/comboHud.ts`）：世界固定在轨道上方 `(0, 1.8, −2.6)`，大数字 + 小标签；0 时隐藏、MISS 快速淡出、命中轻微脉冲；只在 combo 变化时重绘纹理；`?comboX` / `?comboY` / `?comboZ` 可调。
+- 修复 Combo HUD 出现在玩家头里的问题：`?comboZ` 缺省时 `Number(null) === 0`，把位置读成了 `(0, 0, 0)`；缺参数现在按 `null` 处理，不覆盖默认位置。同时加「离头 1.9m 起淡出、1.1m 完全消失」，避免前倾时怼到脸上。
 - Quest 3 上 menu 键不暴露给 WebXR，暂停实际只走左手 Y 长按 400ms；面板 footer / 首页提示文案改为 `Y HOLD = PAUSE`，诊断提示同步。
 - 进入 VR 先到主页，不再自动开谱；主页显示当前谱面信息，`START` 后播放；
 - 游玩中移除常驻 `SETTINGS / PAUSE / RETRY` 控制条，面板点击只在主页 / 暂停 / 设置 / 结算时生效；

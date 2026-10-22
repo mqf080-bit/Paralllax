@@ -602,12 +602,21 @@ let displayTextures = createDisplayTextures({
 let display = buildDisplay(displayTextures, displayPlacement);
 scene.add(display.group);
 
-// Combo HUD：世界固定，浮在判定带中线正上方。位置可用 ?comboY / ?comboZ 在头显里微调。
+// Combo HUD：世界固定，浮在轨道上方的天空里。位置可用 ?comboX / ?comboY / ?comboZ 在头显里微调。
 const comboPlacement: { x: number; y: number; z: number } = { ...DEFAULT_COMBO_PLACEMENT };
-const comboYParam = Number(bootQuery.get('comboY'));
-if (Number.isFinite(comboYParam) && comboYParam > 0) comboPlacement.y = comboYParam;
-const comboZParam = Number(bootQuery.get('comboZ'));
-if (Number.isFinite(comboZParam)) comboPlacement.z = comboZParam;
+// 注意 `Number(null) === 0`：缺参数时必须返回 null，否则 combo 会被挪到 (0, 0, 0) —— 也就是玩家头里。
+const comboNum = (key: string): number | null => {
+  const raw = bootQuery.get(key);
+  if (raw === null || raw.trim() === '') return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+const comboX = comboNum('comboX');
+if (comboX !== null) comboPlacement.x = comboX;
+const comboY = comboNum('comboY');
+if (comboY !== null && comboY > 0) comboPlacement.y = comboY;
+const comboZ = comboNum('comboZ');
+if (comboZ !== null) comboPlacement.z = comboZ;
 const comboHud = createComboHud(comboPlacement);
 scene.add(comboHud.group);
 
@@ -1299,7 +1308,7 @@ renderer.setAnimationLoop((frameTime: number) => {
   });
   // Combo HUD 只看流程，不看冻结：截图 / 冻结时它仍应该显示当前 combo。
   comboHud.setVisible(flow === 'playing');
-  comboHud.update(scoreView.combo, dt);
+  comboHud.update(scoreView.combo, dt, camera.position);
 
   const { perfect, good, miss, lastGrade, lastOffsetMs } = playfield.stats;
   const gradeRow = `${perfect} / ${good} / ${miss}`;

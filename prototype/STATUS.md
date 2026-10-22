@@ -46,7 +46,7 @@
 - **手腕短棒（2026-10-22）**：两只控制器各加一根 0.18m 短棒；默认与 hit 时全亮，接住 hold / arc 时淡到 0.28。WebXR 浏览器现在也会显示调试 GUI，`?debug=0` 可关。hit perfect 改为 early -100ms / late +80ms，good 为 early -140ms / late +160ms；引导网同步为不对称 full 窗口。
 - **手感验收（2026-10-22）**：用户反馈「手感基本合格」。计分仍为 PERFECT 100% / GOOD 60% / MISS 0；GOOD 血量 +0.25（PERFECT 的一半），combo 两者都 +1 但不计分。
 - **Songs 滚动（2026-10-22）**：列表从固定 4 行改为 4 行窗口 + 摇杆滚动（`hands.stickY`，axes[3] / axes[1]）；另有 ↑/↓ 箭头、滚动条、`n–m / total` 计数；换歌自动把选中项滚进视野。
-- **Combo HUD（2026-10-22）**：[`src/scene/comboHud.ts`](src/scene/comboHud.ts) 世界固定 Sprite，位置 `(0, 1.60, −1.80)`（1.5m 以下会压住近处 note）；大数字 + 小标签；0 隐藏、MISS 快速淡出、命中轻微脉冲；只在 combo 变化时重绘纹理；`?comboY` / `?comboZ` 可调。
+- **Combo HUD（2026-10-22）**：[`src/scene/comboHud.ts`](src/scene/comboHud.ts) 世界固定 Sprite，位置 `(0, 1.80, −2.60)`（高于眼高与最高 note；玩家靠近 1.9m 内淡出）；大数字 + 小标签；0 隐藏、MISS 快速淡出、命中轻微脉冲；只在 combo 变化时重绘纹理；`?comboY` / `?comboZ` 可调。
 - **暂停路径确认（2026-10-22）**：Quest 3 浏览器不暴露 menu 键，实际只有左手 Y 长按 400ms 可用；UI 文案与文档同步。
 - **暂缓**：无物量时立即结算，暂不按包内 `meta.duration` 等待；等 Infinity Heaven 谱面补充完成后再处理。
 

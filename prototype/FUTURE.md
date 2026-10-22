@@ -112,7 +112,7 @@
 
 已落地（[`src/scene/comboHud.ts`](src/scene/comboHud.ts)）：
 
-- 独立 Sprite，世界固定在判定带更远处的中线上方 `(0, 1.60, −1.80)`；不跟头，不做头锁 HUD；
+- 独立 Sprite，世界固定在轨道上方 `(0, 1.80, −2.60)`；不跟头，不做头锁 HUD；玩家贴近时淡出；
 - 大数字（mono）+ 小 `COMBO` 标签；数字变化时轻微脉冲；0 时隐藏，MISS 快速淡出；
 - 不参与计分；浮空显示里的 `COMBO n` 保留为信息板的一部分；
 - CanvasTexture 只在 combo 变化时重绘；
