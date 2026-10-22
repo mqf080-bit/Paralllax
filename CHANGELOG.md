@@ -4,10 +4,13 @@
 
 ### UI
 
+- Songs 列表超过 4 首可滚动：控制器摇杆上下推（`hands.stickY`，兼容 axes[3] / axes[1]），另有 ↑/↓ 箭头与滚动条；计数显示 `n–m / total`，换歌自动把选中项滚进视野。
+- 游玩中新增独立 Combo HUD（`src/scene/comboHud.ts`）：世界固定在判定带中线正上方，大数字 + 小标签；0 时隐藏、MISS 快速淡出、命中轻微脉冲；只在 combo 变化时重绘纹理；`?comboY` / `?comboZ` 可调。
+- Quest 3 上 menu 键不暴露给 WebXR，暂停实际只走左手 Y 长按 400ms；面板 footer / 首页提示文案改为 `Y HOLD = PAUSE`，诊断提示同步。
 - 进入 VR 先到主页，不再自动开谱；主页显示当前谱面信息，`START` 后播放；
 - 游玩中移除常驻 `SETTINGS / PAUSE / RETRY` 控制条，面板点击只在主页 / 暂停 / 设置 / 结算时生效；
 - 暂停改为统一层级：`RESUME / RESTART / SETTINGS / HOME`，设置是暂停的二级页；
-- 左手 menu 键优先打开暂停，读不到时用左手 Y 长按 400ms 兜底；桌面 `Esc`；
+- 暂停请求：左手 menu 键优先（实际读不到），Y 长按 400ms 兜底；桌面 `Esc`；
 - 结算改为 `RETRY / HOME`；
 - 新增 dev 参数 `?autostart=1`、`?panel=home|paused|settings|result`、`?menuButton=N`。
 - P1 A 第一版：面板拉近到约 0.86–0.9m，改为石墨表面 + 浅蓝主强调 + lime 稀有状态；主页 / 暂停 / 设置各 5 行；新增 `Songs` 面板与加包提示；新增 `?panel=songs` / `?vr=1`。

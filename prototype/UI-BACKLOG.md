@@ -9,8 +9,9 @@
 
 - 进 VR 先到 **Home**，不自动播放；`START` 才进入谱面。
 - 六屏：Home / Songs / Add packs / Pause / Settings / Result。
-- 游玩中无面板；暂停用左手 menu，读不到时用 **左手 Y 长按 400ms** 兜底；桌面 `Esc`。
+- 游玩中无面板；暂停**只走左手 Y 长按 400ms**——Quest 3 浏览器不把 menu 键暴露给 WebXR，menu 分支保留但不指望；桌面 `Esc`。
 - 用户已认可当前双栏布局；“手感基本合格”。
+- Songs 超过 4 首可滚动（摇杆优先）；游玩中有独立 Combo HUD。
 - 设计语言：石墨底 + 浅蓝 `#9CC8FF` 主强调 + 稀有 lime `#C6F24E`；**全方角，无圆角**。
 - 不是“辅助 / 极简”，而是**信息量大的技术控制台**。
 
@@ -39,6 +40,8 @@ Home → Songs → Playing → Paused → Settings
 | 流程 | 不再自动开谱；Home / Songs / Pause / Settings / Result 状态机完整；切歌会重建 Player、音频、浮空显示 |
 | 输入安全 | 游玩中 `GameUi` 不接收点击；hold 的扳机与 UI 点击分离；切面板有 `pressLock` |
 | 六屏 | 双栏、可选歌曲列表、Add packs 二级页、Settings 六个真实控件、Result 判定条 + GOOD early/late |
+| Songs 滚动 | 超过 4 首时列表滚动：**摇杆上下推**为主路径；另有 ↑/↓ 箭头、滚动条、`n–m / total` 计数；换歌自动把选中项滚进视野 |
+| Combo HUD | 游玩中独立数字 HUD，世界固定在判定带中线上方；0 时隐藏，MISS 快速淡出；只做反馈，不计分 |
 | 面板 | 1.55m / 1.35m；`?panelScale`、`?panelDistance`、`?panelY` 可调；去圆角 / 去拟物 |
 | 曲库 | 内置谱 + `packages/index.json` 懒加载；选中后才下载 `.parallax`；18MB 包有 loading 覆盖层 |
 | 包 offset | `meta.offset` → 隐藏的 `chartOffsetMs`；玩家 Settings 的 Offset 独立，不被包覆盖 |
@@ -64,6 +67,8 @@ Home → Songs → Playing → Paused → Settings
 | 计分 | 总分 `10,000,000`；PERFECT 100% / **GOOD 60%** / MISS 0；GOOD 血量 +0.25（PERFECT +0.5）；combo 不计分 |
 | arc 暗度 | 未接住 `0.42`，接上 / 未过线 `1.0`；状态切换立即生效 |
 | 短棒 | `0.18m`；sustain 透明度 `0.28`，关闭 depthWrite；判定点仍在控制器原点 |
+| Combo HUD | 世界固定 `(0, 1.60, −1.80)`；Sprite 宽 `0.26m`；`?comboY` / `?comboZ` 可调；0 时隐藏 |
+| Songs 滚动 | 4 行窗口（行高 `41px`）；摇杆满推约 `7 行/秒`；滚轮不参与 |
 
 `?debug=1` 可在生产页强制显示调试 GUI；注意 immersive VR 不会合成 DOM，lil-gui 只在 2D 页面 / 桌面镜像里可见。
 
@@ -74,17 +79,22 @@ Home → Songs → Playing → Paused → Settings
 | ID | 优先级 | 问题 | 说明 |
 | --- | --- | --- | --- |
 | UI-03 | P1 | 没有完整的游玩前校准 | Settings 已可从 Home / Pause 打开；仍缺 offset 试听、试打、身高校准、左右手 / 站姿、设置持久化 |
-| UI-12 | P1 | 曲目超过 4 首 | Songs 没有滚动 / 分页；当前索引 + 内置谱刚好够用 |
 | UI-13 | P2 | 包索引手工维护 | 重新导出 `.parallax` 后要手动更新 `index.json` 的 duration / notes / bpm 等；选中后会以包内 chart 为准 |
 | UI-14 | P2 | 本地包管理 | 没有移除 / 重命名；IndexedDB 按 origin 隔离，localhost 加的包不会出现在 pages.dev |
 | UI-15 | P2 | 无物量谱面立即结束 | 还没有按 `meta.duration` 等待；等 Infinity Heaven 补完再处理 |
-| UI-16 | P1 | Quest 3 主观验收 | 面板距离 / 字号、`buttons[6]` 是否真是 menu、hold 时是否还会误触、arc `0.42` 暗度 |
-| UI-18 | P1 | 游玩时没有独立 Combo HUD | 浮空显示里有 30px `COMBO n`，但位置偏右，不作为游玩主 HUD；计划见 [`FUTURE.md`](FUTURE.md) §0.5 |
 | FEEL-04 | P2 | 短棒与判定点 | 短棒只是视觉提示；如果玩家自然用棒尖打，需确认 0.18m 的偏移是否会造成手感偏差 |
-| FEEL-05 | P2 | early 分布 | 当前 perfect `-100/+80`、good `-140/+160`；根据结算的 EARLY / LATE 再决定是否继续收 / 放 |
-| FEEL-06 | P2 | 音色主观确认 | hit 双层音、drag 轻击仍需 Quest 3 上确认音量与“不尖” |
 
-“待办”不代表都要做；UI-03 / UI-12 / UI-16 是下一步最有价值的。
+“待办”不代表都要做；UI-03 是下一步最有价值的。
+
+### 4.1 已关闭（2026-10-22）
+
+| ID | 结论 |
+| --- | --- |
+| UI-12 | **已实现**：Songs 超过 4 首时摇杆滚动 + ↑/↓ 箭头 + 滚动条；选中项自动滚进视野 |
+| UI-16 | **已关闭**：Quest 3 头显实测完成——0.70m 判定线、Y 长按暂停、hold 未再报误触；`buttons[6]` 确认读不到，不再依赖 |
+| UI-18 | **已实现**：独立 Combo HUD（见 §3）；浮空显示里的 `COMBO n` 保留为信息板的一部分 |
+| FEEL-05 | **结束观察**：perfect `-100/+80`、good `-140/+160` 用户判定手感合格，不再收 / 放 |
+| FEEL-06 | **结束观察**：用户确认 hit 双层音 / drag 轻击音量与音色可用 |
 
 ---
 
@@ -97,15 +107,19 @@ Home → Songs → Playing → Paused → Settings
 - **3D 反馈不用 2D 环**：hit 直接碎裂；arc 用明暗 + 接触光表达连接。
 - **短棒只做视觉引导**：不移动手部采样点；是否用棒尖是后续试打问题。
 - **GOOD 不是一半**：分数 / 准确率都是 60%；只有血量是 PERFECT 的一半。
+- **列表滚动用摇杆**：Quest 上没有滚轮，鼠标离面板 1.35m 也够不到；摇杆是主路径，箭头只是兜底。
+- **Combo HUD 世界固定**：不做头锁 HUD；数字是主视觉，不做演出，不参与计分。
 
 ---
 
 ## 6. 验收与证据
 
 - `npm run typecheck` / `npm run build` 通过。
-- 六屏截图：[`docs/ui-vr2`](../docs/ui-vr2)；hit / arc / debug 截图也在同一目录。
-- 已做过的桌面验证：主页 → 游玩 → 暂停 → Settings → Back；Songs 切歌；懒加载 18MB 包；hitbox GUI；WebXR 页调试 GUI。
-- 尚未闭环：Quest 3 内真实可读性、menu 键、hold 误触、短棒 / 棒尖手感、arc 暗度、Good 分布。
+- 六屏截图：[`docs/ui-vr2`](../docs/ui-vr2)；hit / arc / debug / combo / songs 滚动截图也在同一目录
+  （`combo-hud.png`、`songs-scroll.png`、`songs-panel.png`）。
+- 已做过的桌面验证：主页 → 游玩 → 暂停 → Settings → Back；Songs 切歌 / 滚动；懒加载 18MB 包；hitbox GUI；WebXR 页调试 GUI。
+- 已闭环（2026-10-22 头显）：判定线 0.70m、暂停 Y 长按、hold 误触、arc `0.42` 暗度、Good 分布、打击音色。
+- 仍未闭环：短棒 / 棒尖手感（FEEL-04）、Songs 滚动在头显里的手速（新功能，待下一次试玩）。
 
 ---
 
@@ -114,5 +128,6 @@ Home → Songs → Playing → Paused → Settings
 - **2026-10-20**：P0 流程 / 输入安全；六屏双栏 UI；1.55m / 1.35m 面板；包索引 + 懒加载；arc 流速 / 包 offset 分离。
 - **2026-10-21**：hit 音效、early/late、竖直引导网；hit 重新设计（独立 `design/hit-lab/`，最终 slim sandwich）与陶瓷碎裂；arc 连接反馈。
 - **2026-10-22**：默认判定线 `0.80 → 0.70m`；hitbox X/Z 调试 + 手部球放大；WebXR 页面显示调试 GUI；手腕短棒；perfect / good early 窗口收窄；用户确认手感基本合格。
+- **2026-10-22（晚）**：Songs 摇杆滚动（UI-12）、独立 Combo HUD（UI-18）；确认 Quest 3 只能 Y 长按暂停；关闭 UI-16 / FEEL-05 / FEEL-06。
 
 更细的过程记录已从 backlog 移除，保留在 git 历史与 [CHANGELOG.md](../CHANGELOG.md)。

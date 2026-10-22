@@ -105,11 +105,12 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 | 做什么 | 怎么做 |
 | --- | --- |
 | 开始 | 进 VR 后在主页点 `START`；不再自动开谱 |
-| 选歌 / 加包 | 主页 `Songs` 读取 `public/packages/index.json`，包条目在选中后才下载 `.parallax`；`How to add packs` 看 Desktop / Drag / Folder / URL 四种方式 |
+| 选歌 / 加包 | 主页 `Songs` 读取 `public/packages/index.json`，包条目在选中后才下载 `.parallax`；**超过 4 首用摇杆上下推滚动**（也有 ↑/↓ 箭头）；`How to add packs` 看 Desktop / Drag / Folder / URL 四种方式 |
 | 打键 | 手扫过判定带（hit 要速度 + 位移，drag 只要扫过，hold 要按住扳机 / 侧握） |
 | 打 arc | 手跟着弧走；弧上的黄铜珠是**关键物量**，必须进体积判定 |
+| 看 combo | 判定带中线正上方的独立数字 HUD；断连立即消失 |
 | 点 UI | 手柄指向面板，**扣扳机**；靠近了直接伸手戳也行 |
-| 暂停 | 左手柄 **menu** 键，或 **左手 Y 长按 400ms**；桌面按 `Esc` |
+| 暂停 | **左手 Y 长按 400ms**（Quest 3 浏览器不暴露 menu 键）；桌面按 `Esc` |
 | 暂停里的操作 | `RESUME / RESTART / SETTINGS / HOME`；设置是暂停的二级页 |
 
 音频：没有音轨资产，默认按谱面的 `timing` **现场合成鼓组**。想听真曲子，把文件放到
@@ -137,7 +138,7 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 `?chart=/charts/air-example.json` 空中 note / 显式 arc 物量 · `?auto=1` 自动完美演示 ·
 `?autostart=1` 跳过主页 · `?freeze=1` 冻结 · `?warp=2.4` 快进 · `?flow=4` 流速 · `?shift=left|right` ·
 `?panel=home|songs|packs|paused|settings|result` 摊开面板 · `?menuButton=6` 改 menu 键索引 · `?clock=0` 关掉音频时钟 ·
-`?offset=20&volume=0.6&lead=2000` 音频参数 · `?audio=/track.mp3` 真实音轨 · `?chrome=0` 隐藏桌面调试覆盖层 · `?panelScale=1.05&panelDistance=0.65&panelY=1.45` 调面板 · `?lane=0.27&band=0.70` 调轨宽 / 判定带 · `?hitboxX=1.25&hitboxZ=1.2` 调 hit 判定盒的空间倍率（不改时间窗） · `?debug=0` 关闭调试 GUI；WebXR 浏览器默认显示，`?debug=1` 可强制打开。
+`?offset=20&volume=0.6&lead=2000` 音频参数 · `?audio=/track.mp3` 真实音轨 · `?chrome=0` 隐藏桌面调试覆盖层 · `?panelScale=1.05&panelDistance=0.65&panelY=1.45` 调面板 · `?comboY=1.6&comboZ=-1.8` 调 Combo HUD · `?lane=0.27&band=0.70` 调轨宽 / 判定带 · `?hitboxX=1.25&hitboxZ=1.2` 调 hit 判定盒的空间倍率（不改时间窗） · `?debug=0` 关闭调试 GUI；WebXR 浏览器默认显示，`?debug=1` 可强制打开。
 
 ## 脚本
 
@@ -182,7 +183,7 @@ prototype/
 - **72fps**：Quest 3 头显实测 72Hz+（用户验收）。
 - **音频**：「调度路径」验过，听感需要戴上确认；偏早 / 偏晚用 `AUDIO OFFSET` 微调。
 - 自动演示现在是直接完美判定，不再模拟手。
-- **菜单键**：优先读 `gamepad.buttons[6]`，读不到时用左手 Y 长按 400ms；需要在 Quest 3 上确认哪个索引真的可用。
+- **菜单键**：Quest 3 浏览器不把 menu 键暴露给 WebXR（`buttons[6]` 读不到），实际用**左手 Y 长按 400ms**；代码保留 menu 分支，`?menuButton=N` 可继续试。
 - **暂停 / 设置**：游玩中已没有常驻按钮；面板交互只在主页 / 暂停 / 设置 / 结算时接收射线。
 - 制谱器：音频 / 封面文件不持久化到草稿，但会进 `.parallax` 包；慢放 / 倒放静音；多选只覆盖 note；没有框选 / 复制粘贴 / 自动 BPM 检测；
   3D 里 arc 点的时间仍要在 2D / 检查器改。

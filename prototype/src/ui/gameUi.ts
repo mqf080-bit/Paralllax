@@ -91,7 +91,12 @@ export interface GameUi {
   showPaused(score: ScoreView, timeMs: number): void;
   showSettings(): void;
   showResult(score: ScoreView): void;
-  update(camera: THREE.PerspectiveCamera, hands: HandSample[], score: ScoreView): GameUiAction;
+  update(
+    camera: THREE.PerspectiveCamera,
+    hands: HandSample[],
+    score: ScoreView,
+    input?: { stick: number; dt: number },
+  ): GameUiAction;
   debugShowPanel(name: 'home' | 'songs' | 'packs' | 'paused' | 'settings' | 'result', score: ScoreView): void;
   dispose(): void;
 }
@@ -113,6 +118,13 @@ const RIGHT_W = 188;
 const GAP = 18;
 const LEFT_W = CONTENT_W - RIGHT_W - GAP;
 const RIGHT_X = W - M - RIGHT_W;
+
+/** Songs 列表一次显示几行；超过就滚动（摇杆 / 箭头）。 */
+const SONGS_ROWS = 4;
+/** 摇杆推到满时每秒滚几行。 */
+const SONGS_SCROLL_ROWS_PER_SEC = 7;
+/** 小于这个量就当作手没碰摇杆，避免漂移。 */
+const STICK_EPSILON = 0.12;
 
 const INK = {
   text: '#F2F8FF',
@@ -300,7 +312,7 @@ function drawHeader(ctx: CanvasRenderingContext2D): void {
 function drawFooter(ctx: CanvasRenderingContext2D): void {
   rule(ctx, 0, H - FOOTER_H, W);
   text(ctx, 'PARALLAX / MENU', M, H - FOOTER_H / 2, 10, 500, INK.faint, 'left', MONO);
-  text(ctx, 'MENU / Y HOLD = PAUSE', W - M, H - FOOTER_H / 2, 10, 500, INK.faint, 'right', MONO);
+  text(ctx, 'Y HOLD = PAUSE', W - M, H - FOOTER_H / 2, 10, 500, INK.faint, 'right', MONO);
 }
 
 function drawEyebrow(
@@ -634,12 +646,37 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
   };
   let songs: SongView[] = [];
   let selectedSongId = '';
+  let songsScroll = 0;
+  let songsScrollCarry = 0;
   let pauseScore: ScoreView | null = null;
   let pauseTimeMs = 0;
   let resultScore: ScoreView | null = null;
   let pressLock = false;
   let lastScreenKey = '';
   let beamBoost = 0;
+
+  function maxSongScroll(): number {
+    return Math.max(0, songs.length - SONGS_ROWS);
+  }
+
+  function setSongsScroll(next: number): void {
+    const clamped = clamp(Math.round(next), 0, maxSongScroll());
+    if (clamped === songsScroll) return;
+    songsScroll = clamped;
+    panel.redraw();
+  }
+
+  function scrollSongs(rows: number): void {
+    setSongsScroll(songsScroll + rows);
+  }
+
+  /** 选中项被换到列表外时，把列表滚到能看见它。 */
+  function revealSong(id: string): void {
+    const index = songs.findIndex((song) => song.id === id);
+    if (index < 0) return;
+    if (index < songsScroll) setSongsScroll(index);
+    else if (index >= songsScroll + SONGS_ROWS) setSongsScroll(index - SONGS_ROWS + 1);
+  }
 
   function songDetail(): SongView {
     return songs.find((song) => song.id === selectedSongId) ?? chartInfo;
@@ -715,7 +752,7 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
     ctx.fillStyle = INK.accent;
     ctx.fillRect(RIGHT_X, 384, 5, 5);
     text(ctx, 'AUDIO / SYNTH', RIGHT_X + 13, 387, 10, 500, INK.faint, 'left', MONO);
-    text(ctx, 'MENU / Y HOLD', RIGHT_X, 404, 10, 500, INK.faint, 'left', MONO);
+    text(ctx, 'Y HOLD / PAUSE', RIGHT_X, 404, 10, 500, INK.faint, 'left', MONO);
     drawFooter(ctx);
     return spots;
   }
@@ -725,38 +762,78 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
     rule(ctx, M, BODY_TOP, 480);
     const listX = M;
     const listW = 480;
+    const rowW = listW - 18;
     const rowY = 80;
     const rowH = 41;
+    const rows = SONGS_ROWS;
+    const overflow = maxSongScroll();
+    const first = clamp(Math.round(songsScroll), 0, overflow);
+    const visible = songs.slice(first, first + rows);
     const spots: PanelHotspot[] = [];
 
     drawEyebrow(ctx, '02', 'Library', listX, 62);
-    text(ctx, String(songs.length).padStart(2, '0'), listX + listW, 62, 10, 500, INK.faint, 'right', MONO);
 
-    const visible = songs.slice(0, 4);
+    // 头部右侧：范围计数 + 两个翻页箭头（摇杆是主路径，箭头给激光笔 / 桌面）。
+    const arrowW = 20;
+    const arrowGap = 2;
+    const arrowY = 54;
+    const arrowRight = listX + listW;
+    const rangeText =
+      overflow > 0
+        ? `${String(first + 1).padStart(2, '0')}–${String(first + visible.length).padStart(2, '0')} / ${String(songs.length).padStart(2, '0')}`
+        : String(songs.length).padStart(2, '0');
+    text(
+      ctx,
+      rangeText,
+      overflow > 0 ? arrowRight - (arrowW * 2 + arrowGap) - 8 : arrowRight,
+      62,
+      10,
+      500,
+      INK.faint,
+      'right',
+      MONO,
+    );
+
+    if (overflow > 0) {
+      const up = drawButton(
+        ctx,
+        state,
+        { id: 'songs-up', x: arrowRight - arrowW * 2 - arrowGap, y: arrowY, w: arrowW, h: 16 },
+        '↑',
+        { tone: 'quiet', size: 11, center: true, disabled: first <= 0 },
+      );
+      const down = drawButton(
+        ctx,
+        state,
+        { id: 'songs-down', x: arrowRight - arrowW, y: arrowY, w: arrowW, h: 16 },
+        '↓',
+        { tone: 'quiet', size: 11, center: true, disabled: first >= overflow },
+      );
+      if (first > 0) spots.push(up);
+      if (first < overflow) spots.push(down);
+
+      // 滚动条：一直显示，位置就是「现在在第几屏」。
+      const trackX = listX + listW - 6;
+      const trackH = rows * rowH - 1;
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      ctx.fillRect(trackX, rowY, 3, trackH);
+      const thumbH = Math.max(18, (trackH * rows) / songs.length);
+      const thumbY = rowY + (trackH - thumbH) * (first / overflow);
+      ctx.fillStyle = INK.accent;
+      ctx.fillRect(trackX, thumbY, 3, thumbH);
+    }
+
     visible.forEach((song, index) => {
       const spot = {
         id: `song:${song.id}`,
         x: listX,
         y: rowY + index * rowH,
-        w: listW,
+        w: rowW,
         h: rowH - 1,
       };
-      drawSongRow(ctx, state, spot, song, song.id === selectedSongId, String(index + 1).padStart(2, '0'));
+      drawSongRow(ctx, state, spot, song, song.id === selectedSongId, String(first + index + 1).padStart(2, '0'));
       spots.push(spot);
     });
-    if (songs.length > visible.length) {
-      text(
-        ctx,
-        `+${songs.length - visible.length} more`,
-        listX + 12,
-        rowY + visible.length * rowH + 7,
-        10,
-        500,
-        INK.faint,
-        'left',
-        MONO,
-      );
-    }
 
     drawDensity(ctx, songDetail(), listX, 262, listW);
     rule(ctx, listX, 310, listW);
@@ -1195,6 +1272,7 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
       mode,
       selectedSongId,
       songs.length,
+      songsScroll,
       chartInfo.id,
       settings.flowSpeed,
       audio.offsetMs,
@@ -1296,6 +1374,9 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
     setSongs(next: SongView[], selectedId: string): void {
       songs = next;
       selectedSongId = songs.some((song) => song.id === selectedId) ? selectedId : (songs[0]?.id ?? '');
+      songsScroll = clamp(songsScroll, 0, maxSongScroll());
+      revealSong(selectedSongId);
+      songsScrollCarry = 0;
       panel.redraw();
     },
 
@@ -1329,13 +1410,27 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
       setScreen(drawResult);
     },
 
-    update(camera, hands, _score): GameUiAction {
+    update(camera, hands, _score, input): GameUiAction {
       panel.aimAt(camera.position);
 
       if (mode === 'playing') {
         beam.visible = false;
         reticle.visible = false;
         return null;
+      }
+
+      // 摇杆滚列表：连续量按行累积，推满约 7 行/秒；死区已在 hands 里做过。
+      const stick = input?.stick ?? 0;
+      const dt = input?.dt ?? 0;
+      if (mode === 'songs' && dt > 0 && Math.abs(stick) > STICK_EPSILON && maxSongScroll() > 0) {
+        songsScrollCarry += stick * dt * SONGS_SCROLL_ROWS_PER_SEC;
+        const whole = Math.trunc(songsScrollCarry);
+        if (whole !== 0) {
+          songsScrollCarry -= whole;
+          scrollSongs(-whole);
+        }
+      } else {
+        songsScrollCarry = 0;
       }
 
       const anyPressed = hands.some((hand) => hand.pressed);
@@ -1369,6 +1464,14 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
           selectedSongId = clicked.slice(5);
           panel.redraw();
           return clicked as `song:${string}`;
+        }
+        if (clicked === 'songs-up') {
+          scrollSongs(-1);
+          return null;
+        }
+        if (clicked === 'songs-down') {
+          scrollSongs(1);
+          return null;
         }
         if (clicked === 'add-packs') {
           showPacksNow();

@@ -42,6 +42,12 @@ export interface Hands {
   readonly samples: HandSample[];
   /** 这一帧是否有「菜单 / 暂停」请求（左手 Y 长按或可配置的 menu 键）。 */
   readonly menuRequested: boolean;
+  /**
+   * 摇杆竖直轴：向上推 = +1，向下推 = -1，已过死区。
+   * 两只手都有摇杆时取偏移更大的那只；桌面 fallback 恒为 0。
+   * 只给 UI 滚列表用，判定完全不看它。
+   */
+  readonly stickY: number;
   /** 取走一次菜单请求；主循环每帧调用一次。 */
   consumeMenu(): boolean;
   update(dt: number, camera: THREE.PerspectiveCamera): void;
@@ -63,6 +69,8 @@ interface GamepadButtonLike {
 
 interface GamepadLike {
   buttons?: GamepadButtonLike[];
+  /** xr-standard 手柄：axes[2] / axes[3] 是拇指摇杆（部分 UA 用 [0] / [1]）。 */
+  axes?: number[];
   mapping?: string;
   hapticActuators?: HapticActuator[];
 }
@@ -225,6 +233,24 @@ export function createHands(
   let menuLatch = false;
   const menuButtonIndex = options.menuButtonIndex ?? 6;
   const menuHoldMs = options.menuHoldMs ?? 400;
+
+  // 摇杆竖直轴（UI 滚动用）：每帧从两只手取偏移更大的那只。
+  let stickY = 0;
+  const STICK_DEADZONE = 0.18;
+
+  /** 向上推 = +1。Quest 的拇指摇杆在 axes[2] / [3]，少数 UA 用 [0] / [1]。 */
+  function readStick(gamepad: GamepadLike | null): number {
+    const axes = gamepad?.axes;
+    if (!axes || axes.length < 2) return 0;
+    for (const yi of [3, 1]) {
+      const y = axes[yi] ?? 0;
+      if (Math.abs(y) <= STICK_DEADZONE) continue;
+      const magnitude = Math.min(1, (Math.abs(y) - STICK_DEADZONE) / (1 - STICK_DEADZONE));
+      // 摇杆向上推时 axes[y] 为负；翻转成「上 = +1」。
+      return -Math.sign(y) * magnitude;
+    }
+    return 0;
+  }
 
   function trackSwing(sample: HandSample): void {
     let history = swingHistory.get(sample);
@@ -413,6 +439,10 @@ export function createHands(
       return menuLatch;
     },
 
+    get stickY(): number {
+      return stickY;
+    },
+
     consumeMenu(): boolean {
       const requested = menuLatch;
       menuLatch = false;
@@ -422,6 +452,7 @@ export function createHands(
     update(dt: number, camera: THREE.PerspectiveCamera): void {
       elapsed += dt;
       menuLatch = false;
+      stickY = 0;
       const presenting = renderer.xr.isPresenting;
 
       // —— 指针 ——
@@ -482,6 +513,10 @@ export function createHands(
         hand.trail.points.visible = true;
         hand.trail.push(hand.sample.position);
         trackSwing(hand.sample);
+
+        // 摇杆：两只手取偏移更大的那只，交给 UI 滚列表。
+        const stick = readStick(hand.gamepad);
+        if (Math.abs(stick) > Math.abs(stickY)) stickY = stick;
 
         // 暂停 / 菜单：优先读附加 menu 键；读不到时用左手 Y 长按兜底。
         // Quest 的 menu 键不保证暴露给 WebXR（规范允许 UA 保留系统键），所以必须有 fallback。

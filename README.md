@@ -239,11 +239,12 @@ cd prototype && npm run dev
 | 做什么 | 怎么做 |
 | --- | --- |
 | 开始 | 进 VR 后在主页点 `START`（不再自动开谱） |
-| 选歌 / 加包 | 主页 `Songs` 读取 `public/packages/index.json`，包条目在选中后才下载 `.parallax`；`How to add packs` 看 Desktop / Drag / Folder / URL 四种方式 |
+| 选歌 / 加包 | 主页 `Songs` 读取 `public/packages/index.json`，包条目在选中后才下载 `.parallax`；**超过 4 首用摇杆上下推滚动**（也有 ↑/↓ 箭头）；`How to add packs` 看 Desktop / Drag / Folder / URL 四种方式 |
 | 打键 | 手扫过判定带；hold 要按住扳机 / 侧握 |
 | 打 arc | 手跟着弧走；黄铜珠是关键物量 |
+| 看 combo | 判定带中线正上方的独立数字 HUD；断连立即消失 |
 | 点 UI | 手柄指向面板扣扳机，或直接戳 |
-| 暂停 | 左手柄 **menu** 键，或 **左手 Y 长按 400ms**；桌面按 `Esc` |
+| 暂停 | **左手 Y 长按 400ms**（Quest 3 浏览器不暴露 menu 键）；桌面按 `Esc` |
 | 暂停里的操作 | `RESUME / RESTART / SETTINGS / HOME`；设置是暂停的二级页 |
 
 首次进 VR 落在主页，选 `START` 才开始；打完或血量归零出结算。
@@ -268,6 +269,7 @@ cd prototype && npm run dev
 | `?hitboxX=1.25` `?hitboxZ=1.2` | 调 hit 判定盒空间倍率（不改时间窗；生产页也可用） |
 | `?debug=0` `?debug=1` | 关闭 / 强制打开调试 GUI；检测到 immersive-vr 的浏览器默认打开 |
 | `?panelScale=1.05` `?panelDistance=0.65` `?panelY=1.45` | 调 VR 面板尺寸 / 距离 / 高度（生产也可用） |
+| `?comboY=1.6` `?comboZ=-1.8` | 调 Combo HUD 高度 / 前后位置（生产也可用） |
 | `?vr=1` | 假装在 VR 里（检查 `EXIT VR` 等只在头显出现的元素） |
 | `?menuButton=6` | 改 menu 键的 gamepad 索引（默认 6；读不到时用左手 Y 长按） |
 | `?clock=0` | 关掉音频时钟（无头截图用） |

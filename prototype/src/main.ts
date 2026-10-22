@@ -19,6 +19,7 @@ import { createMaterialLibrary } from './materials/library';
 import { buildBackdrop } from './scene/backdrop';
 import { createControllers } from './scene/controllers';
 import { buildDisplay, createDisplayTextures, DEFAULT_DISPLAY, DISPLAY_GAP, DISPLAY_WIDTH, type DisplayPlacement } from './scene/display';
+import { createComboHud, DEFAULT_COMBO_PLACEMENT } from './scene/comboHud';
 import { buildMaterialLab } from './scene/materialLab';
 import { buildNotesPreview } from './scene/notes';
 import { buildTable } from './scene/table';
@@ -601,6 +602,15 @@ let displayTextures = createDisplayTextures({
 let display = buildDisplay(displayTextures, displayPlacement);
 scene.add(display.group);
 
+// Combo HUD：世界固定，浮在判定带中线正上方。位置可用 ?comboY / ?comboZ 在头显里微调。
+const comboPlacement: { x: number; y: number; z: number } = { ...DEFAULT_COMBO_PLACEMENT };
+const comboYParam = Number(bootQuery.get('comboY'));
+if (Number.isFinite(comboYParam) && comboYParam > 0) comboPlacement.y = comboYParam;
+const comboZParam = Number(bootQuery.get('comboZ'));
+if (Number.isFinite(comboZParam)) comboPlacement.z = comboZParam;
+const comboHud = createComboHud(comboPlacement);
+scene.add(comboHud.group);
+
 // 材质实验台：dev 下默认显示，?lab=0 关掉。不参与玩法，只在调材质时打开。
 const lab = buildMaterialLab(lib);
 scene.add(lab.group);
@@ -1103,7 +1113,7 @@ renderer.xr.addEventListener('sessionstart', () => {
     showHome();
   }
   diagnostics.set('session', 'immersive-vr', 'ok');
-  diagnostics.setHint('VR 会话中 · 菜单键 / 左手 Y 长按打开暂停。');
+  diagnostics.setHint('VR 会话中 · 左手 Y 长按打开暂停（Quest 3 上 menu 键读不到）。');
 });
 renderer.xr.addEventListener('sessionend', () => {
   controls.enabled = true;
@@ -1232,7 +1242,10 @@ renderer.setAnimationLoop((frameTime: number) => {
     else if (flow === 'settings') closeSettings();
   }
 
-  const action = gameUi.update(camera, hands.samples, playfield.score);
+  const action = gameUi.update(camera, hands.samples, playfield.score, {
+    stick: hands.stickY,
+    dt,
+  });
   if (playfield.settings.flowSpeed !== appliedFlowSpeed) {
     appliedFlowSpeed = playfield.settings.flowSpeed;
     playfield.setFlowSpeed(appliedFlowSpeed);
@@ -1284,6 +1297,9 @@ renderer.setAnimationLoop((frameTime: number) => {
     health: scoreView.health,
     objects: playfield.totalObjects,
   });
+  // Combo HUD 只看流程，不看冻结：截图 / 冻结时它仍应该显示当前 combo。
+  comboHud.setVisible(flow === 'playing');
+  comboHud.update(scoreView.combo, dt);
 
   const { perfect, good, miss, lastGrade, lastOffsetMs } = playfield.stats;
   const gradeRow = `${perfect} / ${good} / ${miss}`;
@@ -1373,6 +1389,8 @@ import.meta.hot?.dispose(() => {
   lab.dispose();
   scene.remove(display.group);
   display.dispose();
+  scene.remove(comboHud.group);
+  comboHud.dispose();
   scene.remove(backdrop.group);
   backdrop.dispose();
   environment.dispose();
