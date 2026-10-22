@@ -1,6 +1,7 @@
 import { EASING_LABELS, EASING_OPTIONS } from '../chart/easing';
 import {
   chartLimits,
+  meterOf,
   noteHeight,
   noteX,
   type ArcNote,
@@ -795,9 +796,9 @@ export class Inspector {
 
   private renderTiming(): void {
     const host = this.host;
-    const root = section('TIMING', 'BPM 只画小节');
+    const root = section('TIMING', '拍号 n/d · BPM 以四分音符为准');
     const head = el('div', 'eventrow eventrow--head');
-    head.append(el('span', undefined, 'TIME'), el('span', undefined, 'BPM'), el('span', undefined, 'BEATS'), el('span'));
+    head.append(el('span', undefined, 'TIME'), el('span', undefined, 'BPM'), el('span', undefined, 'N / D'), el('span'));
     root.append(head);
     for (let index = 0; index < host.chart.timing.length; index += 1) {
       const point = host.chart.timing[index]!;
@@ -816,12 +817,32 @@ export class Inspector {
             point.bpm = Math.max(1, value);
           }, false),
         ),
-        numberInput(point.beats, (value) =>
-          edit(host, () => {
-            point.beats = Math.max(1, Math.round(value));
-          }, false),
-          { min: 1, max: 16 },
-        ),
+        (() => {
+          const meter = meterOf(point);
+          const cell = el('div', 'metercell');
+          cell.append(
+            numberInput(
+              meter.numerator,
+              (value) =>
+                edit(host, () => {
+                  point.numerator = Math.max(1, Math.round(value));
+                  point.denominator = meterOf(point).denominator;
+                }, false),
+              { min: 1, max: 64 },
+            ),
+            el('span', 'metercell__slash', '/'),
+            numberInput(
+              meter.denominator,
+              (value) =>
+                edit(host, () => {
+                  point.denominator = Math.max(1, Math.round(value));
+                  point.numerator = meterOf(point).numerator;
+                }, false),
+              { min: 1, max: 64 },
+            ),
+          );
+          return cell;
+        })(),
       );
       if (host.chart.timing.length > 1) {
         row.append(

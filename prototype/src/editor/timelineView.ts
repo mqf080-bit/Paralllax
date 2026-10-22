@@ -2,6 +2,8 @@ import type { Timeline } from '../chart/timeline';
 import {
   chartLimits,
   noteHeight,
+  beatMsOf,
+  meterOf,
   noteX,
   type ArcNote,
   type Chart,
@@ -391,7 +393,7 @@ export class TimelineRenderer {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     const firstTiming = state.chart.timing[0];
-    const barSpacing = firstTiming ? (60000 / firstTiming.bpm) * firstTiming.beats * view.pxPerMs : 100;
+    const barSpacing = firstTiming ? beatMsOf(firstTiming) * meterOf(firstTiming).numerator * view.pxPerMs : 100;
     if (barSpacing >= 34) {
       for (const line of grid) {
         if (line.kind !== 'bar') continue;

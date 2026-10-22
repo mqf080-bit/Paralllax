@@ -169,7 +169,7 @@ export class EditorController implements EditorHost, InspectorHost {
   /** UI 层的 dirty：暂停时只有它 / 播放时间变化才重画 2D 和总览。 */
   private uiDirty = true;
   private lastUiTime = Number.NaN;
-  private readonly lastUi = { play: '', overview: '', time: '', audio: '', reverse: '' };
+  private readonly lastUi = { play: '', overview: '', time: '', audio: '', reverse: '', status: '' };
   private follow = true;
 
   constructor(elements: EditorElements) {
@@ -503,7 +503,13 @@ export class EditorController implements EditorHost, InspectorHost {
     const time = Math.max(0, snapTime(this.chart, this.playhead, this.snap));
     const source = timingAt(this.chart, time);
     this.beginGesture();
-    this.chart.timing.push({ time, bpm: source.bpm, beats: source.beats });
+    this.chart.timing.push({
+        time,
+        bpm: source.bpm,
+        beats: source.beats,
+        ...(source.numerator !== undefined ? { numerator: source.numerator } : {}),
+        ...(source.denominator !== undefined ? { denominator: source.denominator } : {}),
+      });
     this.commit();
     this.endGesture();
   }
@@ -1042,8 +1048,18 @@ export class EditorController implements EditorHost, InspectorHost {
       this.elements.saveState.className = 'save-state';
     }
 
-    this.elements.status.textContent = `${TOOL_LABELS[this.tool]} · SNAP ${snapLabel(this.snap)} · ${this.chart.notes.length} NOTES · ${countObjects(this.chart)} OBJECTS · ${formatTime(chartDuration(this.chart))}`;
+    this.refreshStatus();
     document.title = `${this.chart.meta.title || 'UNTITLED'} — Parallax Editor v${EDITOR_VERSION}`;
+  }
+
+  /** 状态栏：工具 · 吸附 · 当前拍号 / 小节 · 物量。播放头换段时由 updateTransportUi 触发。 */
+  private refreshStatus(): void {
+    const info = this.timeline.barBeat(this.preview.state.timeMs);
+    const meter = info ? `${info.numerator}/${info.denominator} · BAR ${info.bar + 1}` : '—';
+    const status = `${TOOL_LABELS[this.tool]} · SNAP ${snapLabel(this.snap)} · ${meter} · ${this.chart.notes.length} NOTES · ${countObjects(this.chart)} OBJECTS · ${formatTime(chartDuration(this.chart))}`;
+    if (status === this.lastUi.status) return;
+    this.lastUi.status = status;
+    this.elements.status.textContent = status;
   }
 
   private updateTransportUi(): void {
@@ -1080,6 +1096,8 @@ export class EditorController implements EditorHost, InspectorHost {
       this.lastUi.reverse = reverse;
       this.elements.reverse.classList.toggle('is-active', state.reverse);
     }
+
+    this.refreshStatus();
   }
 
   private showToast(message: string, error = false): void {

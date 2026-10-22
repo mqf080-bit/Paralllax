@@ -1,4 +1,4 @@
-import type { TimingPoint } from '../chart/schema';
+import { beatMsOf, meterOf, type TimingPoint } from '../chart/schema';
 
 /**
  * 程序化节拍轨（没有外部音频资产）。
@@ -39,8 +39,8 @@ export function collectBeats(timing: TimingPoint[], fromMs: number, toMs: number
     const point = points[segment]!;
     const next = points[segment + 1];
     const bpm = Math.max(1, point.bpm);
-    const beatsPerBar = Math.max(1, Math.round(point.beats));
-    const beatMs = 60000 / bpm;
+    const beatsPerBar = meterOf(point).numerator;
+    const beatMs = beatMsOf(point);
 
     // 第一段向前无限延伸：lead-in（负数时间）也要有拍子。
     const start = segment === 0 ? fromMs : Math.max(fromMs, point.time);
@@ -193,9 +193,12 @@ export function createDrumKit(options: DrumKitOptions): DrumKit {
         const barIndex = Math.floor(beat.index / beat.beatsPerBar);
 
         if (options.groove) {
+          // 拍号感知：强拍在第 1 拍，>=3 拍时中点补一记底鼓；
+          // 4 拍以上才用 2 / 4 拍的小鼓（3/4、5/4 不会被塞满）。
+          const middle = Math.floor(beat.beatsPerBar / 2);
           if (inBar === 0) kick(ctx, destination, when);
-          if (inBar === 2 && beat.beatsPerBar >= 3) kick(ctx, destination, when);
-          if (inBar === 1 || inBar === 3) snare(ctx, destination, when, options.level);
+          if (beat.beatsPerBar >= 3 && inBar === middle) kick(ctx, destination, when);
+          if (beat.beatsPerBar >= 4 && (inBar === 1 || inBar === 3)) snare(ctx, destination, when, options.level);
 
           // 八分音符的踩镲：两拍中间补一个，节奏才有推进。
           const eighth = 30000 / Math.max(1, beat.bpm);

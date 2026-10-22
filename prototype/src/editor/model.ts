@@ -5,6 +5,8 @@ import {
   chartLimits,
   HEIGHT_LEVELS,
   NOTE_HEIGHT,
+  beatMsOf,
+  meterOf,
   noteHeight,
   arcPointZ,
   type ArcNote,
@@ -219,9 +221,9 @@ export function collectGridLines(chart: Chart, from: number, to: number, subBeat
     const end = Math.min(segmentEnd, to);
     if (end < start) continue;
 
-    const beat = 60000 / Math.max(1e-3, point.bpm);
+    const beat = beatMsOf(point);
     const stepMs = beat * step;
-    const beatsPerBar = Math.max(1, Math.round(point.beats));
+    const beatsPerBar = meterOf(point).numerator;
     // 从段起点往前找第一个 >= start 的网格。
     const firstIndex = Math.ceil((start - point.time) / stepMs - 1e-9);
     for (let index = firstIndex; ; index += 1) {
@@ -460,6 +462,8 @@ export function normalizeChart(input: unknown): Chart {
             time: finite(point.time, 0),
             bpm: positive(point.bpm, 150),
             beats: positive(point.beats, 4),
+            ...(point.numerator !== undefined ? { numerator: Math.max(1, Math.round(point.numerator)) } : {}),
+            ...(point.denominator !== undefined ? { denominator: Math.max(1, Math.round(point.denominator)) } : {}),
           }))
         : base.timing,
     sections: Array.isArray(raw.sections)

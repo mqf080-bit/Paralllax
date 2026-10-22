@@ -39,10 +39,30 @@ export interface ChartMeta {
 /** 小节信息：BPM 只用于画小节线 / 制谱器对齐，不参与滚动速度。 */
 export interface TimingPoint {
   time: number;
+  /** BPM 以**四分音符**为参照：bpm=120 时一拍四分音符 = 500ms。 */
   bpm: number;
-  /** 每小节拍数。 */
+  /** 每小节拍数（兼容字段，等价于 `n/4` 拍号；有 numerator 时忽略）。 */
   beats: number;
+  /** 拍号分子（3 表示 3/x）。省略 = `beats`。 */
+  numerator?: number;
+  /** 拍号分母（8 表示 x/8）。省略 = 4。允许 3 / 6 这类非 2 的幂。 */
+  denominator?: number;
 }
+
+/** 取拍号：`4/4`、`3/4`、`5/6`…；旧谱只有 `beats` 时按 `beats/4` 读。 */
+export function meterOf(point: TimingPoint): { numerator: number; denominator: number } {
+  return {
+    numerator: Math.max(1, Math.round(point.numerator ?? point.beats)),
+    denominator: Math.max(1, Math.round(point.denominator ?? 4)),
+  };
+}
+
+/** 一拍（分母拍）的毫秒数。BPM 以四分音符为参照，所以 x/8 的一拍是半拍。 */
+export function beatMsOf(point: TimingPoint): number {
+  const { denominator } = meterOf(point);
+  return (60000 / Math.max(1e-3, point.bpm)) * (4 / denominator);
+}
+
 
 /** 制谱器用的段落标记（不参与判定）。 */
 export interface Section {

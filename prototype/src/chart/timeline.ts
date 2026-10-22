@@ -3,11 +3,14 @@ import {
   CHART_DEFAULTS,
   arcPointZ,
   chartLimits,
+  beatMsOf,
+  meterOf,
   noteHeight,
   noteX,
   type Chart,
   type Easing,
   type Section,
+  type TimingPoint,
 } from './schema';
 
 /**
@@ -39,10 +42,13 @@ export interface WindowSegment {
 }
 
 export interface BarBeat {
+  /** 从谱面开头累计的小节号（换拍号不重置）。 */
   bar: number;
   beat: number;
   beatsPerBar: number;
   bpm: number;
+  numerator: number;
+  denominator: number;
 }
 
 export interface Timeline {
@@ -202,20 +208,34 @@ export function createTimeline(chart: Chart): Timeline {
     return last ? last.to : 0;
   }
 
+  function barsInSegment(point: TimingPoint, next: TimingPoint | undefined): number {
+    if (!next) return 0;
+    const barMs = beatMsOf(point) * meterOf(point).numerator;
+    if (!(barMs > 0)) return 0;
+    return Math.floor((next.time - point.time) / barMs);
+  }
+
   function barBeat(time: number): BarBeat | null {
     let current = timing[0];
     if (!current) return null;
-    for (const point of timing) {
-      if (point.time <= time) current = point;
-      else break;
+    let barsBefore = 0;
+    for (let i = 0; i < timing.length; i += 1) {
+      const point = timing[i]!;
+      const next = timing[i + 1];
+      if (point.time <= time) {
+        current = point;
+        // 换段之前的小节数累加，编号才不会在换拍号时回到 1
+        if (next && next.time <= time) barsBefore += barsInSegment(point, next);
+      } else {
+        break;
+      }
     }
-    if (!current) return null;
 
-    const beatsPerBar = Math.max(1, current.beats);
-    const beats = ((time - current.time) * current.bpm) / 60000;
-    const bar = Math.floor(beats / beatsPerBar);
-    const beat = beats - bar * beatsPerBar;
-    return { bar, beat, beatsPerBar, bpm: current.bpm };
+    const { numerator, denominator } = meterOf(current);
+    const beats = (time - current.time) / beatMsOf(current);
+    const bar = Math.floor(beats / numerator);
+    const beat = beats - bar * numerator;
+    return { bar: barsBefore + bar, beat, beatsPerBar: numerator, bpm: current.bpm, numerator, denominator };
   }
 
   return {
@@ -238,7 +258,17 @@ export function validateChart(chart: Chart): string[] {
   if (timing.length === 0) issues.push('timing: 至少要有一个 TimingPoint');
   for (const point of timing) {
     if (!(point.bpm > 0)) issues.push(`timing@${point.time}: bpm 必须 > 0`);
-    if (!(point.beats > 0)) issues.push(`timing@${point.time}: beats 必须 > 0`);
+    if (point.numerator !== undefined || point.denominator !== undefined) {
+      const { numerator, denominator } = meterOf(point);
+      if (!Number.isInteger(point.numerator ?? numerator) || numerator < 1) {
+        issues.push(`timing@${point.time}: 拍号分子必须是正整数`);
+      }
+      if (!Number.isInteger(point.denominator ?? denominator) || denominator < 1) {
+        issues.push(`timing@${point.time}: 拍号分母必须是正整数`);
+      }
+    } else if (!(point.beats > 0)) {
+      issues.push(`timing@${point.time}: beats 必须 > 0`);
+    }
   }
 
   for (const event of chart.speed) {

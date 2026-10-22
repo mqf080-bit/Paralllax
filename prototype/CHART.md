@@ -21,7 +21,7 @@
 {
   "meta":    { "title": "…", "offset": 0, "difficulty": "Ballistic 7", … },
   "audio":   "track.mp3",                                  // 只记录文件名
-  "timing":  [ { "time": 0, "bpm": 150, "beats": 4 } ],
+  "timing":  [ { "time": 0, "bpm": 150, "beats": 4, "numerator": 4, "denominator": 4 } ],
   "sections":[ { "time": 0, "label": "A" }, … ],           // 制谱器对齐用
   "speed":   [ { "time": 0, "multiplier": 1 }, … ],         // SV
   "shift":   [ { "time": 4000, "target": "left", "duration": 350 }, … ],
@@ -33,12 +33,33 @@
 | --- | --- | --- |
 | `meta` | 标题 / 难度 / offset / duration / cover | `offset` 正 = 谱面比音频提前，运行时进入 `chartOffsetMs`；`difficulty` 目前是自由字符串（新谱默认留空，作者显式填 tier + level）；tier 主题色已定稿但 UI 未实现；`duration` 毫秒；`cover` 可放 URL / data URL |
 | `audio` | 音轨文件名 | 只记录；`.parallax` 包里音频是真实文件，旧 JSON 用 `?audio=/track.mp3` |
-| `timing` | BPM + 每小节拍数 | 画小节 / 对齐；**也是合成音轨的拍点**；不参与滚动速度。v0 只支持整数 `beats`/小节，`n/d` 自由拍号是未来计划 |
+| `timing` | BPM + 拍号 | 画小节 / 对齐；**也是合成音轨的拍点**；不参与滚动速度。拍号用 `numerator` / `denominator`（`4/4`、`5/6` 都可以），旧谱只有 `beats` 时按 `beats/4` 读 |
 | `sections` | 段落标记 | 纯制谱器信息 |
 | `speed` | 视觉流速（SV） | 支持 0 / 负数 / 极端值 |
 | `shift` | 4 轨窗口滑动 | `duration` = shift 的速度 |
 | `notes` | 键与物量 | 见下 |
 | `limits` | 覆盖高度上限 | `{ "maxHeight": 0.81 }`，一般不用写 |
+
+### 2.1 拍号与 BPM 的参照
+
+**BPM 以四分音符为参照**：`bpm = 150` 时四分音符 = 400ms，和拍号无关。
+
+一拍（分母拍）的长度：
+
+```text
+beat = (60000 / bpm) × (4 / denominator)
+bar  = beat × numerator
+```
+
+- `4/4` @150：beat 400ms，bar 1600ms；
+- `3/4` @150：beat 400ms，bar 1200ms；
+- `5/6` @150：beat 266.67ms，bar 1333.33ms（一拍是六分音符 = 2/3 个四分音符）。
+
+分母不要求是 2 的幂，`4/3`、`5/6` 都能写。`beats` 保留为兼容字段：没有
+`numerator` 时按 `beats/4` 读；两个字段都在时忽略 `beats`。
+
+小节编号跨 timing 段**连续累加**（换拍号不会回到 1）；每段从自己的 `time` 重新起拍，
+不插值、不平滑——和 AFF 的 `timing` 语义一致。
 
 ## 3. Notes
 
@@ -152,7 +173,7 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
 | AFF | Parallax |
 | --- | --- |
 | `AudioOffset:248` | `meta.offset` |
-| `timing(t, bpm, beats)` | `timing: {time, bpm, beats}` |
+| `timing(t, bpm, beats)` | `timing: {time, bpm, beats}`（`beats` 是 `n/4` 的兼容写法） |
 | `(t, lane)` | `{type:'hit', time, lane}` |
 | `hold(t0, t1, lane)` | `{type:'hold', time, duration, lane}` |
 | `arc(t0, t1, x0, x1, easing, y0, y1, …)` | `arc.points` 的一段（每段一个端点 + 缓动） |
@@ -236,7 +257,7 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
 
 ## 13. 编辑器的数据约定
 
-- **时间吸附**按拍计算，参数是 `DIV`（每全音符几份）+ `DOT`（×1.5）+ `三连`（×2/3），网格来自 `timing`；`DIV 8` = 半个拍。当前只按整数 `beats`/小节生成网格，任意 `n/d` 拍号及菜单自适应仍是未来计划。
+- **时间吸附**按拍计算，参数是 `DIV`（每全音符几份）+ `DOT`（×1.5）+ `三连`（×2/3），网格来自 `timing`；`DIV 8` = 半个拍。网格按当前 timing 段的拍号生成（`n/d` 任意正整数，含 `5/6` 这类分母），换段时小节线和编号连续累加。
 - **坐标是 x / z**：hit / drag 用 `note.z`（中心高度），arc 用 `points[].z`；hold 固定贴地。
 - **地面键默认整轨对齐**：离轨要显式改 `x`（编辑器里 Ctrl / 检查器 / 关闭 SNAP XZ）。
 - **x 是连续轨号坐标**：`x = 2` 是 2 号轨的中心，`x = 2.5` 是 2 / 3 轨之间；
