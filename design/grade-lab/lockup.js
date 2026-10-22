@@ -14,25 +14,13 @@
 // gapBelow = 这一行与它下面一行的**墨迹**间隙（cap height 的倍数）。
 // 量墨迹而不是量中心线：波浪加振幅时，它和下面那条线/字母的视觉间距才不会变。
 export const SYMBOLS = {
-  APX: [
-    { kind: 'wave', gapBelow: 0.1 },
-    { kind: 'wave' },
-  ],
-  ASM: [
-    { kind: 'wave', gapBelow: 0.07 },
-    { kind: 'line' },
-  ],
-  CGR: [
-    { kind: 'wave', gapBelow: 0.07 },
-    { kind: 'line', gapBelow: 0.035 },
-    { kind: 'line' },
-  ],
-  IDN: [
-    { kind: 'line', gapBelow: 0.035 },
-    { kind: 'line', gapBelow: 0.035 },
-    { kind: 'line' },
-  ],
+  // 所有行共用同一个墨迹间隙：波浪之间、波浪与横线之间、横线之间，视觉上完全一致。
+  APX: [{ kind: 'wave' }, { kind: 'wave' }],
+  ASM: [{ kind: 'wave' }, { kind: 'line' }],
+  CGR: [{ kind: 'wave' }, { kind: 'line' }, { kind: 'line' }],
+  IDN: [{ kind: 'line' }, { kind: 'line' }, { kind: 'line' }],
 };
+
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -78,7 +66,7 @@ export function renderLockup(host, opts) {
 
   // —— 2. 从字体里取网格 ——
   const stem = cap * 0.115; // 和 800 字重的字干接近
-  const amp = cap * 0.095; // 波纹振幅（够大才读得出是波浪，不是装饰线）
+  const amp = cap * 0.155; // 波纹振幅（曲线要明显，才不是装饰线）
   const gapToWord = cap * 0.16; // 最下面一行墨迹到 cap line 的距离
   const inset = stem * 0.75; // 视觉宽度：记号比字略窄，A / X 这类斜边才不会被记号压住
 
@@ -99,7 +87,7 @@ export function renderLockup(host, opts) {
 
   // 每一行的墨迹半高
   const half = rows.map((row) => (row.kind === 'wave' ? amp + stem / 2 : stem / 2));
-  const gapBelow = rows.map((row) => cap * (row.gapBelow ?? 0.05));
+  const gapBelow = rows.map(() => cap * 0.035); // 统一墨迹间隙（和等号两横一致）
 
   // 从下往上：最下面一行离字 gapToWord，其余按墨迹间隙叠上去。
   const stackAbove = [];
