@@ -137,7 +137,8 @@ export function createDisplayTextures(meta: DisplayMeta): DisplayTextures {
     ctx.font = '500 24px ui-monospace, Menlo, monospace';
     ctx.fillStyle = 'rgba(122,136,152,0.9)';
     const notes = state.objects > 0 ? `${state.objects.toLocaleString('en-US')} NOTES` : '—';
-    ctx.fillText(`${meta.difficulty}   ·   ${notes}`, 8, 296);
+    // 新谱默认没有难度（tier / level 由作者显式填写），空值不要留一个孤零零的分隔符。
+    ctx.fillText(`${meta.difficulty || '—'}   ·   ${notes}`, 8, 296);
   }
 
   const initial: DisplayState = { score: 0, combo: 0, health: 100, objects: 0 };

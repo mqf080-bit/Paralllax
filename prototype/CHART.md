@@ -31,7 +31,7 @@
 
 | 段 | 作用 | 备注 |
 | --- | --- | --- |
-| `meta` | 标题 / 难度 / offset / duration / cover | `offset` 正 = 谱面比音频提前，运行时进入 `chartOffsetMs`；`difficulty` 目前是自由字符串，tier / 主题色仍是未来计划；`duration` 毫秒；`cover` 可放 URL / data URL |
+| `meta` | 标题 / 难度 / offset / duration / cover | `offset` 正 = 谱面比音频提前，运行时进入 `chartOffsetMs`；`difficulty` 目前是自由字符串（新谱默认留空，作者显式填 tier + level）；tier 主题色已定稿但 UI 未实现；`duration` 毫秒；`cover` 可放 URL / data URL |
 | `audio` | 音轨文件名 | 只记录；`.parallax` 包里音频是真实文件，旧 JSON 用 `?audio=/track.mp3` |
 | `timing` | BPM + 每小节拍数 | 画小节 / 对齐；**也是合成音轨的拍点**；不参与滚动速度。v0 只支持整数 `beats`/小节，`n/d` 自由拍号是未来计划 |
 | `sections` | 段落标记 | 纯制谱器信息 |

@@ -8,6 +8,8 @@
 - 游玩中新增独立 Combo HUD（`src/scene/comboHud.ts`）：世界固定在轨道上方 `(0, 1.8, −2.6)`，大数字 + 小标签；0 时隐藏、MISS 快速淡出、命中轻微脉冲；只在 combo 变化时重绘纹理；`?comboX` / `?comboY` / `?comboZ` 可调。
 - 修复 Combo HUD 出现在玩家头里的问题：`?comboZ` 缺省时 `Number(null) === 0`，把位置读成了 `(0, 0, 0)`；缺参数现在按 `null` 处理，不覆盖默认位置。同时加「离头 1.9m 起淡出、1.1m 完全消失」，避免前倾时怼到脸上。
 - Quest 3 上 menu 键不暴露给 WebXR，暂停实际只走左手 Y 长按 400ms；面板 footer / 首页提示文案改为 `Y HOLD = PAUSE`，诊断提示同步。
+- 编辑器新谱默认难度改为空（不再自动写 `IN 1`）；`meta.difficulty` 仍兼容旧谱字符串。浮空显示对空难度回退为 `—`。
+- 五个难度 tier 的主题色与动效定稿并写入文档（`parallax-idea.md` §3 / `FUTURE.md` §0.1）：钢灰、绿（呼吸）、琥珀（警报闪烁）、荧光洋红（自发光）、Wien ∞ K 蓝 `#7F9FFF`（更亮自发光 + 选歌界面除封面外降饱和）。**未实现任何 tier UI**。
 - 进入 VR 先到主页，不再自动开谱；主页显示当前谱面信息，`START` 后播放；
 - 游玩中移除常驻 `SETTINGS / PAUSE / RETRY` 控制条，面板点击只在主页 / 暂停 / 设置 / 结算时生效；
 - 暂停改为统一层级：`RESUME / RESTART / SETTINGS / HOME`，设置是暂停的二级页；

@@ -14,28 +14,31 @@
 现状：
 
 - `parallax-idea.md` 已定义五个 tier：**Stabilized / Accelerated / Ballistic / LINAC / CYCLOTRON**；
-- 编辑器新谱默认难度仍是 `IN 1`，这是从 Phigros 抄来的参考值，不是本项目语义；
-- `meta.difficulty` 目前是自由字符串，UI 没有 tier 颜色。
+- **2026-10-22**：编辑器新谱默认难度已改为空（不再写 `IN 1`），作者显式填写；
+- `meta.difficulty` 目前仍是自由字符串；tier 主题色**已定稿**（见下），但 UI 还没实现。
 
-计划：
+计划（未做部分）：
 
-- 新谱默认 **无 tier / 未定级**，不再自动写 `IN 1`；作者必须显式选 tier + level。
-- 数据层建议保留 `meta.difficulty` 兼容旧谱，同时增加结构化字段：
+- 数据层保留 `meta.difficulty` 兼容旧谱，同时增加结构化字段：
   `difficultyTier?: 'stabilized' | 'accelerated' | 'ballistic' | 'linac' | 'cyclotron'` +
   `difficultyLevel?: number`（或 `meta.difficulty: { tier, level }`，二选一）。
-- 每个 tier 一个主题色 token，用于 **Songs 徽章 / 曲目卡细边 / Result 评级 / 检查器**，不做大面积背景。
-  候选（未最终定）：
-  - Stabilized：`#A6B2C2` 钢灰
-  - Accelerated：`#7FB4FF` 冰蓝
-  - Ballistic：`#FFB45C` 琥珀
-  - LINAC：`#C9A7FF` 紫
-  - CYCLOTRON：`#C6F24E` lime
+- tier 主题色 token 用于 **Songs 徽章 / 曲目卡细边 / Result 评级 / 检查器**，不做大面积背景；
   颜色必须通过对比度检查，且始终同时显示 **tier 名 + 数字**，不靠颜色单独编码。
+
+**已定稿的 tier 主题色**（完整动效说明见 [`../parallax-idea.md`](../parallax-idea.md) §3）：
+
+| tier | 颜色 | 色值 | 动效 |
+| --- | --- | --- | --- |
+| Stabilized | 钢灰 | `#A9B4C2` | 静态 |
+| Accelerated | 绿 | `#6EE7A0` | 呼吸 |
+| Ballistic | 琥珀 | `#FFB45C` | 警报式闪烁 |
+| LINAC | 荧光粉 / 洋红 | `#FF5CC8` | 自发光 |
+| CYCLOTRON | Wien ∞ K 蓝 | `#7F9FFF` | 更亮的自发光；选歌界面除封面外元素饱和度稍降 |
+
 - 旧谱的 `IN 7 / IN 8` 视为 legacy 字符串；迁移时再映射，不能猜成某个 tier。
 
-验收：
+验收（未做部分）：
 
-- 新谱打开时不再出现 `IN 1`；
 - 选择 tier 后 Songs / Home / Result 的徽章和主题色同步；
 - tier 与 level 是独立信息；CYCLOTRON 不自动等于高数值。
 
@@ -128,7 +131,7 @@
 
 ### 0.6 建议顺序
 
-1. 难度 tier + 去掉默认 `IN`（低风险，先清理语义）；
+1. 难度 tier UI（默认 `IN` 已去掉 ✅ 2026-10-22；主题色已定稿，剩结构化字段与徽章）；
 2. ~~游玩 Combo HUD~~ ✅ 2026-10-22 已实现；
 3. 评级字体 / 样式（表现层，可与 tier 一起做样张）；
 4. 自由拍号 / 动态小节（会改 schema、编辑器、音频合成）；

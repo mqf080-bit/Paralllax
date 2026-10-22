@@ -113,14 +113,15 @@ export function snapPresetFor(spec: SnapSpec): string {
   return match?.id ?? 'custom';
 }
 
-/** 新建谱面的默认值：150 BPM / 4 拍，和测试谱同一套网格。 */
+/** 新建谱面的默认值：150 BPM / 4 拍，和测试谱同一套网格。
+ *  难度默认留空：tier + level 是作者显式选择的信息，不再自动写 Phigros 式的 `IN 1`。 */
 export function createDefaultChart(): Chart {
   return {
     meta: {
       title: 'UNTITLED',
       artist: '',
       charter: '',
-      difficulty: 'IN 1',
+      difficulty: '',
       offset: 0,
     },
     timing: [{ time: 0, bpm: 150, beats: 4 }],
