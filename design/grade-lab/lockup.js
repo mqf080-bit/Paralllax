@@ -11,11 +11,27 @@
  *   - 横线 = 已经落定 → 落在基线以下（stack）。
  */
 
+// adv = 这一行到下一行的距离（cap height 的倍数）。
+// 波浪之间收得比“等号”略紧；等号两横比波浪更紧，像真的 ≅。
 export const SYMBOLS = {
-  APX: ['wave', 'wave'],
-  ASM: ['wave', 'line'],
-  CGR: ['wave', 'line', 'line'],
-  IDN: ['line', 'line', 'line'],
+  APX: [
+    { kind: 'wave', adv: 0.245 },
+    { kind: 'wave' },
+  ],
+  ASM: [
+    { kind: 'wave', adv: 0.225 },
+    { kind: 'line' },
+  ],
+  CGR: [
+    { kind: 'wave', adv: 0.225 },
+    { kind: 'line', adv: 0.15 },
+    { kind: 'line' },
+  ],
+  IDN: [
+    { kind: 'line', adv: 0.15 },
+    { kind: 'line', adv: 0.15 },
+    { kind: 'line' },
+  ],
 };
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -45,63 +61,65 @@ export function renderLockup(host, opts) {
   text.textContent = word;
   svg.appendChild(text);
 
+  // SVG 的 getBBox 对 <text> 会连字体的 ascent / descent 一起算，不能当 cap height。
+  // 用 canvas 的 actualBoundingBoxAscent 量 'H' 的墨迹高度，才是真的 cap height。
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const family = getComputedStyle(host).fontFamily || 'sans-serif';
+  if (ctx) ctx.font = `800 ${size}px ${family}`;
+  const cap = ctx ? ctx.measureText('H').actualBoundingBoxAscent : size * 0.72;
+
   const box = text.getBBox();
-  const cap = box.height; // 全大写 → 包围盒高度就是 cap height
   const left = box.x;
   const right = box.x + box.width;
-  const top = box.y;
-  const baseline = box.y + box.height;
-  const width = box.width;
+  const baseline = 0;
+  const top = baseline - cap;
   const measure = right - left;
 
   // —— 2. 从字体里取网格 ——
-  const stem = cap * 0.125; // 和 800 字重的字干接近
-  const amp = cap * 0.085; // 波纹振幅
-  const gap = cap * 0.19; // 符号离字的距离
-  const step = cap * 0.2; // 行距
+  const stem = cap * 0.115; // 和 800 字重的字干接近
+  const amp = cap * 0.062; // 波纹振幅
+  const gap = cap * 0.16; // 符号的墨迹到字的距离
+  const inset = stem * 0.75; // 视觉宽度：记号比字略窄，A / X 这类斜边才不会被记号压住
 
-  const waves = rows.filter((r) => r === 'wave').length;
-  const lines = rows.filter((r) => r === 'line').length;
+  const inkLeft = left + inset;
+  const inkRight = right - inset;
+  const inkWidth = inkRight - inkLeft;
 
   const paths = [];
 
   const wavePath = (y) => {
-    const period = measure / 4;
-    const q = period / 2;
-    let d = `M ${left} ${y} q ${q / 2} ${-amp} ${q} 0`;
+    // 四个拱：接近字体里的 ≈，不是装饰性的波浪线。
+    const q = inkWidth / 4;
+    let d = `M ${inkLeft} ${y} q ${q / 2} ${-amp} ${q} 0`;
     for (let i = 0; i < 3; i += 1) d += ` t ${q} 0`;
     return d;
   };
-  const linePath = (y) => `M ${left} ${y} L ${right} ${y}`;
+  const linePath = (y) => `M ${inkLeft} ${y} L ${inkRight} ${y}`;
+
+  // 每一行到下一行的距离，以及每一行的墨迹半高（gap 量的是墨迹到墨迹，不是中心线）
+  const advances = rows.map((row) => cap * (row.adv ?? 0.15));
+  const half = rows.map((row) => (row.kind === 'wave' ? amp + stem / 2 : stem / 2));
+  const stackHeight = advances.slice(0, -1).reduce((sum, v) => sum + v, 0);
 
   if (variant === 'above') {
-    // 整个符号当作一枚记号，压在字的上方：最后一行离 cap line 一个 gap，
-    // 前面的行往上叠。宽度和字完全一致。
-    const total = (rows.length - 1) * step;
-    let y = top - gap - total;
-    for (const row of rows) {
-      paths.push(row === 'wave' ? wavePath(y) : linePath(y));
-      y += step;
-    }
-  } else if (variant === 'below') {
-    let y = baseline + gap;
-    for (const row of rows) {
-      paths.push(row === 'wave' ? wavePath(y) : linePath(y));
-      y += step;
-    }
-  } else if (variant === 'stack') {
-    // 所有行都在基线以下，像一条“底座”
-    let y = baseline + gap;
-    for (const row of rows) {
-      paths.push(row === 'wave' ? wavePath(y) : linePath(y));
-      y += step;
-    }
+    // 整枚记号压在字的上方：最后一行的底边离 cap line 一个 gap，前面的行往上叠。
+    let y = top - gap - half[rows.length - 1] - stackHeight;
+    rows.forEach((row, index) => {
+      paths.push(row.kind === 'wave' ? wavePath(y) : linePath(y));
+      y += advances[index];
+    });
+  } else if (variant === 'below' || variant === 'stack') {
+    let y = baseline + gap + half[0];
+    rows.forEach((row, index) => {
+      paths.push(row.kind === 'wave' ? wavePath(y) : linePath(y));
+      y += advances[index];
+    });
   } else {
     // behind：行均匀铺在字高区间，作为背景层（对比用）
-    const total = rows.length - 1;
     rows.forEach((row, index) => {
-      const y = top + (cap * index) / Math.max(1, total);
-      paths.push(row === 'wave' ? wavePath(y) : linePath(y));
+      const y = top + (cap * index) / Math.max(1, rows.length - 1);
+      paths.push(row.kind === 'wave' ? wavePath(y) : linePath(y));
     });
   }
 
@@ -119,12 +137,9 @@ export function renderLockup(host, opts) {
   const pad = cap * 0.24;
   const above = variant === 'above';
   const below = variant === 'below' || variant === 'stack';
-  const minY = above ? top - gap - (rows.length - 1) * step - amp - pad : top - pad * 0.6;
-  const maxY = below
-    ? baseline + gap + (rows.length - 1) * step + pad
-    : variant === 'above'
-      ? baseline + pad
-      : baseline + pad;
+  const inkTop = rows.length ? top - gap - half[rows.length - 1] - stackHeight - half[0] : top;
+  const minY = above ? inkTop - pad : top - pad * 0.6;
+  const maxY = below ? baseline + gap + stackHeight + half[0] + half[rows.length - 1] + pad : baseline + pad;
   const minX = left - pad;
   const maxX = right + pad;
   svg.setAttribute('viewBox', `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
