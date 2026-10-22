@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GRADE LAB — APX</title>
+    <link rel="stylesheet" href="./base.css" />
+  </head>
+  <body>
+    <header>
+      <div>
+        <div class="crumb"><a href="./index.html">GRADE LAB</a> / APX</div>
+        <h1>APX</h1>
+        <p class="sub">approximate · 95–97%</p>
+      </div>
+      <div class="tools">
+        <button id="grid" aria-pressed="false">构造网格</button>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <h2>锁版</h2>
+        <div class="lock hero" data-lock data-variant="above" data-size="230"></div>
+      </section>
+
+      <section>
+        <h2>三种摆法</h2>
+        <div class="variants">
+          <figure>
+            <div class="lock" data-lock data-variant="above" data-size="120"></div>
+            <figcaption><b>ABOVE</b><br />整枚记号压在字上方，宽度与字一致；推荐</figcaption>
+          </figure>
+          <figure>
+            <div class="lock" data-lock data-variant="below" data-size="120"></div>
+            <figcaption><b>BELOW</b><br />记号沉到基线以下，像一条签名底座</figcaption>
+          </figure>
+          <figure>
+            <div class="lock" data-lock data-variant="behind" data-size="120"></div>
+            <figcaption><b>BEHIND</b><br />旧方案：符号铺在字后面，不再采用</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section>
+        <h2>面板尺度 · 760 × 470 / 1.35m</h2>
+        <div class="panel">
+          <div class="head"><span>06 / RESULT</span><span>CLEAR</span></div>
+          <div class="body">
+            <div class="left">
+              <div class="chart">PROVING GROUND / IN 8</div>
+              <div class="lock" data-lock data-variant="above" data-size="86"></div>
+            </div>
+            <div class="right">
+              <span>SCORE</span>
+              <b>10,000,000</b>
+              <span>PERFECT 128</span>
+              <span>GOOD 0</span>
+              <span>MISS 0</span>
+              <span>ACCURACY 95–97%</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>为什么这样摆</h2>
+        <p class="note">两条波整枚压在字的上方，宽度和 APX 完全一致。波纹表示“还在抖”，所以它不落到基线上。</p>
+      </section>
+    </main>
+
+    <script type="module">
+      import { renderLockup } from './lockup.js';
+
+      const WORD = 'APX';
+      const SYMBOL = 'APX';
+      let grid = false;
+
+      function draw() {
+        document.querySelectorAll('[data-lock]').forEach((host) => {
+          renderLockup(host, {
+            word: WORD,
+            symbol: SYMBOL,
+            variant: host.dataset.variant || 'above',
+            size: Number(host.dataset.size || 140),
+            grid,
+          });
+        });
+      }
+
+      draw();
+
+      const btn = document.getElementById('grid');
+      btn.addEventListener('click', () => {
+        grid = !grid;
+        btn.setAttribute('aria-pressed', String(grid));
+        draw();
+      });
+    </script>
+  </body>
+</html>
