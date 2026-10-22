@@ -6,8 +6,8 @@ import type { TableGeometry, TableParams } from '../config';
  * 判定带上的“引导网”。
  *
  * 和 editor 的 3D 编辑网格一样，是一面竖在 bandZ 上的网格；默认完全透明。
- * 地面 hit 接近时，只在它附近的网格上点亮一小块，并随时钟平滑增强。
- * 时间阈值：180ms 内开始；perfect 的 early -100ms / late +80ms 内最亮；更远完全不亮。
+ * 地面 hit 接近时，在它附近点亮一片较大的网格，并随时钟平滑增强。
+ * 时间阈值：320ms 内开始；perfect 的 early -100ms / late +80ms 内最亮；更远完全不亮。
  *
  * 网格不是贴花：没有半透明底板，只有局部软化的线条 / 冷光 / perfect 暖黄核心。
  */
@@ -29,10 +29,10 @@ const TEXTURE_W = 512;
 const TEXTURE_H = 420;
 const CELL_X = 32;
 const CELL_Y = 22;
-const PATCH_RX = 118;
-const PATCH_RY = 72;
+const PATCH_RX = 190;
+const PATCH_RY = 128;
 const GUIDE_HEIGHT = 0.9;
-const GUIDE_START_MS = 180;
+export const GUIDE_START_MS = 320;
 const GUIDE_FULL_EARLY_MS = 100;
 const GUIDE_FULL_LATE_MS = 80;
 
@@ -94,7 +94,7 @@ export function createJudgementGuide(params: TableParams, geometry: TableGeometr
     const x1 = px + PATCH_RX;
     for (let x = x0; x <= x1; x += CELL_X) {
       const falloff = Math.max(0, 1 - Math.abs(x - px) / PATCH_RX);
-      const alpha = intensity * falloff * falloff * 0.46;
+      const alpha = intensity * falloff * falloff * 0.7;
       if (alpha < 0.008) continue;
       const major = Math.round(x / CELL_X) % 4 === 0;
       const warm = intensity > 0.65 ? Math.max(0, 1 - Math.abs(x - px) / (CELL_X * 2.2)) : 0;
@@ -104,7 +104,7 @@ export function createJudgementGuide(params: TableParams, geometry: TableGeometr
       grad.addColorStop(0.78, lineColor(alpha * (major ? 1.2 : 0.82), warm));
       grad.addColorStop(1, lineColor(0, warm));
       ctx.strokeStyle = grad;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(x, py - PATCH_RY);
       ctx.lineTo(x, py + PATCH_RY);
@@ -115,7 +115,7 @@ export function createJudgementGuide(params: TableParams, geometry: TableGeometr
     const y1 = py + PATCH_RY;
     for (let y = y0; y <= y1; y += CELL_Y) {
       const falloff = Math.max(0, 1 - Math.abs(y - py) / PATCH_RY);
-      const alpha = intensity * falloff * falloff * 0.4;
+      const alpha = intensity * falloff * falloff * 0.56;
       if (alpha < 0.008) continue;
       const major = Math.round(y / CELL_Y) % 4 === 0;
       const warm = intensity > 0.65 ? Math.max(0, 1 - Math.abs(y - py) / (CELL_Y * 2.2)) : 0;
@@ -125,7 +125,7 @@ export function createJudgementGuide(params: TableParams, geometry: TableGeometr
       grad.addColorStop(0.78, lineColor(alpha * (major ? 1.2 : 0.82), warm));
       grad.addColorStop(1, lineColor(0, warm));
       ctx.strokeStyle = grad;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(px - PATCH_RX, y);
       ctx.lineTo(px + PATCH_RX, y);
@@ -154,7 +154,9 @@ export function createJudgementGuide(params: TableParams, geometry: TableGeometr
       const delta = Math.abs(offset);
       if (delta > GUIDE_START_MS) continue;
       const fullWindow = offset < 0 ? GUIDE_FULL_EARLY_MS : GUIDE_FULL_LATE_MS;
-      const intensity = 1 - smoothstep(fullWindow, GUIDE_START_MS, delta);
+      const raw = 1 - smoothstep(fullWindow, GUIDE_START_MS, delta);
+      // 0.6 次幂让远处也先浮起来，而不是等到最后 100ms 才突然出现。
+      const intensity = raw <= 0 ? 0 : Math.pow(raw, 0.6);
       if (intensity <= 0.01) continue;
       const u = (hit.x - windowCenter) / windowWidth + 0.5;
       const v = (hit.y - bottom) / GUIDE_HEIGHT;

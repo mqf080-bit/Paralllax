@@ -60,7 +60,7 @@ Home → Songs → Playing → Paused → Settings
 | hit 可视尺寸 | `0.232 × 0.084 × 0.096m` |
 | hit 判定盒 | 默认宽 `0.26m`；近侧 `0.22m` / 远侧 `0.38m`；`?hitboxX` / `?hitboxZ` 调倍率 |
 | hit 时间窗 | perfect **`-100 / +80ms`**；good **`-140 / +160ms`**；更晚为 miss |
-| 引导网 | 竖直、只亮网格线；full 窗口 early `-100` / late `+80ms`；180ms 外不亮 |
+| 引导网 | 竖直、只亮网格线；full 窗口 early `-100` / late `+80ms`；320ms 外不亮；patch 约 `190×128px` |
 | 计分 | 总分 `10,000,000`；PERFECT 100% / **GOOD 60%** / MISS 0；GOOD 血量 +0.25（PERFECT +0.5）；combo 不计分 |
 | arc 暗度 | 未接住 `0.42`，接上 / 未过线 `1.0`；状态切换立即生效 |
 | 短棒 | `0.18m`；sustain 透明度 `0.28`，关闭 depthWrite；判定点仍在控制器原点 |

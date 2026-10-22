@@ -18,7 +18,7 @@ import type { TableGeometry, TableParams } from '../config';
 import { applyDistanceFade } from '../materials/distanceFade';
 import type { MaterialLibrary } from '../materials/library';
 import { createArcNote, type ArcEvent, type ArcNote } from './arc';
-import { createJudgementGuide, type GuideHit } from './guide';
+import { createJudgementGuide, GUIDE_START_MS, type GuideHit } from './guide';
 import type { HandSample, HandSide } from './hands';
 import { createHitVisualFactory, hitFragmentColor } from './hitVisual';
 import type { Grade } from './judgement';
@@ -791,7 +791,7 @@ export function createPlayer(
       const approaching: GuideHit[] = [];
       for (const note of runtime) {
         if (note.kind !== 'hit' || note.resolved) continue;
-        if (Math.abs(clockMs - note.chart.time) > 180) continue;
+        if (Math.abs(clockMs - note.chart.time) > GUIDE_START_MS) continue;
         approaching.push({ x: xOf(note.chart), y: yOf(note.chart), time: note.chart.time });
       }
       guide.update(clockMs, windowValue, approaching);
