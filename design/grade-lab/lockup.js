@@ -66,7 +66,7 @@ export function renderLockup(host, opts) {
 
   // —— 2. 从字体里取网格 ——
   const stem = cap * 0.115; // 和 800 字重的字干接近
-  const amp = cap * 0.155; // 波纹振幅（曲线要明显，才不是装饰线）
+  const amp = cap * 0.075; // 波纹振幅（回到上一版的手感）
   const gapToWord = cap * 0.16; // 最下面一行墨迹到 cap line 的距离
   const inset = stem * 0.75; // 视觉宽度：记号比字略窄，A / X 这类斜边才不会被记号压住
 
@@ -87,7 +87,17 @@ export function renderLockup(host, opts) {
   };
   const linePath = (y) => `M ${inkLeft} ${y} L ${inkRight} ${y}`;
 
-  const gap = cap * 0.035; // 唯一间隙：所有相邻两行都是它
+  // 间隙不能全用一个值：波浪是曲线，两条曲线之间只要留不到一个描边宽，
+  // 就会读成“一条粗线中间有条缝”。所以：
+  //   波浪↔波浪 = 1 个描边宽（两个波才分得开）
+  //   波浪↔直线 = 半个描边宽（谷底到直线）
+  //   直线↔直线 = 0.035 cap
+  const gapFor = (below, above) =>
+    below === 'wave' && above === 'wave'
+      ? stem
+      : below === 'wave' || above === 'wave'
+        ? stem * 0.5
+        : cap * 0.035;
 
   /*
    * 一行可能在另一行的上方，两行之间的距离不是简单“半高相加”：
@@ -109,7 +119,7 @@ export function renderLockup(host, opts) {
   const last = rows.length - 1;
   stackAbove[last] = top - gapToWord - (rows[last].kind === 'wave' ? amp : 0) - stem / 2;
   for (let i = rows.length - 2; i >= 0; i -= 1) {
-    const gapBetween = stem + gap + extra(rows[i].kind, rows[i + 1].kind);
+    const gapBetween = stem + gapFor(rows[i].kind, rows[i + 1].kind) + extra(rows[i].kind, rows[i + 1].kind);
     stackAbove[i] = stackAbove[i + 1] - gapBetween;
   }
 
@@ -117,7 +127,7 @@ export function renderLockup(host, opts) {
   const stackBelow = [];
   stackBelow[0] = baseline + gapToWord + (rows[0].kind === 'wave' ? amp : 0) + stem / 2;
   for (let i = 1; i < rows.length; i += 1) {
-    const gapBetween = stem + gap + extra(rows[i - 1].kind, rows[i].kind);
+    const gapBetween = stem + gapFor(rows[i - 1].kind, rows[i].kind) + extra(rows[i - 1].kind, rows[i].kind);
     stackBelow[i] = stackBelow[i - 1] + gapBetween;
   }
 
