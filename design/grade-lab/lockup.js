@@ -94,7 +94,7 @@ export function renderLockup(host, opts) {
   //   直线↔直线 = 0.035 cap
   const gapFor = (below, above) =>
     below === 'wave' && above === 'wave'
-      ? stem
+      ? cap * 0.035
       : below === 'wave' || above === 'wave'
         ? stem * 0.5
         : cap * 0.035;
