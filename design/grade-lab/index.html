@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GRADE LAB — 评级字体 / 数学符号层</title>
+    <style>
+      /*
+       * 设计样张，不接游戏状态。
+       * 只回答一个问题：评级 = 三字母简写（主体）+ 数学符号（后层）能不能成立。
+       *
+       * 符号全部自绘 SVG：≈ ≃ ≅ ≡ 在普通字体里覆盖不稳（Quest 上尤其），
+       * 自绘同时还能让“波纹逐级消失”这件事变成设计的一部分。
+       */
+      :root {
+        --graphite: #0a0e13;
+        --graphite-2: #0e141b;
+        --paper: #e9e6df;
+        --paper-ink: #14181d;
+        --ink: #f2f8ff;
+        --dim: #9aa8b8;
+        --faint: #6d7c8c;
+        --line: rgba(255, 255, 255, 0.1);
+        --hair: rgba(255, 255, 255, 0.055);
+        --accent: #9cc8ff;
+        --display: "Space Grotesk", "Inter", "Helvetica Neue", system-ui, sans-serif;
+        --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        background: var(--graphite);
+        color: var(--ink);
+        font-family: var(--display);
+      }
+
+      body {
+        padding: 40px clamp(20px, 5vw, 72px) 96px;
+        background-image: radial-gradient(120% 80% at 50% -10%, #111a24 0%, #0a0e13 55%);
+      }
+
+      header {
+        max-width: 1180px;
+        margin: 0 auto 44px;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 18px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
+
+      .eyebrow {
+        font: 600 10px/1 var(--mono);
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--faint);
+      }
+
+      h1 {
+        margin: 10px 0 0;
+        font-size: 24px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+
+      header p {
+        margin: 8px 0 0;
+        max-width: 58ch;
+        color: var(--dim);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      button {
+        appearance: none;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid var(--line);
+        color: var(--dim);
+        font: 600 10px/1 var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 9px 12px;
+        cursor: pointer;
+      }
+
+      button[aria-pressed="true"] {
+        border-color: var(--accent);
+        color: var(--ink);
+        background: rgba(156, 200, 255, 0.1);
+      }
+
+      main {
+        max-width: 1180px;
+        margin: 0 auto;
+        display: grid;
+        gap: 34px;
+      }
+
+      h2 {
+        font: 600 10px/1 var(--mono);
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--faint);
+        margin: 0 0 14px;
+      }
+
+      /* —— 阶梯 —— */
+      .ladder {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+        border: 1px solid var(--line);
+      }
+
+      .step {
+        padding: 16px 12px 14px;
+        border-right: 1px solid var(--hair);
+        display: grid;
+        gap: 10px;
+        align-content: end;
+        min-height: 140px;
+      }
+
+      .step:last-child {
+        border-right: 0;
+      }
+
+      .step .sig {
+        height: 26px;
+        opacity: 0.55;
+        color: var(--dim);
+      }
+
+      .step b {
+        font-size: clamp(26px, 2.5vw, 38px);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1;
+      }
+
+      .step span {
+        font: 500 9.5px/1.3 var(--mono);
+        color: var(--faint);
+        letter-spacing: 0.04em;
+      }
+
+      /* —— 符号 —— */
+      .sig svg,
+      .sigil svg {
+        display: block;
+      }
+
+      .sig svg {
+        width: 100%;
+        height: 100%;
+      }
+
+      /* 卡片和面板里的符号是直接塞进 .sigil 的，没有 .sig 包裹层，
+         所以描边规则必须挂在 svg 上，而不是 .sig path。 */
+      .sigil svg {
+        width: 100%;
+        height: 100%;
+        margin: auto;
+      }
+
+      svg path {
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 5.5;
+        stroke-linecap: round;
+      }
+
+      /* —— 后层符号 —— */
+      .mark {
+        position: relative;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+      }
+
+      .mark .sigil {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: var(--ink);
+        opacity: 0.07;
+        z-index: 0;
+        pointer-events: none;
+      }
+
+      .mark .letters {
+        position: relative;
+        z-index: 1;
+        font-size: clamp(42px, 5.6vw, 86px);
+        font-weight: 800;
+        letter-spacing: -0.045em;
+        line-height: 1;
+      }
+
+      body.no-sigil .mark .sigil {
+        display: none;
+      }
+
+      /* —— 四档详情 —— */
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        padding: 18px;
+        display: grid;
+        gap: 14px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 60%);
+      }
+
+      .card .mark {
+        height: 190px;
+      }
+
+      .card .meta {
+        display: flex;
+        justify-content: space-between;
+        font: 500 10px/1 var(--mono);
+        color: var(--faint);
+        letter-spacing: 0.06em;
+      }
+
+      .card h3 {
+        margin: 0;
+        font: 600 11px/1.4 var(--mono);
+        letter-spacing: 0.06em;
+        color: var(--dim);
+      }
+
+      .card p {
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.55;
+        color: var(--faint);
+      }
+
+      /* —— 面板尺度 —— */
+      .panel-wrap {
+        display: grid;
+        grid-template-columns: minmax(0, 760px) 300px;
+        gap: 26px;
+        align-items: start;
+      }
+
+      .panel {
+        aspect-ratio: 760 / 470;
+        border: 1px solid var(--line);
+        background: var(--graphite-2);
+        display: flex;
+        flex-direction: column;
+        padding: 26px 28px;
+      }
+
+      .panel .head {
+        display: flex;
+        justify-content: space-between;
+        font: 600 9.5px/1 var(--mono);
+        letter-spacing: 0.16em;
+        color: var(--faint);
+        border-bottom: 1px solid var(--hair);
+        padding-bottom: 12px;
+      }
+
+      .panel .body {
+        flex: 1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 210px;
+        gap: 26px;
+        align-items: center;
+        min-height: 0;
+      }
+
+      .panel .grade-block {
+        position: relative;
+        display: grid;
+        gap: 6px;
+        overflow: hidden;
+      }
+
+      .panel .grade-block .sigil {
+        position: absolute;
+        inset: -20% 0;
+        display: grid;
+        place-items: center;
+        color: var(--ink);
+        opacity: 0.07;
+        z-index: 0;
+      }
+
+      .panel .grade-block .sigil svg {
+        width: 88%;
+        height: 88%;
+      }
+
+      .panel .chart {
+        position: relative;
+        z-index: 1;
+        font: 600 9.5px/1 var(--mono);
+        letter-spacing: 0.14em;
+        color: var(--faint);
+      }
+
+      .panel .grade {
+        position: relative;
+        z-index: 1;
+        font-size: 86px;
+        font-weight: 800;
+        letter-spacing: -0.05em;
+        line-height: 0.95;
+      }
+
+      .panel .sub {
+        position: relative;
+        z-index: 1;
+        font: 500 10px/1 var(--mono);
+        letter-spacing: 0.08em;
+        color: var(--faint);
+      }
+
+      .panel .score {
+        display: grid;
+        justify-items: end;
+        gap: 8px;
+      }
+
+      .panel .score b {
+        font: 700 32px/1 var(--mono);
+        letter-spacing: -0.02em;
+      }
+
+      .panel .score span {
+        font: 500 9.5px/1 var(--mono);
+        color: var(--faint);
+        letter-spacing: 0.1em;
+      }
+
+      .legend {
+        font-size: 12px;
+        line-height: 1.7;
+        color: var(--faint);
+      }
+
+      .legend b {
+        color: var(--dim);
+        font-weight: 600;
+      }
+
+      .legend p {
+        margin: 0 0 14px;
+      }
+
+      /* —— 两个方向 —— */
+      .row-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+
+      .fmt-card {
+        border: 1px solid var(--line);
+        padding: 22px;
+        display: grid;
+        gap: 12px;
+        align-content: center;
+      }
+
+      .fmt-card .mark {
+        height: 150px;
+      }
+
+      .fmt-card .meta {
+        display: flex;
+        justify-content: space-between;
+        font: 500 10px/1 var(--mono);
+        color: var(--faint);
+        letter-spacing: 0.06em;
+      }
+
+      .paper {
+        background: var(--paper);
+        color: var(--paper-ink);
+        border-color: rgba(0, 0, 0, 0.18);
+      }
+
+      .paper .sigil {
+        color: var(--paper-ink);
+        opacity: 0.09;
+      }
+
+      .paper .meta {
+        color: rgba(20, 24, 29, 0.55);
+      }
+
+      @media (max-width: 980px) {
+        .ladder {
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+        }
+        .step:nth-child(4n) {
+          border-right: 0;
+        }
+        .cards {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .panel-wrap {
+          grid-template-columns: 1fr;
+        }
+        .row-2 {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <div class="eyebrow">Grade Lab / 2026-10-22</div>
+        <h1>评级 = 三字母简写 + 数学符号后层</h1>
+        <p>
+          前四档沿用 D / C / B / A；95% 以上换一套“超出字母表”的标记：
+          <b>三个字母是主体，数学符号是后层</b>。符号不参与阅读，只提供层级与仪式感；
+          波纹从两波收到三横，“接近”这件事本身变成了字形。
+        </p>
+      </div>
+      <div class="controls">
+        <button id="toggle-sigil" aria-pressed="true">符号层</button>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <h2>完整阶梯</h2>
+        <div class="ladder" id="ladder"></div>
+      </section>
+
+      <section>
+        <h2>95% 以上：字母主体 + 符号后层</h2>
+        <div class="cards" id="cards"></div>
+      </section>
+
+      <section>
+        <h2>面板尺度（760 × 470 逻辑画布 / 1.35m 观看）</h2>
+        <div class="panel-wrap">
+          <div class="panel">
+            <div class="head"><span>06 / RESULT</span><span>CLEAR</span></div>
+            <div class="body">
+              <div class="grade-block">
+                <div class="sigil" data-sig="IDN"></div>
+                <div class="chart">PROVING GROUND / IN 8</div>
+                <div class="grade">IDN</div>
+                <div class="sub">IDENTICAL · 99.4%</div>
+              </div>
+              <div class="score">
+                <span>SCORE</span>
+                <b>10,000,000</b>
+                <span>PERFECT 128</span>
+                <span>GOOD 0</span>
+                <span>MISS 0</span>
+                <span>ACCURACY 100.0%</span>
+              </div>
+            </div>
+          </div>
+          <div class="legend">
+            <p>
+              评级在面板上的实际字号约 <b>86px</b>（760 逻辑画布），1.35m 距离约 4.3° 高——
+              和分数同一量级，仍然一秒读出。
+            </p>
+            <p>
+              后层压到 <b>8.5%</b>、放大到字母的 2.4 倍：它只在暗底上成立，纸面方向要再降一档。
+            </p>
+            <p>点右上角关掉「符号层」，检查没有符号时评级是否仍然成立。</p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>两个方向</h2>
+        <div class="row-2">
+          <div class="fmt-card">
+            <div class="mark">
+              <div class="sigil" data-sig="CGR"></div>
+              <div class="letters">CGR</div>
+            </div>
+            <div class="meta"><span>CGR · 98.2%</span><span>INSTRUMENT</span></div>
+          </div>
+          <div class="fmt-card paper">
+            <div class="mark">
+              <div class="sigil" data-sig="CGR"></div>
+              <div class="letters">CGR</div>
+            </div>
+            <div class="meta"><span>CGR · 98.2%</span><span>PAPER</span></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      /*
+       * 四个符号自绘：
+       *   APX  ≈   两波
+       *   ASM  ≃   一波 + 一横
+       *   CGR  ≅   一波 + 两横
+       *   IDN  ≡   三横
+       * 波纹逐级消失 —— 这就是“误差在收敛”的视觉。
+       */
+      const SYMBOLS = {
+        // 每一行显式给 y（viewBox 单位）：波浪在上、横线在下，是真实字形的结构，
+        // 不是把几行均匀排开。
+        APX: [
+          { kind: 'wave', y: 30 },
+          { kind: 'wave', y: 70 },
+        ],
+        ASM: [
+          { kind: 'wave', y: 28 },
+          { kind: 'line', y: 72 },
+        ],
+        CGR: [
+          { kind: 'wave', y: 22 },
+          { kind: 'line', y: 52 },
+          { kind: 'line', y: 78 },
+        ],
+        IDN: [
+          { kind: 'line', y: 26 },
+          { kind: 'line', y: 50 },
+          { kind: 'line', y: 74 },
+        ],
+      };
+
+      const GRADES = [
+        { key: 'D', range: '< 80%', note: '未达标；和 FAILED 分开' },
+        { key: 'C', range: '80–85%', note: '能过，但节奏还不稳' },
+        { key: 'B', range: '85–90%', note: '稳定' },
+        { key: 'A', range: '90–95%', note: '干净的一遍' },
+        { key: 'APX', word: 'approximate', range: '95–97%', note: '还差一点，已经进入精确区' },
+        { key: 'ASM', word: 'asymptotic', range: '97–98%', note: '误差开始收敛' },
+        { key: 'CGR', word: 'congruent', range: '98–99%', note: '两条线几乎重合' },
+        { key: 'IDN', word: 'identical', range: '99–100%', note: '零偏差' },
+      ];
+
+      /** 生成 100×100 的符号 SVG；横向拉满整张卡片，纵向按显式 y 排。 */
+      function sigilSVG(kind) {
+        const rows = SYMBOLS[kind];
+        if (!rows) return '';
+        const xs = 6;
+        const xe = 94;
+        const wave = (y) => `M ${xs} ${y} q 11 -8 22 0 t 22 0 t 22 0 t 22 0`;
+        const line = (y) => `M ${xs} ${y} L ${xe} ${y}`;
+        const parts = rows.map((row) =>
+          row.kind === 'wave' ? `<path d="${wave(row.y)}" />` : `<path d="${line(row.y)}" />`,
+        );
+        return `<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${parts.join('')}</svg>`;
+      }
+
+      document.getElementById('ladder').innerHTML = GRADES.map(
+        (g) => `
+        <div class="step">
+          <div class="sig">${sigilSVG(g.key)}</div>
+          <b>${g.key}</b>
+          <span>${g.range}</span>
+        </div>`,
+      ).join('');
+
+      document.getElementById('cards').innerHTML = GRADES.slice(4)
+        .map(
+          (g) => `
+        <div class="card">
+          <div class="mark">
+            <div class="sigil">${sigilSVG(g.key)}</div>
+            <div class="letters">${g.key}</div>
+          </div>
+          <div class="meta"><span>${g.range}</span><span>${g.key === 'APX' ? '≈' : g.key === 'ASM' ? '≃' : g.key === 'CGR' ? '≅' : '≡'}</span></div>
+          <h3>${g.key} / ${g.word.toUpperCase()}</h3>
+          <p>${g.note}</p>
+        </div>`,
+        )
+        .join('');
+
+      // 面板里的后层符号
+      document.querySelectorAll('[data-sig]').forEach((node) => {
+        node.innerHTML = sigilSVG(node.dataset.sig);
+      });
+
+      const btn = document.getElementById('toggle-sigil');
+      btn.addEventListener('click', () => {
+        const on = !document.body.classList.toggle('no-sigil');
+        btn.setAttribute('aria-pressed', String(on));
+      });
+    </script>
+  </body>
+</html>

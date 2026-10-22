@@ -1,0 +1,49 @@
+[
+  {
+    "file": "page.png",
+    "state": null,
+    "size": "1440x900",
+    "zoom": 1,
+    "animationWaitMs": 0,
+    "issues": [],
+    "lint": [
+      {
+        "rule": "eyebrow",
+        "label": "标题上方的眉标",
+        "count": 1,
+        "examples": [
+          "div.eyebrow「GRADE LAB / 2026-10-22」"
+        ]
+      },
+      {
+        "rule": "englishLabel",
+        "label": "中文界面里的英文大写标签",
+        "count": 9,
+        "examples": [
+          "div.eyebrow「GRADE LAB / 2026-10-22」",
+          "h3「APX / APPROXIMATE」",
+          "h3「ASM / ASYMPTOTIC」"
+        ]
+      },
+      {
+        "rule": "contrastLow",
+        "label": "文字对比度不达标（正文低于 4.5:1，大字低于 3:1）",
+        "count": 11,
+        "examples": [
+          "span「06 / RESULT」（4.33:1）",
+          "span「CLEAR」（4.33:1）",
+          "div.chart「PROVING GROUND / IN 8」（4.33:1）"
+        ]
+      },
+      {
+        "rule": "smallText",
+        "label": "正文小于 13px",
+        "count": 2,
+        "examples": [
+          "p「评级在面板上的实际字号约 86px（760 逻辑」（12px）",
+          "p「后层压到 8.5%、放大到字母的 2.4 倍：它」（12px）"
+        ]
+      }
+    ]
+  }
+]
