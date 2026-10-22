@@ -79,6 +79,7 @@ Home → Songs → Playing → Paused → Settings
 | UI-14 | P2 | 本地包管理 | 没有移除 / 重命名；IndexedDB 按 origin 隔离，localhost 加的包不会出现在 pages.dev |
 | UI-15 | P2 | 无物量谱面立即结束 | 还没有按 `meta.duration` 等待；等 Infinity Heaven 补完再处理 |
 | UI-16 | P1 | Quest 3 主观验收 | 面板距离 / 字号、`buttons[6]` 是否真是 menu、hold 时是否还会误触、arc `0.42` 暗度 |
+| UI-18 | P1 | 游玩时没有独立 Combo HUD | 浮空显示里有 30px `COMBO n`，但位置偏右，不作为游玩主 HUD；计划见 [`FUTURE.md`](FUTURE.md) §0.5 |
 | FEEL-04 | P2 | 短棒与判定点 | 短棒只是视觉提示；如果玩家自然用棒尖打，需确认 0.18m 的偏移是否会造成手感偏差 |
 | FEEL-05 | P2 | early 分布 | 当前 perfect `-100/+80`、good `-140/+160`；根据结算的 EARLY / LATE 再决定是否继续收 / 放 |
 | FEEL-06 | P2 | 音色主观确认 | hit 双层音、drag 轻击仍需 Quest 3 上确认音量与“不尖” |
