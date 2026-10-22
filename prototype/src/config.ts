@@ -42,7 +42,7 @@ export const DEFAULT_PARAMS: TableParams = {
   laneWidth: 0.27,
   tableDepth: 10,
   nearOffset: 0.34,
-  bandDistance: 0.8,
+  bandDistance: 0.7,
   plateThickness: 0.012,
   showLaneNumbers: false,
   showBand: true,

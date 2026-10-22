@@ -137,7 +137,7 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 `?chart=/charts/air-example.json` 空中 note / 显式 arc 物量 · `?auto=1` 自动完美演示 ·
 `?autostart=1` 跳过主页 · `?freeze=1` 冻结 · `?warp=2.4` 快进 · `?flow=4` 流速 · `?shift=left|right` ·
 `?panel=home|songs|packs|paused|settings|result` 摊开面板 · `?menuButton=6` 改 menu 键索引 · `?clock=0` 关掉音频时钟 ·
-`?offset=20&volume=0.6&lead=2000` 音频参数 · `?audio=/track.mp3` 真实音轨 · `?chrome=0` 隐藏桌面调试覆盖层 · `?panelScale=1.05&panelDistance=0.65&panelY=1.45` 调面板 · `?lane=0.27&band=0.80` 调轨宽 / 判定带 · `?hitboxX=1.25&hitboxZ=1.2` 调 hit 判定盒的空间倍率（不改时间窗） · `?debug=0` 关闭调试 GUI；WebXR 浏览器默认显示，`?debug=1` 可强制打开。
+`?offset=20&volume=0.6&lead=2000` 音频参数 · `?audio=/track.mp3` 真实音轨 · `?chrome=0` 隐藏桌面调试覆盖层 · `?panelScale=1.05&panelDistance=0.65&panelY=1.45` 调面板 · `?lane=0.27&band=0.70` 调轨宽 / 判定带 · `?hitboxX=1.25&hitboxZ=1.2` 调 hit 判定盒的空间倍率（不改时间窗） · `?debug=0` 关闭调试 GUI；WebXR 浏览器默认显示，`?debug=1` 可强制打开。
 
 ## 脚本
 

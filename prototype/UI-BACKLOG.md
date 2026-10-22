@@ -904,6 +904,10 @@ editor 的 3D 预览使用 `DEFAULT_PARAMS` + `buildTable()` + `createPlayer()`�
   - `judgeHit` 的 perfect 判断改成带符号区间，good 的 miss 边界不变。
   - 判定引导网的 full 窗口同步为 early 120ms / late 80ms，避免“仍在 perfect 但网格已经暗了”。
 
+### 后续调整
+
+- 2026-10-22 头显实测：默认判定线距离 `0.80 → 0.70m` 最好；`bandZ` −0.46 → −0.36。`?band=` 仍可覆盖。
+
 ### 待验证
 
 - 短棒长度是否足够唤起手腕动作，又不至于让玩家以为要用棒尖判定；
