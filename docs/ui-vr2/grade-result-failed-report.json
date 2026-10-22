@@ -1,0 +1,38 @@
+[
+  {
+    "file": "page-@2x.png",
+    "state": null,
+    "size": "1440x900",
+    "zoom": 2,
+    "animationWaitMs": 0,
+    "issues": [],
+    "lint": [
+      {
+        "rule": "contrastLow",
+        "label": "文字对比度不达标（正文低于 4.5:1，大字低于 3:1）",
+        "count": 80,
+        "examples": [
+          "span「PARALLAX」（4.33:1）",
+          "span「RESULT」（4.33:1）",
+          "span「98.2%」（4.33:1）"
+        ]
+      },
+      {
+        "rule": "smallText",
+        "label": "正文小于 13px",
+        "count": 1,
+        "examples": [
+          "p.note「左栏仍然是「分数 → 曲名 → 判定统计」；右栏」（12px）"
+        ]
+      },
+      {
+        "rule": "longMeasure",
+        "label": "正文行太长",
+        "count": 1,
+        "examples": [
+          "p.note「左栏仍然是「分数 → 曲名 → 判定统计」；右栏」（每行约 109 字）"
+        ]
+      }
+    ]
+  }
+]
