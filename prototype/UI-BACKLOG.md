@@ -909,6 +909,12 @@ editor 的 3D 预览使用 `DEFAULT_PARAMS` + `buildTable()` + `createPlayer()`�
 - 2026-10-22 头显实测：默认判定线距离 `0.80 → 0.70m` 最好；`bandZ` −0.46 → −0.36。`?band=` 仍可覆盖。
 - 2026-10-22 进一步缩 early：perfect early **-100ms**、good early **-140ms**；late 保持 +80 / +160。
 
+### 验收
+
+- 2026-10-22 用户反馈：**手感基本合格**。
+- 计分确认：GOOD 是 PERFECT 的 **60%**，不是一半；血量 GOOD +0.25 / PERFECT +0.5（这一项是 half）；combo 两者都 +1，combo 不参与计分。
+- 准确率显示同样按 `PERFECT + GOOD × 0.6` 计算，不是 50%。
+
 ### 待验证
 
 - 短棒长度是否足够唤起手腕动作，又不至于让玩家以为要用棒尖判定；
