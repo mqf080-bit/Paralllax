@@ -9,9 +9,10 @@ VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处�
 
 ## 截图
 
-| 制谱器（v0.4.0） | 游戏（Infinity Heaven 谱面包） |
+| 制谱器（v0.4.0） | 游玩 |
 | --- | --- |
-| ![Parallax 制谱器](docs/images/editor.jpg) | ![Parallax 游戏画面](docs/images/game.png) |
+| ![Parallax 制谱器](docs/images/editor.jpg)<br>Infinity Heaven · 频谱定位 · 0:07.733 | ![Parallax 游戏画面](docs/images/game.png)<br>Proving Ground · COMBO 18 · arc 跟随 |
+| ![Parallax 主页](docs/images/home.png)<br>主页 · `Y HOLD = PAUSE` | ![Parallax 结算](docs/images/result.png)<br>结算 · EQV（100%）· 评级锁版 |
 
 ## 状态
 
