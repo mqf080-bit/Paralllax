@@ -508,6 +508,11 @@ select {
   background: var(--panel);
 }
 
+.inspector__index {
+  width: 100%;
+  margin: 6px 0 2px;
+}
+
 .inspector__section {
   margin-bottom: 14px;
   padding-bottom: 12px;

@@ -183,6 +183,7 @@ export class EditorController implements EditorHost, InspectorHost {
   /** trace：snap = 显示并吸附；view = 只显示；off = 不显示不吸附。 */
   private traceMode: 'snap' | 'view' | 'off' = 'snap';
   private traceHighlight: number | null = null;
+  private timingHover: number | null = null;
   private readonly lastUi = { play: '', overview: '', time: '', audio: '', reverse: '', status: '' };
   /** 播放头所在段的拍号分母；SNAP 预设按它重建。 */
   private snapDenominator = 4;
@@ -281,6 +282,13 @@ export class EditorController implements EditorHost, InspectorHost {
   /** 播放头时间（毫秒）。 */
   get playhead(): number {
     return this.preview.state.timeMs;
+  }
+
+  setTimingHover(index: number | null): void {
+    if (this.timingHover === index) return;
+    this.timingHover = index;
+    this.renderer.setState(this.renderState());
+    this.uiDirty = true;
   }
 
   setTraceHighlight(index: number | null): void {
@@ -1128,6 +1136,7 @@ export class EditorController implements EditorHost, InspectorHost {
       svDomain: this.svDomain,
       showTraces: this.traceMode !== 'off',
       traceHighlight: this.traceHighlight,
+      timingHover: this.timingHover,
     };
   }
 

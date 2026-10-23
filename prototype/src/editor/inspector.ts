@@ -92,6 +92,21 @@ function section(title: string, hint?: string): HTMLElement {
   return root;
 }
 
+function collapsibleSection(
+  title: string,
+  hint: string,
+  open: boolean,
+  onToggle: () => void,
+): HTMLElement {
+  const root = el('section', 'inspector__section');
+  const head = el('div', 'inspector__head');
+  const toggle = button(open ? '▾' : '▸', onToggle, 'button button--tiny');
+  toggle.title = open ? '收起' : '展开';
+  head.append(toggle, el('span', 'inspector__title', title), el('span', 'inspector__hint', hint));
+  root.append(head);
+  return root;
+}
+
 function field(label: string, control: HTMLElement): HTMLElement {
   const row = el('label', 'field');
   row.append(el('span', 'field__label', label), control);
@@ -168,6 +183,11 @@ const HAND_OPTIONS: Array<{ value: 'none' | Hand; label: string }> = [
 const EASING_SELECT = EASING_OPTIONS.map((easing) => ({ value: easing, label: EASING_LABELS[easing] }));
 
 export class Inspector {
+  private timingOpen = true;
+  private timingExpanded = false;
+  private shiftOpen = true;
+  private shiftExpanded = false;
+
   constructor(
     private readonly container: HTMLElement,
     private readonly host: InspectorHost,
@@ -810,12 +830,53 @@ export class Inspector {
 
   private renderTiming(): void {
     const host = this.host;
-    const root = section('TIMING', '拍号 n/d · BPM 以四分音符为准');
+    const points = host.chart.timing;
+    const first = points[0];
+    const last = points[points.length - 1];
+    const summary =
+      points.length > 1 && first && last
+        ? `${points.length} POINTS · ${Math.round(first.bpm)} → ${Math.round(last.bpm)} BPM`
+        : `${points.length} POINT`;
+    const root = collapsibleSection(
+      'TIMING',
+      this.timingOpen ? '拍号 n/d · BPM 以四分音符为准' : summary,
+      this.timingOpen,
+      () => {
+        this.timingOpen = !this.timingOpen;
+        this.render();
+      },
+    );
+    if (!this.timingOpen) {
+      this.add(root);
+      return;
+    }
+
+    // 超过 10 个：先露出前 10 个，其余折叠；顶上加一个跳转索引。
+    const limit = this.timingExpanded ? points.length : Math.min(10, points.length);
+    if (points.length > 10) {
+      const index = selectInput<string>(
+        '',
+        [
+          { value: '', label: '—— JUMP TO ——' },
+          ...points.map((point, i) => ({
+            value: String(i),
+            label: `${formatTime(point.time)} · ${Math.round(point.bpm)} · ${meterOf(point).numerator}/${meterOf(point).denominator}`,
+          })),
+        ],
+        (value) => {
+          const point = points[Number(value)];
+          if (point) host.seek(point.time);
+        },
+      );
+      index.classList.add('inspector__index');
+      root.append(index);
+    }
+
     const head = el('div', 'eventrow eventrow--head');
     head.append(el('span', undefined, 'TIME'), el('span', undefined, 'BPM'), el('span', undefined, 'N / D'), el('span'));
     root.append(head);
-    for (let index = 0; index < host.chart.timing.length; index += 1) {
-      const point = host.chart.timing[index]!;
+    for (let index = 0; index < limit; index += 1) {
+      const point = points[index]!;
       const row = el('div', 'eventrow');
       row.append(
         numberInput(
@@ -870,6 +931,20 @@ export class Inspector {
       }
       root.append(row);
     }
+
+    if (points.length > 10) {
+      root.append(
+        button(
+          this.timingExpanded ? 'SHOW LESS' : `SHOW ALL (${points.length})`,
+          () => {
+            this.timingExpanded = !this.timingExpanded;
+            this.render();
+          },
+          'button button--small',
+        ),
+      );
+    }
+
     const actions = el('div', 'inspector__actions');
     actions.append(button('ADD @ PLAYHEAD', () => host.addTiming()));
     root.append(actions);
@@ -879,98 +954,65 @@ export class Inspector {
   private renderTraceSection(): void {
     const host = this.host;
     const traces = host.chart.traces ?? [];
-    const root = section('TRACE', '无物量 · 不判定');
-    if (traces.length === 0) {
-      root.append(el('p', 'inspector__hint', '用 TRACE 工具在 2D / 3D 里落点，或点 “ADD @ PLAYHEAD”。'));
-    } else {
-      const list = el('div', 'pointlist');
-      traces.forEach((trace, index) => {
-        const active = host.activeTrace === index;
-        const row = el('div', active ? 'trace-row is-active' : 'trace-row');
-        row.append(
-          button(`${formatTime(trace.time)} · ${trace.points.length} P`, () => host.setActiveTrace(index), 'trace-row__pick'),
-          button(
-            '×',
-            () => {
-              host.beginGesture();
-              host.chart.traces?.splice(index, 1);
-              host.setActiveTrace(null);
-              host.commit({ preview: false });
-              host.endGesture();
-            },
-            'button button--tiny button--danger',
-          ),
-        );
-        list.append(row);
-      });
-      root.append(list);
+    const index = host.activeTrace;
+    const trace = index !== null ? traces[index] : undefined;
+    if (!trace || index === null) {
+      if (traces.length > 0) {
+        const root = section('TRACE', `${traces.length} 条 · 在 2D / 3D 里点线选中`);
+        this.add(root);
+      }
+      return;
     }
 
-    const active = host.activeTrace !== null ? traces[host.activeTrace] : undefined;
-    if (active) {
-      const head = el('div', 'eventrow eventrow--head');
-      head.append(el('span', undefined, 'TIME'), el('span', undefined, 'X'), el('span', undefined, 'Z'), el('span'));
-      root.append(head);
-      active.points.forEach((point, index) => {
-        const row = el('div', 'eventrow');
-        row.append(
-          numberInput(point.time, (value) =>
-            edit(host, () => {
-              point.time = Math.max(index === 0 ? 0 : active.points[index - 1]!.time + 1, Math.round(value));
-            }, false),
-            { min: 0 },
-          ),
-          numberInput(point.x, (value) =>
-            edit(host, () => {
-              point.x = Math.min(5.5, Math.max(-0.5, Math.round(value * 100) / 100));
-            }, false),
-            { step: 0.05 },
-          ),
-          numberInput(point.z, (value) =>
-            edit(host, () => {
-              point.z = Math.max(0, Math.round(value * 1000) / 1000);
-            }, false),
-            { step: 0.01 },
-          ),
-          button(
-            '×',
-            () => {
-              if (active.points.length <= 2) return;
-              host.beginGesture();
-              active.points.splice(index, 1);
-              host.commit({ preview: false });
-              host.endGesture();
-            },
-            'button button--tiny button--danger',
-          ),
-        );
-        root.append(row);
-      });
-    }
-
-    if (active) {
-      root.append(
-        (() => {
-          const row = el('div', 'inspector__actions');
-          row.append(
-            button('→ ARC', () => host.convertActiveTraceToArc(), 'button button--small'),
-            el('span', 'inspector__hint', '转换后物量按 arc 自动规则生成'),
-          );
-          return row;
-        })(),
+    const root = section('TRACE', `第 ${index + 1} / ${traces.length} 条 · 无物量 · 不判定`);
+    const head = el('div', 'eventrow eventrow--head');
+    head.append(el('span', undefined, 'TIME'), el('span', undefined, 'X'), el('span', undefined, 'Z'), el('span'));
+    root.append(head);
+    trace.points.forEach((point, pointIndex) => {
+      const row = el('div', 'eventrow');
+      row.append(
+        numberInput(point.time, (value) =>
+          edit(host, () => {
+            point.time = Math.max(pointIndex === 0 ? 0 : trace.points[pointIndex - 1]!.time + 1, Math.round(value));
+          }, false),
+          { min: 0 },
+        ),
+        numberInput(point.x, (value) =>
+          edit(host, () => {
+            point.x = Math.min(5.5, Math.max(-0.5, Math.round(value * 100) / 100));
+          }, false),
+          { step: 0.05 },
+        ),
+        numberInput(point.z, (value) =>
+          edit(host, () => {
+            point.z = Math.max(0, Math.round(value * 1000) / 1000);
+          }, false),
+          { step: 0.01 },
+        ),
+        button(
+          '×',
+          () => {
+            if (trace.points.length <= 2) return;
+            host.beginGesture();
+            trace.points.splice(pointIndex, 1);
+            host.commit({ preview: false });
+            host.endGesture();
+          },
+          'button button--tiny button--danger',
+        ),
       );
-    }
+      root.append(row);
+    });
 
     const actions = el('div', 'inspector__actions');
     actions.append(
+      button('→ ARC', () => host.convertActiveTraceToArc(), 'button button--small'),
       button('ADD @ PLAYHEAD', () => {
-        const trace = host.activeTrace !== null ? traces[host.activeTrace] : undefined;
-        const last = trace?.points[trace.points.length - 1];
-        // 播放头在线的末尾之前时，接到末尾（不然会另起一条新线，很意外）
-        const end = trace ? trace.time + (last?.time ?? 0) : 0;
-        const at = trace ? Math.max(host.playhead, end + 1) : host.playhead;
+        const last = trace.points[trace.points.length - 1];
+        const end = trace.time + (last?.time ?? 0);
+        const at = Math.max(host.playhead, end + 1);
         host.beginGesture();
-        host.setActiveTrace(appendTracePoint(host.chart, host.activeTrace, at, last?.x ?? 2.5, last?.z ?? 0));
+        host.setActiveTrace(appendTracePoint(host.chart, index, at, last?.x ?? 2.5, last?.z ?? 0));
         host.commit({ preview: false });
         host.endGesture();
       }),
@@ -981,7 +1023,21 @@ export class Inspector {
 
   private renderShiftSection(): void {
     const host = this.host;
-    const root = section('SHIFT', '4 轨窗口');
+    const events = host.chart.shift;
+    const root = collapsibleSection(
+      'SHIFT',
+      this.shiftOpen ? '4 轨窗口' : `${events.length} EVENTS`,
+      this.shiftOpen,
+      () => {
+        this.shiftOpen = !this.shiftOpen;
+        this.render();
+      },
+    );
+    if (!this.shiftOpen) {
+      this.add(root);
+      return;
+    }
+
     const actions = el('div', 'inspector__actions');
     actions.append(
       button('← LEFT', () => host.addShift('left')),
@@ -993,7 +1049,8 @@ export class Inspector {
     head.append(el('span', undefined, 'TIME'), el('span', undefined, 'TARGET'), el('span'), el('span'));
     root.append(head);
 
-    host.chart.shift.forEach((event) => {
+    const limit = this.shiftExpanded ? events.length : Math.min(10, events.length);
+    events.slice(0, limit).forEach((event) => {
       const row = el('div', 'eventrow');
       row.append(
         numberInput(
@@ -1029,6 +1086,19 @@ export class Inspector {
       });
       root.append(row);
     });
+
+    if (events.length > 10) {
+      root.append(
+        button(
+          this.shiftExpanded ? 'SHOW LESS' : `SHOW ALL (${events.length})`,
+          () => {
+            this.shiftExpanded = !this.shiftExpanded;
+            this.render();
+          },
+          'button button--small',
+        ),
+      );
+    }
     this.add(root);
   }
 

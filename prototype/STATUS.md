@@ -48,6 +48,7 @@
 - **Songs 滚动（2026-10-22）**：列表从固定 4 行改为 4 行窗口 + 摇杆滚动（`hands.stickY`，axes[3] / axes[1]）；另有 ↑/↓ 箭头、滚动条、`n–m / total` 计数；换歌自动把选中项滚进视野。
 - **Combo HUD（2026-10-22）**：[`src/scene/comboHud.ts`](src/scene/comboHud.ts) 世界固定 Sprite，位置 `(0, 1.80, −2.60)`（高于眼高与最高 note；玩家靠近 1.9m 内淡出）；大数字 + 小标签；0 隐藏、MISS 快速淡出、命中轻微脉冲；只在 combo 变化时重绘纹理；`?comboX` / `?comboY` / `?comboZ` 可调。修过一次实现 bug：缺 `?comboZ` 时 `Number(null) === 0` 把 HUD 放到 `(0, 0, 0)`（玩家头里）。
 - **默认难度 / tier 色（2026-10-22）**：编辑器新谱默认难度改为空字符串（不再写 `IN 1`）；五个 tier 的主题色 + 动效定稿，记录在 [`../parallax-idea.md`](../parallax-idea.md) §3 与 [`FUTURE.md`](FUTURE.md) §0.1，**未实现 tier UI**。
+- **时间线 timing 标记 + 检查器折叠（2026-10-23）**：timing 点在 2D 上显示 `BPM · n/d` 标签与虚线，悬停出 BPM / 拍号 / 起止；`TIMING` / `SHIFT` 可收起、超过 10 条折叠并带 `JUMP TO` 索引；TRACE 段只显示当前选中的那条。
 - **trace 引导线（2026-10-23）**：`chart.traces[]`（独立于 notes，无物量 / 不判定）；运行时细线 + 淡出窗口；编辑器 `TRACE` 工具 + 检查器段（改点 / 删点 / 播放头追加）；2D 总览画区间；`?traces=0` 可关；arc ↔ trace 互转；2D/3D 贴 trace 吸附放 note（2D / 3D 悬停高亮，3D 可拖点）；trace 在主视图 / 高度视图以 1px 细线显示（`TRACES` 可关），顶点可选中 / 拖动 / 删除。
 - **双押提示 + 引导网（2026-10-23）**：同一毫秒的 hit 之间画细连线（`double-hit-links`）；竖直引导网改成和 3D 编辑网格同源（1/4 轨 / 5cm），暖黄只在 hit 进入 perfect 的 -100/+80ms 时出现，并加了开关（编辑器顶栏 `GUIDE`、游戏 `?guide=0`）。
 - **自由拍号（2026-10-23）**：`TimingPoint` 增加 `numerator` / `denominator`（`4/4`、`5/6`、`4/3` 都能写），BPM 以四分音符为参照；编辑器 timing 行改成 `N / D` 两个输入，网格按段重算、小节号跨段累加，状态栏实时显示 `N/D · BAR n`；SNAP 预设跟着拍号变（5/6 下是 1/6、1/12、1/18…）；合成鼓组按拍号配重音。旧谱 `beats` 仍兼容；换拍号可落在小节中间（残小节保留编号、下一段接着编号）。

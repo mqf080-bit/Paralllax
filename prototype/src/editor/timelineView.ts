@@ -93,6 +93,8 @@ export interface TimelineState {
   showTraces: boolean;
   /** 即将吸附到的 trace 下标（高亮）。 */
   traceHighlight: number | null;
+  /** 鼠标悬停的 timing 点下标。 */
+  timingHover: number | null;
 }
 
 const COLORS = {
@@ -119,6 +121,7 @@ const COLORS = {
   invalid: '#e0704f',
   hold: '#bfe9f7',
   key: '#d8b46a',
+  timing: '#8fd6a0',
 };
 
 const MONO = 'ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, monospace';
@@ -582,6 +585,8 @@ export class TimelineRenderer {
       if (note.type === 'arc') arcs.push(note);
       else ground.push(note);
     }
+    this.drawTimingMarkers(state);
+
     // trace 更细、更暗，压在最底下
     if (state.showTraces) {
       (state.chart.traces ?? []).forEach((trace, index) => this.drawTraceLane(state, trace, index));
@@ -732,6 +737,70 @@ export class TimelineRenderer {
       ctx.closePath();
       ctx.fill();
       ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
+  /** timing 点：一条淡绿竖线 + BPM / 拍号标签；悬停时给完整信息。 */
+  private drawTimingMarkers(state: TimelineState): void {
+    const ctx = this.staticCtx;
+    const { layout, view } = state;
+    const points = state.chart.timing;
+    const top = layout.lanesTop;
+    const bottom = layout.lanesTop + layout.lanesH;
+    let lastLabelX = -Infinity;
+
+    ctx.save();
+    ctx.font = `8px ${MONO}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+
+    points.forEach((point, index) => {
+      const x = timeToX(view, point.time);
+      if (x < GUTTER - 40 || x > layout.width + 40) return;
+      const hot = state.timingHover === index;
+      ctx.strokeStyle = hot ? COLORS.timing : 'rgba(143, 214, 160, 0.22)';
+      ctx.setLineDash([2, 6]);
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, top);
+      ctx.lineTo(x + 0.5, bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const meter = meterOf(point);
+      const label = `${Math.round(point.bpm)} · ${meter.numerator}/${meter.denominator}`;
+      if (!hot && x - lastLabelX < 54) return;
+      if (x < GUTTER) return;
+      lastLabelX = x;
+      const width = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(9, 14, 20, 0.82)';
+      ctx.fillRect(x + 3, top + 3, width + 8, 13);
+      ctx.fillStyle = hot ? COLORS.timing : 'rgba(143, 214, 160, 0.75)';
+      ctx.fillText(label, x + 7, top + 10);
+    });
+
+    // 悬停详情：BPM / 拍号 / 起止
+    const hoverIndex = state.timingHover;
+    if (hoverIndex !== null) {
+      const point = points[hoverIndex];
+      if (point) {
+        const next = points[hoverIndex + 1];
+        const meter = meterOf(point);
+        const line1 = `BPM ${Math.round(point.bpm)} · ${meter.numerator}/${meter.denominator}`;
+        const line2 = `${formatTime(point.time)} → ${next ? formatTime(next.time) : 'END'}`;
+        const x = Math.min(layout.width - 160, Math.max(GUTTER + 4, timeToX(view, point.time) + 8));
+        const y = top + 22;
+        const width = Math.max(ctx.measureText(line1).width, ctx.measureText(line2).width) + 16;
+        ctx.fillStyle = 'rgba(8, 12, 18, 0.94)';
+        ctx.fillRect(x, y, width, 32);
+        ctx.strokeStyle = COLORS.timing;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 31);
+        ctx.fillStyle = COLORS.timing;
+        ctx.fillText(line1, x + 8, y + 10);
+        ctx.fillStyle = COLORS.textDim;
+        ctx.fillText(line2, x + 8, y + 23);
+      }
     }
     ctx.restore();
   }

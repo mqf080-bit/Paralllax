@@ -47,6 +47,7 @@ import {
 import {
   GUTTER,
   heightDomain,
+  timeToX,
   xToTime,
   yToHeight,
   yToLane,
@@ -83,6 +84,8 @@ export interface EditorHost {
   setTraceHighlight(index: number | null): void;
   /** trace 的吸附开关（显示 / 只显示 / 关闭）。 */
   readonly traceSnap: boolean;
+  /** 悬停在哪个 timing 点上（显示 BPM / 拍号 / 区间）。 */
+  setTimingHover(index: number | null): void;
   select(selection: Selection | null): void;
   seek(timeMs: number): void;
   setTool(tool: ToolId): void;
@@ -717,6 +720,19 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
     if (!drag) {
       const band = bandAt(host.layout, x, y);
       canvas.style.cursor = cursorFor(band, x, y);
+      // timing 标记悬停：横向 8px 内最近的一个
+      {
+        let nearest: number | null = null;
+        let best = 8;
+        host.chart.timing.forEach((point, index) => {
+          const distance = Math.abs(timeToX(host.view, point.time) - x);
+          if (distance <= best) {
+            best = distance;
+            nearest = index;
+          }
+        });
+        host.setTimingHover(nearest);
+      }
       // 放置类工具悬停在 trace 附近时，把那条线点亮（告诉玩家「会吸到这条」）
       if (
         host.traceSnap &&
