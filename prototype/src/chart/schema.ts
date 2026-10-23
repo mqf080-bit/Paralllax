@@ -215,6 +215,29 @@ export interface ChartLimits {
   maxHeight: number;
 }
 
+/**
+ * 引导线（trace）：细、半透明、**没有物量、没有 hand、不参与判定**。
+ * 只用来提示空中 note 的位置，或给制谱当参考线。
+ */
+export interface TracePoint {
+  /** 相对 trace 起点的毫秒。 */
+  time: number;
+  /** 横向位置（轨号单位，-0.5–5.5）。 */
+  x: number;
+  /** 台面上方的高度（米）。 */
+  z: number;
+  /** 横向缓动。 */
+  easing: Easing;
+  /** 高度缓动；省略时跟随 `easing`。 */
+  easingZ?: Easing;
+}
+
+export interface Trace {
+  /** 起点时间（毫秒）。 */
+  time: number;
+  points: TracePoint[];
+}
+
 export interface Chart {
   meta: ChartMeta;
   /** 音轨文件名 / 路径（制谱器用来记住导入了哪首；运行时可用 `?audio=` 覆盖）。 */
@@ -224,8 +247,16 @@ export interface Chart {
   speed: SpeedEvent[];
   shift: ShiftEvent[];
   notes: Note[];
+  /** 引导线：纯视觉，不参与物量 / 判定 / 计分。 */
+  traces?: Trace[];
   /** 覆盖默认限制（一般不用写；写错会被校验器拦下）。 */
   limits?: Partial<ChartLimits>;
+}
+
+/** trace 的结束时间（毫秒）。 */
+export function traceEnd(trace: Trace): number {
+  const last = trace.points[trace.points.length - 1];
+  return trace.time + (last?.time ?? 0);
 }
 
 /** 默认限制。制谱器、校验器、运行时共用。 */

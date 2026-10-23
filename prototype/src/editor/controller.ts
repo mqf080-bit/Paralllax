@@ -11,6 +11,7 @@ import { createPreview, type Preview, type PreviewState } from './preview';
 import * as persistence from './persistence';
 import type { CoverAsset } from './persistence';
 import {
+  appendTracePoint,
   arcDuration,
   arcTicks,
   beatMs,
@@ -112,6 +113,7 @@ const TOOL_LABELS: Record<ToolId, string> = {
   drag: 'DRAG',
   hold: 'HOLD',
   arc: 'ARC',
+  trace: 'TRACE',
 };
 
 interface EditorCover extends CoverAsset {
@@ -171,6 +173,7 @@ export class EditorController implements EditorHost, InspectorHost {
   /** UI 层的 dirty：暂停时只有它 / 播放时间变化才重画 2D 和总览。 */
   private uiDirty = true;
   private lastUiTime = Number.NaN;
+  private activeTraceIndex: number | null = null;
   private readonly lastUi = { play: '', overview: '', time: '', audio: '', reverse: '', status: '' };
   /** 播放头所在段的拍号分母；SNAP 预设按它重建。 */
   private snapDenominator = 4;
@@ -266,6 +269,17 @@ export class EditorController implements EditorHost, InspectorHost {
   /** 播放头时间（毫秒）。 */
   get playhead(): number {
     return this.preview.state.timeMs;
+  }
+
+  get activeTrace(): number | null {
+    return this.activeTraceIndex;
+  }
+
+  setActiveTrace(index: number | null): void {
+    const list = this.chart.traces ?? [];
+    this.activeTraceIndex = index !== null && list[index] ? index : null;
+    this.uiDirty = true;
+    this.updateUi();
   }
 
   get audioTrackName(): string {
@@ -556,7 +570,7 @@ export class EditorController implements EditorHost, InspectorHost {
     const py = Math.min(maxHeight, Math.max(0, y));
     const t = Math.max(0, Math.round(time));
     const lane = clampLane(Math.round(px));
-    let note: Note;
+    let note: Note | null = null;
     switch (this.tool) {
       case 'hit':
         note = { type: 'hit', time: t, lane, x: Math.round(px * 100) / 100, z: Math.round(py * 1000) / 1000 };
@@ -584,9 +598,16 @@ export class EditorController implements EditorHost, InspectorHost {
         };
         break;
       }
+      case 'trace': {
+        const index = appendTracePoint(this.chart, this.activeTrace, t, px, py);
+        this.setActiveTrace(index);
+        this.commit({ preview: true });
+        return null;
+      }
       case 'select':
         return null;
     }
+    if (!note) return null;
     this.chart.notes.push(note);
     this.commit({ preview: true });
     return note;

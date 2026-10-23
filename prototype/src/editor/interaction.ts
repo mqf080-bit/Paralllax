@@ -17,6 +17,7 @@ import {
   clampHeight,
   clampLane,
   clampX,
+  appendTracePoint,
   insertArcPoint,
   removeArcPoint,
   sampleArcPoint,
@@ -73,6 +74,9 @@ export interface EditorHost {
   readonly svDomain: SvDomain;
   /** 当前播放头时间（拖动时用来判断）。 */
   readonly playhead: number;
+  /** 当前正在编辑的引导线（TRACE 工具往它上面加点）。 */
+  readonly activeTrace: number | null;
+  setActiveTrace(index: number | null): void;
   select(selection: Selection | null): void;
   seek(timeMs: number): void;
   setTool(tool: ToolId): void;
@@ -431,6 +435,14 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       host.select({ kind: 'note', note });
       host.commit({ preview: true });
       drag = { kind: 'create-arc', note, startTime: start, startX: x0 };
+      return;
+    }
+
+    if (host.tool === 'trace') {
+      host.beginGesture();
+      const index = appendTracePoint(host.chart, host.activeTrace, snapped, snappedX, 0);
+      host.setActiveTrace(index);
+      host.commit({ preview: true });
       return;
     }
 

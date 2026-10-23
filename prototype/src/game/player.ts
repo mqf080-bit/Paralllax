@@ -19,6 +19,7 @@ import { applyDistanceFade } from '../materials/distanceFade';
 import type { MaterialLibrary } from '../materials/library';
 import { createArcNote, type ArcEvent, type ArcNote } from './arc';
 import { createJudgementGuide, GUIDE_START_MS, type GuideHit } from './guide';
+import { createTraceLayer } from './trace';
 import type { HandSample, HandSide } from './hands';
 import { createHitVisualFactory, hitFragmentColor } from './hitVisual';
 import type { Grade } from './judgement';
@@ -46,6 +47,8 @@ export interface PlayerSettings {
   hitboxZ: number;
   /** 竖直引导网开关（编辑器 / 游戏都可关）。 */
   guide: boolean;
+  /** 引导线（trace）显示开关；关掉不影响谱面数据。 */
+  traces: boolean;
 }
 
 export interface PlayerStats {
@@ -176,6 +179,9 @@ export function createPlayer(
   const baseSpeed = () => settings.flowSpeed;
   const guide = createJudgementGuide(params, geometry);
   group.add(guide.group);
+
+  const traces = createTraceLayer(chart, params, geometry);
+  group.add(traces.group);
 
   // 双押提示：同一时间的 hit 用细线连起来（只在它们都还在画面里时画）。
   const LINK_CAPACITY = 1024;
@@ -834,6 +840,7 @@ export function createPlayer(
       if (!settings.enabled) {
         finished = false;
         guide.clear();
+        traces.clear();
         links.visible = false;
         for (const note of runtime) {
           if (note.kind === 'arc') note.arc.group.visible = false;
@@ -867,6 +874,8 @@ export function createPlayer(
       } else {
         guide.clear();
       }
+      if (settings.traces) traces.update(clockMs, windowValue, zAt);
+      else traces.clear();
 
       for (const note of runtime) {
         updateVisibility(note);
@@ -946,6 +955,7 @@ export function createPlayer(
       shatter.dispose();
       popup.dispose();
       guide.dispose();
+      traces.dispose();
       linkGeometry.dispose();
       linkMaterial.dispose();
       group.clear();

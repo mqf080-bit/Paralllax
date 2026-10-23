@@ -276,6 +276,22 @@ export function validateChart(chart: Chart): string[] {
     }
   }
 
+  for (const trace of chart.traces ?? []) {
+    if (trace.points.length < 2) {
+      issues.push(`trace@${trace.time}: 至少两个点`);
+      continue;
+    }
+    if (trace.points[0]!.time !== 0) issues.push(`trace@${trace.time}: 第一个点的 time 必须是 0`);
+    for (let i = 0; i < trace.points.length; i += 1) {
+      const point = trace.points[i]!;
+      if (i > 0 && point.time <= trace.points[i - 1]!.time) {
+        issues.push(`trace@${trace.time}: 点的 time 必须递增`);
+      }
+      if (point.x < -0.5 || point.x > 5.5) issues.push(`trace@${trace.time}: x 超出 0–5`);
+      if (point.z < 0) issues.push(`trace@${trace.time}: z 不能为负`);
+    }
+  }
+
   for (const event of chart.speed) {
     if (!Number.isFinite(event.multiplier)) issues.push(`speed@${event.time}: multiplier 必须是有限数`);
     if ((event.duration ?? 0) < 0) issues.push(`speed@${event.time}: duration 不能为负`);

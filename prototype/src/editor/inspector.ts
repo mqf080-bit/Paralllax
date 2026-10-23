@@ -13,6 +13,7 @@ import {
   type SpeedEvent,
 } from '../chart/schema';
 import {
+  appendTracePoint,
   arcDuration,
   arcTicks,
   chartDuration,
@@ -40,6 +41,8 @@ export interface InspectorHost {
   readonly chart: Chart;
   readonly selection: Selection | null;
   readonly playhead: number;
+  readonly activeTrace: number | null;
+  setActiveTrace(index: number | null): void;
   readonly issues: string[];
   readonly draftSavedAt: number | null;
   readonly audioTrackName: string;
@@ -174,6 +177,7 @@ export class Inspector {
     this.renderMeta();
     this.renderSelection();
     this.renderTiming();
+    this.renderTraceSection();
     this.renderShiftSection();
     this.renderAudio();
     this.renderValidation();
@@ -858,6 +862,95 @@ export class Inspector {
     }
     const actions = el('div', 'inspector__actions');
     actions.append(button('ADD @ PLAYHEAD', () => host.addTiming()));
+    root.append(actions);
+    this.add(root);
+  }
+
+  private renderTraceSection(): void {
+    const host = this.host;
+    const traces = host.chart.traces ?? [];
+    const root = section('TRACE', '无物量 · 不判定');
+    if (traces.length === 0) {
+      root.append(el('p', 'inspector__hint', '用 TRACE 工具在 2D / 3D 里落点，或点 “ADD @ PLAYHEAD”。'));
+    } else {
+      const list = el('div', 'pointlist');
+      traces.forEach((trace, index) => {
+        const active = host.activeTrace === index;
+        const row = el('div', active ? 'pointlist__row is-active' : 'pointlist__row');
+        row.append(
+          button(`${formatTime(trace.time)} · ${trace.points.length} P`, () => host.setActiveTrace(index), 'pointlist__pick'),
+          button(
+            '×',
+            () => {
+              host.beginGesture();
+              host.chart.traces?.splice(index, 1);
+              host.setActiveTrace(null);
+              host.commit({ preview: false });
+              host.endGesture();
+            },
+            'button button--tiny button--danger',
+          ),
+        );
+        list.append(row);
+      });
+      root.append(list);
+    }
+
+    const active = host.activeTrace !== null ? traces[host.activeTrace] : undefined;
+    if (active) {
+      const head = el('div', 'eventrow eventrow--head');
+      head.append(el('span', undefined, 'TIME'), el('span', undefined, 'X'), el('span', undefined, 'Z'), el('span'));
+      root.append(head);
+      active.points.forEach((point, index) => {
+        const row = el('div', 'eventrow');
+        row.append(
+          numberInput(point.time, (value) =>
+            edit(host, () => {
+              point.time = Math.max(index === 0 ? 0 : active.points[index - 1]!.time + 1, Math.round(value));
+            }, false),
+            { min: 0 },
+          ),
+          numberInput(point.x, (value) =>
+            edit(host, () => {
+              point.x = Math.min(5.5, Math.max(-0.5, Math.round(value * 100) / 100));
+            }, false),
+            { step: 0.05 },
+          ),
+          numberInput(point.z, (value) =>
+            edit(host, () => {
+              point.z = Math.max(0, Math.round(value * 1000) / 1000);
+            }, false),
+            { step: 0.01 },
+          ),
+          button(
+            '×',
+            () => {
+              if (active.points.length <= 2) return;
+              host.beginGesture();
+              active.points.splice(index, 1);
+              host.commit({ preview: false });
+              host.endGesture();
+            },
+            'button button--tiny button--danger',
+          ),
+        );
+        root.append(row);
+      });
+    }
+
+    const actions = el('div', 'inspector__actions');
+    actions.append(
+      button('ADD @ PLAYHEAD', () => {
+        const trace = host.activeTrace !== null ? traces[host.activeTrace] : undefined;
+        const last = trace?.points[trace.points.length - 1];
+        host.beginGesture();
+        host.setActiveTrace(
+          appendTracePoint(host.chart, host.activeTrace, host.playhead, last?.x ?? 2.5, last?.z ?? 0),
+        );
+        host.commit({ preview: false });
+        host.endGesture();
+      }),
+    );
     root.append(actions);
     this.add(root);
   }

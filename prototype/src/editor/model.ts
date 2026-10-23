@@ -18,6 +18,7 @@ import {
   type ShiftEvent,
   type SpeedEvent,
   type TimingPoint,
+  type Trace,
 } from '../chart/schema';
 
 /**
@@ -27,7 +28,7 @@ import {
  * 改完由调用方决定何时重建预览 / 重绘时间轴。
  */
 
-export type ToolId = 'select' | 'hit' | 'drag' | 'hold' | 'arc';
+export type ToolId = 'select' | 'hit' | 'drag' | 'hold' | 'arc' | 'trace';
 
 /** 当前选中的对象。 */
 export type Selection =
@@ -189,6 +190,7 @@ export function sortChart(chart: Chart): void {
   chart.shift.sort((a, b) => a.time - b.time);
   chart.sections?.sort((a, b) => a.time - b.time);
   chart.notes.sort((a, b) => a.time - b.time);
+  chart.traces?.sort((a, b) => a.time - b.time);
 }
 
 /** 当前时间所在的 timing 段。 */
@@ -450,6 +452,44 @@ export function arcTicks(note: ArcNote): ArcTickView[] {
   return ticks.sort((a, b) => a.time - b.time);
 }
 
+/**
+ * 往 trace 里追加一个点；没有可追加的 trace 就新建一条。
+ * 返回被写入的 trace 下标。
+ *
+ * 新 trace 会先放两个点（0 和 +500ms），保证「至少两个点」这条校验从第一笔就成立。
+ */
+export function appendTracePoint(
+  chart: Chart,
+  index: number | null,
+  timeMs: number,
+  x: number,
+  z: number,
+): number {
+  const px = Math.min(5.5, Math.max(-0.5, x));
+  const pz = Math.max(0, z);
+  const time = Math.max(0, Math.round(timeMs));
+  const list = (chart.traces ??= []);
+  const target = index !== null ? list[index] : undefined;
+
+  if (target && target.points.length > 0) {
+    const last = target.points[target.points.length - 1]!;
+    const relative = time - target.time;
+    if (relative > last.time) {
+      target.points.push({ time: relative, x: Math.round(px * 100) / 100, z: Math.round(pz * 1000) / 1000, easing: 'linear' });
+      return index!;
+    }
+  }
+
+  list.push({
+    time,
+    points: [
+      { time: 0, x: Math.round(px * 100) / 100, z: Math.round(pz * 1000) / 1000, easing: 'linear' },
+      { time: 500, x: Math.round(px * 100) / 100, z: Math.round(pz * 1000) / 1000, easing: 'linear' },
+    ],
+  });
+  return list.length - 1;
+}
+
 /** 运行时物量统计（和 player.ts 的口径一致）。 */
 export function countObjects(chart: Chart): number {
   let total = 0;
@@ -537,10 +577,33 @@ export function normalizeChart(input: unknown): Chart {
           }))
       : [],
     notes: raw.notes.map((note) => normalizeNote(note)),
+    traces: Array.isArray(raw.traces)
+      ? (raw.traces as unknown[])
+          .map((trace) => normalizeTrace(trace))
+          .filter((trace) => trace.points.length >= 2)
+      : undefined,
     limits: raw.limits && typeof raw.limits === 'object' ? { ...raw.limits } : undefined,
   };
   sortChart(chart);
   return chart;
+}
+
+function normalizeTrace(raw: unknown): Trace {
+  const trace = (raw ?? {}) as Record<string, unknown>;
+  const points = Array.isArray(trace.points) ? trace.points : [];
+  return {
+    time: finite(trace.time, 0),
+    points: points.map((point) => {
+      const value = (point ?? {}) as Record<string, unknown>;
+      return {
+        time: Math.max(0, finite(value.time, 0)),
+        x: Math.min(5.5, Math.max(-0.5, finite(value.x, 2.5))),
+        z: Math.max(0, finite(value.z, 0)),
+        easing: easingOr(value.easing) ?? 'linear',
+        ...(value.easingZ !== undefined ? { easingZ: easingOr(value.easingZ) ?? 'linear' } : {}),
+      };
+    }),
+  };
 }
 
 function normalizeNote(raw: unknown): Note {

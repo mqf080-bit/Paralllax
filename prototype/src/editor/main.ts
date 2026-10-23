@@ -21,6 +21,7 @@ const TOOLS: Array<{ id: ToolId; label: string; key: string }> = [
   { id: 'drag', label: 'DRAG', key: '3' },
   { id: 'hold', label: 'HOLD', key: '4' },
   { id: 'arc', label: 'ARC', key: '5' },
+  { id: 'trace', label: 'TRACE', key: '6' },
 ];
 
 const toolsRoot = byId('tools');

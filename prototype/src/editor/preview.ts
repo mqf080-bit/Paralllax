@@ -155,7 +155,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
   const table = buildTable(params, lib);
   scene.add(table.group);
 
-  const settings = { enabled: true, flowSpeed: 3.0, auto: true, hitboxX: 1, hitboxZ: 1, guide: true };
+  const settings = { enabled: true, flowSpeed: 3.0, auto: true, hitboxX: 1, hitboxZ: 1, guide: true, traces: true };
   let autoEnabled = true;
   let player: Player = createPlayer(params, table.geometry, lib, activeChart, settings, {});
   scene.add(player.group);

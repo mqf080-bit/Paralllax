@@ -178,6 +178,23 @@ export class OverviewTimeline {
       }
     }
 
+    // trace：纯视觉引导线，用虚线横条表示区间
+    for (const trace of chart.traces ?? []) {
+      const last = trace.points[trace.points.length - 1];
+      const x0 = this.xOf(trace.time);
+      const x1 = this.xOf(trace.time + (last?.time ?? 0));
+      if (x1 < left - 2 || x0 > right + 2) continue;
+      ctx.globalAlpha = 0.32;
+      ctx.strokeStyle = COLORS.cyan;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x0, top + 5.5);
+      ctx.lineTo(x1, top + 5.5);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+    }
+
     // shift 标记
     for (const event of chart.shift) {
       const x = this.xOf(event.time);
