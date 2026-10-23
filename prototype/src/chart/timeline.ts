@@ -208,11 +208,16 @@ export function createTimeline(chart: Chart): Timeline {
     return last ? last.to : 0;
   }
 
+  /**
+   * 这一段里跨过了几个小节。
+   * 用 ceil：在中途换拍号时，残下来的那一小节也算“一个”，
+   * 下一段的编号才不会和它撞号（残小节是短的，但仍是第 N 小节）。
+   */
   function barsInSegment(point: TimingPoint, next: TimingPoint | undefined): number {
     if (!next) return 0;
     const barMs = beatMsOf(point) * meterOf(point).numerator;
     if (!(barMs > 0)) return 0;
-    return Math.floor((next.time - point.time) / barMs);
+    return Math.ceil((next.time - point.time) / barMs - 1e-9);
   }
 
   function barBeat(time: number): BarBeat | null {
