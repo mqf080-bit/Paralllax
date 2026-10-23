@@ -77,6 +77,7 @@ export interface EditorElements {
   grid: HTMLInputElement;
   edit3d: HTMLButtonElement;
   toggle2d: HTMLButtonElement;
+  guideToggle: HTMLButtonElement;
   previewHint: HTMLElement;
   work: HTMLElement;
   splitter: HTMLElement;
@@ -321,6 +322,12 @@ export class EditorController implements EditorHost, InspectorHost {
       button.addEventListener('click', () => this.setTool(tool));
     }
     this.syncSnapUi();
+    this.elements.guideToggle.addEventListener('click', () => {
+      const on = !this.elements.guideToggle.classList.contains('is-active');
+      this.elements.guideToggle.classList.toggle('is-active', on);
+      this.preview.setGuide(on);
+      this.preview.invalidate();
+    });
     this.elements.snap.addEventListener('change', () => {
       const preset = snapPreset(this.elements.snap.value, this.snapDenominator);
       if (preset && preset.id !== 'custom') this.setSnap(preset.spec);

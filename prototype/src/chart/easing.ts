@@ -23,12 +23,12 @@ export function easeValue(easing: Easing, u: number): number {
   }
 }
 
-/** 编辑器里的缓动名（括号里是 AFF 的对应写法）。 */
+/** 编辑器里的缓动名。 */
 export const EASING_LABELS: Record<Easing, string> = {
-  linear: '直线 (s)',
-  sine: '缓入 (si)',
-  cosine: '缓出 (so)',
-  bezier: '贝塞尔 (b)',
+  linear: '直线',
+  sine: '缓入',
+  cosine: '缓出',
+  bezier: '缓入缓出',
 };
 
 export const EASING_OPTIONS: Easing[] = ['linear', 'sine', 'cosine', 'bezier'];

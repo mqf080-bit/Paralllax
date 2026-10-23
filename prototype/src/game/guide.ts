@@ -16,6 +16,8 @@ export interface GuideHit {
   x: number;
   y: number;
   time: number;
+  /** 这颗 hit 是否已经在 perfect 窗口内（只有它为真时才点亮暖黄）。 */
+  perfect: boolean;
 }
 
 export interface JudgementGuide {
@@ -27,11 +29,15 @@ export interface JudgementGuide {
 
 const TEXTURE_W = 512;
 const TEXTURE_H = 420;
-const CELL_X = 32;
-const CELL_Y = 22;
 const PATCH_RX = 190;
 const PATCH_RY = 128;
 const GUIDE_HEIGHT = 0.9;
+/** 网格和编辑器 3D 网格对齐：竖线 1/4 轨一条，横线 5cm 一条。 */
+const LANE_STEP = 0.25;
+const HEIGHT_STEP = 0.05;
+const BOTTOM_OFFSET = 0.08;
+const LEVELS = [0, 0.33, 0.61, 0.81];
+const CELL_Y_FOR_WARM = (HEIGHT_STEP / GUIDE_HEIGHT) * TEXTURE_H;
 export const GUIDE_START_MS = 320;
 const GUIDE_FULL_EARLY_MS = 100;
 const GUIDE_FULL_LATE_MS = 80;
@@ -86,18 +92,39 @@ export function createJudgementGuide(params: TableParams, geometry: TableGeometr
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
 
-  function drawPatch(px: number, py: number, intensity: number): void {
+  /** 世界坐标 → 贴图像素（贴图贴在随窗口滑动的平面上）。 */
+  function laneToPx(lane: number, planeCenterX: number): number {
+    const width = geometry.laneWidth * 4 * 0.98;
+    const worldX = (lane - 2.5) * geometry.laneWidth;
+    return ((worldX - (planeCenterX - width / 2)) / width) * TEXTURE_W;
+  }
+
+  /** 台面上方高度（米） → 贴图像素。 */
+  function heightToPy(height: number): number {
+    return (1 - (height + BOTTOM_OFFSET) / GUIDE_HEIGHT) * TEXTURE_H;
+  }
+
+  function drawPatch(
+    px: number,
+    py: number,
+    intensity: number,
+    perfect: boolean,
+    planeCenterX: number,
+  ): void {
     // 只照亮网格线，不画底板 / 光晕；线的两端和两侧都由渐变淡出。
     ctx.globalCompositeOperation = 'lighter';
+    const laneGapPx = (geometry.laneWidth * LANE_STEP * TEXTURE_W) / (geometry.laneWidth * 4 * 0.98);
 
-    const x0 = Math.floor((px - PATCH_RX) / CELL_X) * CELL_X;
-    const x1 = px + PATCH_RX;
-    for (let x = x0; x <= x1; x += CELL_X) {
+    // 竖线：位置和编辑器 3D 网格完全一致（1/4 轨一条，整轨加亮）。
+    for (let lane = -0.5; lane <= 5.5001; lane += LANE_STEP) {
+      const x = laneToPx(lane, planeCenterX);
+      if (x < px - PATCH_RX || x > px + PATCH_RX) continue;
+      if (x < -4 || x > TEXTURE_W + 4) continue;
       const falloff = Math.max(0, 1 - Math.abs(x - px) / PATCH_RX);
       const alpha = intensity * falloff * falloff * 0.7;
       if (alpha < 0.008) continue;
-      const major = Math.round(x / CELL_X) % 4 === 0;
-      const warm = intensity > 0.65 ? Math.max(0, 1 - Math.abs(x - px) / (CELL_X * 2.2)) : 0;
+      const major = Math.abs(lane - Math.round(lane)) < 1e-6;
+      const warm = perfect ? Math.max(0, 1 - Math.abs(x - px) / (laneGapPx * 2.2)) : 0;
       const grad = ctx.createLinearGradient(0, py - PATCH_RY, 0, py + PATCH_RY);
       grad.addColorStop(0, lineColor(0, warm));
       grad.addColorStop(0.22, lineColor(alpha * (major ? 1.2 : 0.82), warm));
@@ -111,14 +138,18 @@ export function createJudgementGuide(params: TableParams, geometry: TableGeometr
       ctx.stroke();
     }
 
-    const y0 = Math.floor((py - PATCH_RY) / CELL_Y) * CELL_Y;
-    const y1 = py + PATCH_RY;
-    for (let y = y0; y <= y1; y += CELL_Y) {
+    // 横线：5cm 一条；10cm / 胸 / 面 / 头顶加亮。
+    for (let height = 0; height <= GUIDE_HEIGHT - BOTTOM_OFFSET + 1e-6; height += HEIGHT_STEP) {
+      const y = heightToPy(height);
+      if (y < py - PATCH_RY || y > py + PATCH_RY) continue;
+      if (y < -4 || y > TEXTURE_H + 4) continue;
       const falloff = Math.max(0, 1 - Math.abs(y - py) / PATCH_RY);
       const alpha = intensity * falloff * falloff * 0.56;
       if (alpha < 0.008) continue;
-      const major = Math.round(y / CELL_Y) % 4 === 0;
-      const warm = intensity > 0.65 ? Math.max(0, 1 - Math.abs(y - py) / (CELL_Y * 2.2)) : 0;
+      const major =
+        LEVELS.some((level) => Math.abs(level - height) < 1e-6) ||
+        Math.abs(height / 0.1 - Math.round(height / 0.1)) < 1e-6;
+      const warm = perfect ? Math.max(0, 1 - Math.abs(y - py) / (CELL_Y_FOR_WARM * 2.2)) : 0;
       const grad = ctx.createLinearGradient(px - PATCH_RX, 0, px + PATCH_RX, 0);
       grad.addColorStop(0, lineColor(0, warm));
       grad.addColorStop(0.22, lineColor(alpha * (major ? 1.2 : 0.82), warm));
@@ -145,7 +176,7 @@ export function createJudgementGuide(params: TableParams, geometry: TableGeometr
   function update(clockMs: number, windowValue: number, hits: GuideHit[]): void {
     group.position.x = windowValue * geometry.laneWidth;
 
-    const lit: Array<{ px: number; py: number; intensity: number }> = [];
+    const lit: Array<{ px: number; py: number; intensity: number; perfect: boolean }> = [];
     const windowCenter = windowValue * geometry.laneWidth;
     const windowWidth = geometry.laneWidth * 4;
     const bottom = params.tableHeight - 0.08;
@@ -161,7 +192,7 @@ export function createJudgementGuide(params: TableParams, geometry: TableGeometr
       const u = (hit.x - windowCenter) / windowWidth + 0.5;
       const v = (hit.y - bottom) / GUIDE_HEIGHT;
       if (u < -0.08 || u > 1.08 || v < -0.02 || v > 1.02) continue;
-      lit.push({ px: u * TEXTURE_W, py: (1 - v) * TEXTURE_H, intensity });
+      lit.push({ px: u * TEXTURE_W, py: (1 - v) * TEXTURE_H, intensity, perfect: hit.perfect });
     }
 
     if (lit.length === 0) {
@@ -171,7 +202,7 @@ export function createJudgementGuide(params: TableParams, geometry: TableGeometr
 
     group.visible = true;
     ctx.clearRect(0, 0, TEXTURE_W, TEXTURE_H);
-    for (const item of lit) drawPatch(item.px, item.py, item.intensity);
+    for (const item of lit) drawPatch(item.px, item.py, item.intensity, item.perfect, group.position.x);
     texture.needsUpdate = true;
   }
 

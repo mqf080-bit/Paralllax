@@ -94,6 +94,7 @@ const elements: EditorElements = {
   overviewCanvas: byId<HTMLCanvasElement>('overview-canvas'),
   overviewPlay: byId('overview-play'),
   overviewTime: byId('overview-time'),
+  guideToggle: byId('guide-toggle'),
   spectrumToggle: byId('spectrum-toggle'),
   spectrumPanel: byId('spectrum-panel'),
   spectrumCanvas: byId<HTMLCanvasElement>('spectrum-canvas'),

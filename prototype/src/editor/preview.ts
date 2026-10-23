@@ -76,6 +76,8 @@ export interface Preview {
   setVolume(volume: number): void;
   setMetronome(enabled: boolean): void;
   setDrums(enabled: boolean): void;
+  /** 竖直引导网（判定提示）开关。 */
+  setGuide(enabled: boolean): void;
   setOffset(offsetMs: number): void;
   setChart(chart: Chart): void;
   setEditMode(enabled: boolean): void;
@@ -153,7 +155,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
   const table = buildTable(params, lib);
   scene.add(table.group);
 
-  const settings = { enabled: true, flowSpeed: 3.0, auto: true, hitboxX: 1, hitboxZ: 1 };
+  const settings = { enabled: true, flowSpeed: 3.0, auto: true, hitboxX: 1, hitboxZ: 1, guide: true };
   let autoEnabled = true;
   let player: Player = createPlayer(params, table.geometry, lib, activeChart, settings, {});
   scene.add(player.group);
@@ -946,6 +948,9 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     },
     setDrums(enabled: boolean): void {
       audio.settings.groove = enabled;
+    },
+    setGuide(enabled: boolean): void {
+      settings.guide = enabled;
     },
     setOffset(offsetMs: number): void {
       audio.settings.offsetMs = offsetMs;

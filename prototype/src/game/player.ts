@@ -44,6 +44,8 @@ export interface PlayerSettings {
   hitboxX: number;
   /** dev：hit 判定盒 Z 倍率（只改空间体积，不改时间窗）。 */
   hitboxZ: number;
+  /** 竖直引导网开关（编辑器 / 游戏都可关）。 */
+  guide: boolean;
 }
 
 export interface PlayerStats {
@@ -174,6 +176,64 @@ export function createPlayer(
   const baseSpeed = () => settings.flowSpeed;
   const guide = createJudgementGuide(params, geometry);
   group.add(guide.group);
+
+  // 双押提示：同一时间的 hit 用细线连起来（只在它们都还在画面里时画）。
+  const LINK_CAPACITY = 1024;
+  const linkPositions = new Float32Array(LINK_CAPACITY * 6);
+  const linkGeometry = new THREE.BufferGeometry();
+  linkGeometry.setAttribute('position', new THREE.BufferAttribute(linkPositions, 3));
+  linkGeometry.setDrawRange(0, 0);
+  const linkMaterial = new THREE.LineBasicMaterial({
+    color: 0x9cc8ff,
+    transparent: true,
+    opacity: 0.42,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    toneMapped: false,
+  });
+  const links = new THREE.LineSegments(linkGeometry, linkMaterial);
+  links.name = 'double-hit-links';
+  links.frustumCulled = false;
+  links.renderOrder = 5;
+  links.raycast = () => {};
+  group.add(links);
+
+  /** 同一毫秒内所有可见 hit，按 x 连成折线。 */
+  function updateLinks(): void {
+    const byTime = new Map<number, Array<{ x: number; y: number; z: number }>>();
+    for (const note of runtime) {
+      if (note.kind !== 'hit' || note.resolved || !note.group.visible) continue;
+      const position = note.group.position;
+      const key = Math.round(note.chart.time);
+      const list = byTime.get(key);
+      const point = { x: position.x, y: position.y, z: position.z };
+      if (list) list.push(point);
+      else byTime.set(key, [point]);
+    }
+
+    let count = 0;
+    for (const list of byTime.values()) {
+      if (list.length < 2) continue;
+      list.sort((a, b) => a.x - b.x);
+      for (let i = 0; i < list.length - 1 && count < LINK_CAPACITY; i += 1) {
+        const a = list[i]!;
+        const b = list[i + 1]!;
+        const base = count * 6;
+        linkPositions[base + 0] = a.x;
+        linkPositions[base + 1] = a.y;
+        linkPositions[base + 2] = a.z;
+        linkPositions[base + 3] = b.x;
+        linkPositions[base + 4] = b.y;
+        linkPositions[base + 5] = b.z;
+        count += 1;
+      }
+    }
+
+    links.visible = count > 0;
+    if (count === 0) return;
+    linkGeometry.setDrawRange(0, count * 2);
+    (linkGeometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
+  }
 
   /** 连续横向位置（轨号单位）→ 世界 x。 */
   const worldX = (x: number): number => (x - 2.5) * geometry.laneWidth;
@@ -774,6 +834,7 @@ export function createPlayer(
       if (!settings.enabled) {
         finished = false;
         guide.clear();
+        links.visible = false;
         for (const note of runtime) {
           if (note.kind === 'arc') note.arc.group.visible = false;
           else note.group.visible = false;
@@ -789,12 +850,23 @@ export function createPlayer(
       const samples = hands;
 
       const approaching: GuideHit[] = [];
-      for (const note of runtime) {
-        if (note.kind !== 'hit' || note.resolved) continue;
-        if (Math.abs(clockMs - note.chart.time) > GUIDE_START_MS) continue;
-        approaching.push({ x: xOf(note.chart), y: yOf(note.chart), time: note.chart.time });
+      if (settings.guide) {
+        for (const note of runtime) {
+          if (note.kind !== 'hit' || note.resolved) continue;
+          const offset = clockMs - note.chart.time;
+          if (Math.abs(offset) > GUIDE_START_MS) continue;
+          approaching.push({
+            x: xOf(note.chart),
+            y: yOf(note.chart),
+            time: note.chart.time,
+            // 只有真的落在 perfect 的 -100 / +80ms 里才点暖黄
+            perfect: offset >= -HIT_PERFECT_EARLY_MS && offset <= HIT_PERFECT_LATE_MS,
+          });
+        }
+        guide.update(clockMs, windowValue, approaching);
+      } else {
+        guide.clear();
       }
-      guide.update(clockMs, windowValue, approaching);
 
       for (const note of runtime) {
         updateVisibility(note);
@@ -823,6 +895,7 @@ export function createPlayer(
         else updateHold(note, dt, samples);
       }
 
+      updateLinks();
       finished = score.failed || runtime.every((note) => note.resolved);
 
       shatter.update(dt);
@@ -873,6 +946,8 @@ export function createPlayer(
       shatter.dispose();
       popup.dispose();
       guide.dispose();
+      linkGeometry.dispose();
+      linkMaterial.dispose();
       group.clear();
     },
   };
