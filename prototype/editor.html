@@ -30,21 +30,18 @@
           <button id="snap-triplet" class="button button--small" type="button">3</button>
         </div>
 
+        <div class="topbar__group">
+          <label class="check"><input id="grid" type="checkbox" checked /><span>SNAP XZ</span></label>
+          <button id="zoom-out" class="button button--small" type="button">−</button>
+          <button id="zoom-in" class="button button--small" type="button">＋</button>
+        </div>
+
+        <div class="topbar__group">
+          <button id="traces-toggle" class="button button--small is-active" type="button" title="trace：显示 + 吸附 / 只显示 / 关闭">TRACES ●</button>
+        </div>
+
         <div class="topbar__group topbar__group--grow topbar__group--view">
           <button id="view-toggle" class="button button--small" type="button" title="视图与显示选项">VIEW ▾</button>
-          <div id="view-panel" class="view-panel" hidden>
-            <label class="check"><input id="grid" type="checkbox" checked /><span>SNAP XZ</span></label>
-            <button id="edit3d" class="button button--small is-active" type="button">3D EDIT</button>
-            <button id="toggle-2d" class="button button--small is-active" type="button">2D</button>
-            <button id="guide-toggle" class="button button--small is-active" type="button" title="竖直引导网（判定提示）">GUIDE</button>
-            <button id="traces-toggle" class="button button--small is-active" type="button" title="2D 视图里显示 trace">TRACES</button>
-            <button id="spectrum-toggle" class="button button--small" type="button" title="展开音频频谱定位">SPECTRUM</button>
-            <div class="view-panel__zoom">
-              <button id="zoom-out" class="button button--small" type="button">−</button>
-              <button id="zoom-in" class="button button--small" type="button">＋</button>
-              <button id="fit" class="button button--small" type="button">FIT</button>
-            </div>
-          </div>
         </div>
 
         <div class="topbar__actions">
@@ -56,6 +53,14 @@
           <span id="save-state" class="save-state">DRAFT —</span>
         </div>
       </header>
+
+      <div id="view-panel" class="view-panel" hidden>
+        <button id="edit3d" class="button button--small is-active" type="button">3D EDIT</button>
+        <button id="toggle-2d" class="button button--small is-active" type="button">2D</button>
+        <button id="guide-toggle" class="button button--small is-active" type="button" title="竖直引导网（判定提示）">GUIDE</button>
+        <button id="spectrum-toggle" class="button button--small" type="button" title="展开音频频谱定位">SPECTRUM</button>
+        <button id="fit" class="button button--small" type="button">FIT</button>
+      </div>
 
       <main class="work">
         <section class="preview">
@@ -115,6 +120,14 @@
           <span id="spectrum-status" class="spectrum__status">CLICK / DRAG TO SEEK</span>
           <button id="spectrum-close" class="button button--small" type="button">CLOSE ×</button>
         </header>
+
+      <div id="view-panel" class="view-panel" hidden>
+        <button id="edit3d" class="button button--small is-active" type="button">3D EDIT</button>
+        <button id="toggle-2d" class="button button--small is-active" type="button">2D</button>
+        <button id="guide-toggle" class="button button--small is-active" type="button" title="竖直引导网（判定提示）">GUIDE</button>
+        <button id="spectrum-toggle" class="button button--small" type="button" title="展开音频频谱定位">SPECTRUM</button>
+        <button id="fit" class="button button--small" type="button">FIT</button>
+      </div>
         <div class="spectrum__body">
           <canvas id="spectrum-canvas"></canvas>
         </div>

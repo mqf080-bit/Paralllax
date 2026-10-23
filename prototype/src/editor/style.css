@@ -47,22 +47,23 @@ select {
 
 #editor {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 48px minmax(0, 1fr) 58px;
   height: 100vh;
-  min-width: 1180px;
+  min-width: 0;
 }
 
 /* —— 顶栏 —— */
 
 .topbar {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 20px;
   padding: 0 14px;
   border-bottom: 1px solid var(--hairline);
   background: var(--panel);
-  /* 顶栏要能弹出 VIEW 面板，所以不能裁切；顶栏本身已经很短 */
-  overflow: visible;
+  overflow-x: auto;
   white-space: nowrap;
 }
 
@@ -101,9 +102,7 @@ select {
 }
 
 .view-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
+  position: fixed;
   z-index: 40;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

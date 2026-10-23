@@ -81,6 +81,8 @@ export interface EditorHost {
   setActiveTrace(index: number | null): void;
   /** 放置 note 时即将吸附到的 trace（高亮用）。 */
   setTraceHighlight(index: number | null): void;
+  /** trace 的吸附开关（显示 / 只显示 / 关闭）。 */
+  readonly traceSnap: boolean;
   select(selection: Selection | null): void;
   seek(timeMs: number): void;
   setTool(tool: ToolId): void;
@@ -442,7 +444,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
     if (host.tool === 'hit' || host.tool === 'drag') {
       host.beginGesture();
       // 落在 arc / trace 上时贴着曲线放，坐标直接取曲线在该时间的点
-      const curve = traceAt(host.chart, snapped, snappedX);
+      const curve = host.traceSnap ? traceAt(host.chart, snapped, snappedX) : null;
       const placeX = curve ? curve.x : snappedX;
       const placeZ = curve ? curve.z : 0;
       const note: Note =
@@ -470,8 +472,8 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       const note: HoldNote = {
         type: 'hold',
         time: start,
-        lane: clampLane(Math.round(traceAt(host.chart, start, snappedX)?.x ?? snappedX)),
-        x: traceAt(host.chart, start, snappedX)?.x ?? snappedX,
+        lane: clampLane(Math.round(host.traceSnap ? (traceAt(host.chart, start, snappedX)?.x ?? snappedX) : snappedX)),
+        x: host.traceSnap ? (traceAt(host.chart, start, snappedX)?.x ?? snappedX) : snappedX,
         duration,
         objects: 4,
       };
@@ -716,7 +718,11 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       const band = bandAt(host.layout, x, y);
       canvas.style.cursor = cursorFor(band, x, y);
       // 放置类工具悬停在 trace 附近时，把那条线点亮（告诉玩家「会吸到这条」）
-      if (band === 'lanes' && (host.tool === 'hit' || host.tool === 'drag' || host.tool === 'hold')) {
+      if (
+        host.traceSnap &&
+        band === 'lanes' &&
+        (host.tool === 'hit' || host.tool === 'drag' || host.tool === 'hold')
+      ) {
         const time = snapTimeMaybe(host, xToTime(host.view, x), event.ctrlKey || event.metaKey);
         const lane = yToLane(host.layout, y);
         const hit = traceAt(host.chart, time, lane);

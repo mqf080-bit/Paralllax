@@ -12,6 +12,8 @@ import { buildTable } from '../scene/table';
 import { createArcEditOverlay, type ArcAxis, type ArcEditConfig, type ArcEditOverlay } from './arcEdit';
 import { arcDuration, chartSpan, sampleArcPoint, snapArcX, snapGroundX, snapSpatialY, X_GRID, Y_GRID, type ToolId } from './model';
 import { createTimeline, type Timeline } from '../chart/timeline';
+import { traceAt } from './model';
+import type { Trace } from '../chart/schema';
 
 /**
  * 3D 预览：直接跑 Step 4 的播放器。
@@ -55,6 +57,12 @@ export interface PreviewEditHooks {
   moveArcPoint(note: ArcNote, index: number, x: number, z: number, axis: ArcAxis): void;
   /** 在弧上插点；返回新点下标（已存在则返回原下标）。 */
   addArcPoint(note: ArcNote, timeMs: number, x: number, z: number): number;
+  /** 选中 trace 的某个点。 */
+  selectTracePoint(trace: Trace, index: number): void;
+  /** 3D 拖动 trace 的点。 */
+  moveTracePoint(trace: Trace, index: number, x: number, z: number): void;
+  /** trace 是否吸附（TRACES 的三种状态里只有 snap 为真）。 */
+  traceSnap(): boolean;
   /** 点击物量珠：切 KEY（自动物量会先转成显式表）；time 是相对 arc 起点。 */
   toggleArcTick(note: ArcNote, timeMs: number): void;
   beginGesture(): void;
@@ -198,8 +206,62 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
       }
     | { kind: 'arc'; note: ArcNote; plane: THREE.Plane; startWorld: THREE.Vector3 }
     | { kind: 'arc-point'; note: ArcNote; index: number; axis: ArcAxis; plane: THREE.Plane }
-    | { kind: 'arc-create'; note: ArcNote; plane: THREE.Plane };
+    | { kind: 'arc-create'; note: ArcNote; plane: THREE.Plane }
+    | { kind: 'trace-point'; trace: Trace; index: number; plane: THREE.Plane };
   let editDrag: PreviewDrag | null = null;
+
+  // trace 的 3D 手柄：每个点一个小球，只在编辑模式显示。
+  const traceHandles = new THREE.Group();
+  traceHandles.name = 'trace-handles';
+  scene.add(traceHandles);
+  const handleGeometry = new THREE.SphereGeometry(0.018, 10, 8);
+  const handleMaterial = new THREE.MeshBasicMaterial({
+    color: 0x9cc8ff,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const traceHandleMeshes: THREE.Mesh[] = [];
+
+  function rebuildTraceHandles(): void {
+    const traces = activeChart.traces ?? [];
+    let count = 0;
+    for (let t = 0; t < traces.length; t += 1) {
+      const trace = traces[t]!;
+      for (let p = 0; p < trace.points.length; p += 1) {
+        let mesh = traceHandleMeshes[count];
+        if (!mesh) {
+          mesh = new THREE.Mesh(handleGeometry, handleMaterial);
+          mesh.renderOrder = 42;
+          traceHandles.add(mesh);
+          traceHandleMeshes.push(mesh);
+        }
+        mesh.userData.trace = trace;
+        mesh.userData.traceIndex = t;
+        mesh.userData.pointIndex = p;
+        mesh.visible = true;
+        count += 1;
+      }
+    }
+    for (let i = count; i < traceHandleMeshes.length; i += 1) traceHandleMeshes[i]!.visible = false;
+  }
+
+  rebuildTraceHandles();
+
+  function updateTraceHandles(): void {
+    traceHandles.visible = editMode;
+    if (!editMode) return;
+    for (const mesh of traceHandleMeshes) {
+      if (!mesh.visible) continue;
+      const trace = mesh.userData.trace as Trace;
+      const index = mesh.userData.pointIndex as number;
+      const point = trace.points[index];
+      if (!point) continue;
+      mesh.position.copy(player.worldOf(trace.time + point.time, point.x, point.z));
+      mesh.visible = mesh.position.z < table.geometry.bandZ + 1.2;
+    }
+  }
   let timeline: Timeline = createTimeline(activeChart);
 
   const raycaster = new THREE.Raycaster();
@@ -393,7 +455,21 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
       hoverMarker.visible = false;
       return;
     }
+    // trace：先看手柄，再看「放置点会不会吸到某条线」
+    const handleHits = raycaster.intersectObjects(traceHandleMeshes, false);
+    const handle = handleHits.find((hit) => hit.object.visible);
+    if (handle) {
+      player.setTraceHighlight(handle.object.userData.traceIndex as number);
+      hoverMarker.visible = false;
+      return;
+    }
     const tool = editHooks.tool();
+    if (editHooks.traceSnap() && (tool === 'hit' || tool === 'drag' || tool === 'hold')) {
+      const hit = traceAt(activeChart, timeMs, rawX);
+      player.setTraceHighlight(hit ? hit.index : null);
+    } else {
+      player.setTraceHighlight(null);
+    }
     if (tool === 'select') {
       hoverMarker.visible = false;
       return;
@@ -469,6 +545,25 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     if (!editMode || !editHooks || event.button !== 0) return;
     hoverMarker.visible = false;
     setNdc(event);
+
+    // 0) trace 的手柄优先级最高：直接选中并开始拖点
+    const handleHits = raycaster.intersectObjects(traceHandleMeshes, false);
+    const handle = handleHits.find((hit) => hit.object.visible);
+    if (handle) {
+      const trace = handle.object.userData.trace as Trace;
+      const index = handle.object.userData.pointIndex as number;
+      editHooks.beginGesture();
+      editHooks.selectTracePoint(trace, index);
+      editDrag = {
+        kind: 'trace-point',
+        trace,
+        index,
+        plane: new THREE.Plane(new THREE.Vector3(0, 0, 1), -handle.point.z),
+      };
+      capture(event);
+      return;
+    }
+
     const tool = editHooks.tool();
 
     // 1) 选中的 arc 编辑层优先级最高：物量珠 / 控制点 / 轴把手 / 弧身。
@@ -574,7 +669,13 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
     if (!raycaster.ray.intersectPlane(editDrag.plane, world)) return;
     const free = event.ctrlKey || event.metaKey;
 
-    if (editDrag.kind === 'arc-point' || editDrag.kind === 'arc-create') {
+    if (editDrag.kind === 'trace-point') {
+      const drag = editDrag;
+      const x = snapX(fromWorldX(world.x), event.shiftKey, free, true);
+      const z = snapY(Math.max(0, fromWorldY(world.y)), event.shiftKey, free);
+      editHooks.moveTracePoint(drag.trace, drag.index, x, z);
+      selectionMarker.visible = false;
+    } else if (editDrag.kind === 'arc-point' || editDrag.kind === 'arc-create') {
       const drag = editDrag;
       const index = drag.kind === 'arc-create' ? 1 : drag.index;
       const axis = drag.kind === 'arc-create' ? 'free' : drag.axis;
@@ -898,6 +999,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
       playerDirty = false;
     }
     table.setWindow(player.windowValue);
+    updateTraceHandles();
     let damping = false;
     if (needsRender || playing) {
       damping = controls.update();

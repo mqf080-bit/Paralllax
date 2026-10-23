@@ -1,4 +1,4 @@
-import { CHART_DEFAULTS, chartLimits, type ArcNote, type Chart, type Note, type ShiftEvent } from '../chart/schema';
+import { CHART_DEFAULTS, chartLimits, type ArcNote, type Chart, type Note, type ShiftEvent, type Trace } from '../chart/schema';
 import { DEMO_CHART } from '../chart/demo';
 import { TEST_CHART } from '../chart/test';
 import { createTimeline, validateChart, type Timeline } from '../chart/timeline';
@@ -180,7 +180,8 @@ export class EditorController implements EditorHost, InspectorHost {
   private uiDirty = true;
   private lastUiTime = Number.NaN;
   private activeTraceIndex: number | null = null;
-  private showTraces = true;
+  /** trace：snap = 显示并吸附；view = 只显示；off = 不显示不吸附。 */
+  private traceMode: 'snap' | 'view' | 'off' = 'snap';
   private traceHighlight: number | null = null;
   private readonly lastUi = { play: '', overview: '', time: '', audio: '', reverse: '', status: '' };
   /** 播放头所在段的拍号分母；SNAP 预设按它重建。 */
@@ -219,6 +220,9 @@ export class EditorController implements EditorHost, InspectorHost {
         free ? Math.max(0, Math.round(time)) : snapTime(this.chart, Math.max(0, time), this.snap),
       select: (note) => this.select(note ? { kind: 'note', note } : null),
       selectArcPoint: (note, index) => this.select({ kind: 'arc-point', note, index }),
+      selectTracePoint: (trace, index) => this.select({ kind: 'trace-point', trace, index }),
+      moveTracePoint: (trace, index, x, z) => this.moveTracePoint(trace, index, x, z),
+      traceSnap: () => this.traceSnap,
       place: (x, y, time) => this.placeAt(x, y, time),
       move: (note, x, y, dx, dy) => this.moveNote(note, x, y, dx, dy),
       moveArcPoint: (note, index, x, z, axis) => this.moveArcPoint(note, index, x, z, axis),
@@ -287,16 +291,21 @@ export class EditorController implements EditorHost, InspectorHost {
     this.uiDirty = true;
   }
 
+  get traceSnap(): boolean {
+    return this.traceMode === 'snap';
+  }
+
   toggleTraces(): void {
-    this.showTraces = !this.showTraces;
-    // 同上：显示 / 隐藏 trace 也要重建静态层
+    const next: Array<'snap' | 'view' | 'off'> = ['snap', 'view', 'off'];
+    this.traceMode = next[(next.indexOf(this.traceMode) + 1) % next.length]!;
+    // trace 画在静态层：显示 / 高亮变化都要重建静态层
     this.renderer.setState(this.renderState());
     this.uiDirty = true;
     this.updateUi();
   }
 
   get tracesVisible(): boolean {
-    return this.showTraces;
+    return this.traceMode !== 'off';
   }
 
   get activeTrace(): number | null {
@@ -314,6 +323,15 @@ export class EditorController implements EditorHost, InspectorHost {
     this.select(null);
     this.commit({ preview: true });
     this.endGesture();
+  }
+
+  /** 3D 拖动 trace 的点：x / z 都直接写回。 */
+  moveTracePoint(trace: Trace, index: number, x: number, z: number): void {
+    const point = trace.points[index];
+    if (!point) return;
+    point.x = Math.min(5.5, Math.max(-0.5, Math.round(x * 100) / 100));
+    point.z = Math.max(0, Math.round(z * 1000) / 1000);
+    this.commit();
   }
 
   /** trace → arc：默认右手，物量交给 arc 的自动规则。 */
@@ -394,7 +412,12 @@ export class EditorController implements EditorHost, InspectorHost {
     this.syncSnapUi();
     this.elements.viewToggle.addEventListener('click', (event) => {
       event.stopPropagation();
-      this.elements.viewPanel.hidden = !this.elements.viewPanel.hidden;
+      const panel = this.elements.viewPanel;
+      panel.hidden = !panel.hidden;
+      if (panel.hidden) return;
+      const rect = this.elements.viewToggle.getBoundingClientRect();
+      panel.style.top = `${Math.round(rect.bottom + 8)}px`;
+      panel.style.right = `${Math.round(window.innerWidth - rect.right)}px`;
     });
     document.addEventListener('pointerdown', (event) => {
       if (this.elements.viewPanel.hidden) return;
@@ -402,20 +425,10 @@ export class EditorController implements EditorHost, InspectorHost {
       if (target && (this.elements.viewPanel.contains(target) || this.elements.viewToggle.contains(target))) return;
       this.elements.viewPanel.hidden = true;
     });
-    this.elements.tracesToggle.classList.toggle('is-active', this.showTraces);
+    this.syncTraceUi();
     this.elements.tracesToggle.addEventListener('click', () => {
       this.toggleTraces();
-      this.elements.viewToggle.addEventListener('click', (event) => {
-      event.stopPropagation();
-      this.elements.viewPanel.hidden = !this.elements.viewPanel.hidden;
-    });
-    document.addEventListener('pointerdown', (event) => {
-      if (this.elements.viewPanel.hidden) return;
-      const target = event.target as Node | null;
-      if (target && (this.elements.viewPanel.contains(target) || this.elements.viewToggle.contains(target))) return;
-      this.elements.viewPanel.hidden = true;
-    });
-    this.elements.tracesToggle.classList.toggle('is-active', this.showTraces);
+      this.syncTraceUi();
     });
     this.elements.guideToggle.addEventListener('click', () => {
       const on = !this.elements.guideToggle.classList.contains('is-active');
@@ -653,7 +666,7 @@ export class EditorController implements EditorHost, InspectorHost {
   private placeAt(x: number, y: number, time: number): Note | null {
     const maxHeight = chartLimits(this.chart).maxHeight;
     // 3D 里也会吸到 trace：先按鼠标位置找线，命中就用线上那一点的坐标
-    const snap = traceAt(this.chart, time, clampX(x));
+    const snap = this.traceMode === 'snap' ? traceAt(this.chart, time, clampX(x)) : null;
     const px = snap ? snap.x : clampX(x);
     const py = snap ? Math.min(maxHeight, snap.z) : Math.min(maxHeight, Math.max(0, y));
     const t = Math.max(0, Math.round(time));
@@ -843,6 +856,19 @@ export class EditorController implements EditorHost, InspectorHost {
       const custom = select.querySelector<HTMLOptionElement>('option[value="custom"]');
       if (custom) custom.textContent = `CUSTOM · 1/${this.snap.div}`;
     }
+  }
+
+  /** TRACES 按钮的三态外观。 */
+  private syncTraceUi(): void {
+    const button = this.elements.tracesToggle;
+    button.classList.toggle('is-active', this.traceMode === 'snap');
+    button.textContent = this.traceMode === 'snap' ? 'TRACES ●' : this.traceMode === 'view' ? 'TRACES ○' : 'TRACES ×';
+    button.title =
+      this.traceMode === 'snap'
+        ? 'trace：显示并吸附 note'
+        : this.traceMode === 'view'
+          ? 'trace：只显示，不吸附'
+          : 'trace：不显示、不吸附';
   }
 
   private syncSnapUi(): void {
@@ -1100,7 +1126,7 @@ export class EditorController implements EditorHost, InspectorHost {
       waveform: this.waveform,
       audioOffset: this.chart.meta.offset,
       svDomain: this.svDomain,
-      showTraces: this.showTraces,
+      showTraces: this.traceMode !== 'off',
       traceHighlight: this.traceHighlight,
     };
   }

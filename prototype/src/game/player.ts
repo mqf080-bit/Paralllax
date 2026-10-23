@@ -72,6 +72,10 @@ export interface Player {
   readonly finished: boolean;
   /** 当前窗口值（-1 / 0 / 1 之间），来自谱面的 shift 事件。 */
   readonly windowValue: number;
+  /** 谱面坐标 → 当前帧的世界坐标（编辑器放 trace 手柄用）。 */
+  worldOf(timeMs: number, x: number, z: number): THREE.Vector3;
+  /** 高亮某条 trace（编辑器里“即将吸附 / 正在拖”）。 */
+  setTraceHighlight(index: number | null): void;
   /** 当前谱面时间（毫秒）。 */
   readonly timeMs: number;
   /** 当前是否有手正在 sustain hold / 跟随 arc；给手部短棒控制透明度。 */
@@ -805,6 +809,18 @@ export function createPlayer(
 
     get windowValue(): number {
       return windowValue;
+    },
+
+    worldOf(timeMs: number, x: number, z: number): THREE.Vector3 {
+      return new THREE.Vector3(
+        (x - 2.5) * geometry.laneWidth + windowValue * geometry.laneWidth,
+        params.tableHeight + z,
+        zAt(timeMs, clockMs),
+      );
+    },
+
+    setTraceHighlight(index: number | null): void {
+      traces.setHighlight(index);
     },
 
     get timeMs(): number {

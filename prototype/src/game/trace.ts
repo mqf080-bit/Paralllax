@@ -16,6 +16,8 @@ import type { TableGeometry, TableParams } from '../config';
 export interface TraceLayer {
   group: THREE.Group;
   update(clockMs: number, windowValue: number, zAt: (timeMs: number, nowMs: number) => number): void;
+  /** 高亮某一条（编辑器里“即将吸附 / 正在拖”的那条）。 */
+  setHighlight(index: number | null): void;
   clear(): void;
   dispose(): void;
 }
@@ -98,6 +100,7 @@ export function createTraceLayer(
   const group = new THREE.Group();
   group.name = 'traces';
   group.add(lines);
+  let highlight: number | null = null;
 
   const lane = geometry.laneWidth;
   const baseR = 0.61;
@@ -119,7 +122,9 @@ export function createTraceLayer(
     let vertex = 0;
     let count = 0;
 
-    for (const samples of sampled) {
+    for (let traceIndex = 0; traceIndex < sampled.length; traceIndex += 1) {
+      const samples = sampled[traceIndex]!;
+      const hot = highlight === traceIndex;
       for (let i = 0; i < samples.length - 1; i += 1) {
         const a = samples[i]!;
         const b = samples[i + 1]!;
@@ -131,7 +136,7 @@ export function createTraceLayer(
           1,
           Math.max(0, delta < 0 ? 1 + delta / BEHIND_MS : 1 - delta / AHEAD_MS),
         );
-        const alpha = fade * fade * 0.9;
+        const alpha = fade * fade * (hot ? 1 : 0.9);
         if (alpha < 0.02) continue;
 
         const zA = Math.max(geometry.farZ - 2, Math.min(geometry.nearZ + 2, zAt(a.time, clockMs)));
@@ -140,17 +145,17 @@ export function createTraceLayer(
         positions[vertex * 3 + 0] = (a.x - 2.5) * lane + shiftX;
         positions[vertex * 3 + 1] = params.tableHeight + a.z;
         positions[vertex * 3 + 2] = zA;
-        colors[vertex * 3 + 0] = baseR * alpha;
-        colors[vertex * 3 + 1] = baseG * alpha;
-        colors[vertex * 3 + 2] = baseB * alpha;
+        colors[vertex * 3 + 0] = (hot ? 1 : baseR) * alpha;
+        colors[vertex * 3 + 1] = (hot ? 1 : baseG) * alpha;
+        colors[vertex * 3 + 2] = (hot ? 1 : baseB) * alpha;
         vertex += 1;
 
         positions[vertex * 3 + 0] = (b.x - 2.5) * lane + shiftX;
         positions[vertex * 3 + 1] = params.tableHeight + b.z;
         positions[vertex * 3 + 2] = zB;
-        colors[vertex * 3 + 0] = baseR * alpha;
-        colors[vertex * 3 + 1] = baseG * alpha;
-        colors[vertex * 3 + 2] = baseB * alpha;
+        colors[vertex * 3 + 0] = (hot ? 1 : baseR) * alpha;
+        colors[vertex * 3 + 1] = (hot ? 1 : baseG) * alpha;
+        colors[vertex * 3 + 2] = (hot ? 1 : baseB) * alpha;
         vertex += 1;
         count += 1;
         if (vertex + 2 > capacity * 2) break;
@@ -168,6 +173,9 @@ export function createTraceLayer(
   return {
     group,
     update,
+    setHighlight(index: number | null): void {
+      highlight = index;
+    },
     clear,
     dispose(): void {
       buffer.dispose();
