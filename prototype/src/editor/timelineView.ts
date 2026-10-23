@@ -97,6 +97,8 @@ export interface TimelineState {
   timingHover: number | null;
   /** 鼠标悬停的 SV 点下标。 */
   svHover: number | null;
+  /** 是否显示 SV 带（窄屏 / 不需要变速时可以让出空间）。 */
+  showSv: boolean;
 }
 
 const COLORS = {
@@ -136,11 +138,36 @@ export function xToTime(view: Viewport, x: number): number {
   return view.start + (x - GUTTER) / view.pxPerMs;
 }
 
-export function computeLayout(width: number, height: number): Layout {
+export function computeLayout(width: number, height: number, showSv = true): Layout {
   const rulerH = 26;
   const waveH = 56;
   const gap = 5;
   // 四条带：标尺 / 主视图 / 高度 / SV，波形放在最底下。
+  // SV 是可选的：关掉时它的高度让给主视图和高度带。
+  if (!showSv) {
+    const available = Math.max(240, height - rulerH - waveH - gap * 3);
+    const heightH = clamp(available * 0.32, 100, 150);
+    const lanesH = Math.max(180, available - heightH);
+    const rulerTop = 0;
+    const lanesTop = rulerTop + rulerH;
+    const heightTop = lanesTop + lanesH + gap;
+    const svTop = heightTop + heightH + gap;
+    return {
+      width,
+      height,
+      rulerTop,
+      rulerH,
+      waveTop: svTop,
+      waveH,
+      lanesTop,
+      lanesH,
+      rowH: lanesH / LANE_COUNT,
+      heightTop,
+      heightH,
+      svTop,
+      svH: 0,
+    };
+  }
   const available = Math.max(240, height - rulerH - waveH - gap * 4);
   let heightH = clamp(available * 0.24, 88, 132);
   let svH = clamp(available * 0.24, 88, 132);
@@ -292,6 +319,7 @@ export class TimelineRenderer {
   private cssWidth = 1;
   private cssHeight = 1;
   private layout: Layout = computeLayout(1, 1);
+  private showSv = true;
   private state: TimelineState | null = null;
   private dirty = true;
 
@@ -305,7 +333,8 @@ export class TimelineRenderer {
     this.staticCtx = staticCtx;
   }
 
-  resize(width: number, height: number): Layout {
+  resize(width: number, height: number, showSv = true): Layout {
+    this.showSv = showSv;
     this.cssWidth = Math.max(1, Math.round(width));
     this.cssHeight = Math.max(1, Math.round(height));
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -317,7 +346,7 @@ export class TimelineRenderer {
     }
     this.canvas.style.width = `${this.cssWidth}px`;
     this.canvas.style.height = `${this.cssHeight}px`;
-    this.layout = computeLayout(this.cssWidth, this.cssHeight);
+    this.layout = computeLayout(this.cssWidth, this.cssHeight, this.showSv);
     this.dirty = true;
     return this.layout;
   }
@@ -327,6 +356,10 @@ export class TimelineRenderer {
   }
 
   setState(state: TimelineState): void {
+    if (state.showSv !== this.showSv) {
+      this.showSv = state.showSv;
+      this.layout = computeLayout(this.cssWidth, this.cssHeight, this.showSv);
+    }
     this.state = state;
     this.dirty = true;
   }
@@ -1210,6 +1243,7 @@ export class TimelineRenderer {
   private drawSv(state: TimelineState, timeline: Timeline, grid: ReturnType<typeof collectGridLines>): void {
     const ctx = this.staticCtx;
     const { layout, view } = state;
+    if (layout.svH <= 0) return;
     ctx.fillStyle = COLORS.bandAlt;
     ctx.fillRect(0, layout.svTop, layout.width, layout.svH);
 
@@ -1339,7 +1373,7 @@ export class TimelineRenderer {
       ctx.setLineDash([4, 6]);
       ctx.beginPath();
       ctx.moveTo(x + 0.5, layout.lanesTop);
-      ctx.lineTo(x + 0.5, layout.svTop + layout.svH);
+      ctx.lineTo(x + 0.5, layout.svH > 0 ? layout.svTop + layout.svH : layout.heightTop + layout.heightH);
       ctx.stroke();
       ctx.restore();
     }

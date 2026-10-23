@@ -82,6 +82,7 @@ export interface EditorElements {
   edit3d: HTMLButtonElement;
   toggle2d: HTMLButtonElement;
   guideToggle: HTMLButtonElement;
+  svToggle: HTMLButtonElement;
   tracesToggle: HTMLButtonElement;
   viewToggle: HTMLButtonElement;
   viewPanel: HTMLElement;
@@ -185,6 +186,8 @@ export class EditorController implements EditorHost, InspectorHost {
   private traceHighlight: number | null = null;
   private timingHover: number | null = null;
   private svHover: number | null = null;
+  /** SV 带默认关（不是每张谱都要变速），在 VIEW 里开。 */
+  private showSv = false;
   private readonly lastUi = { play: '', overview: '', time: '', audio: '', reverse: '', status: '' };
   /** 播放头所在段的拍号分母；SNAP 预设按它重建。 */
   private snapDenominator = 4;
@@ -204,6 +207,7 @@ export class EditorController implements EditorHost, InspectorHost {
     this.layout = computeLayout(
       Math.max(1, elements.canvasHost.clientWidth),
       Math.max(1, elements.canvasHost.clientHeight),
+      this.showSv,
     );
 
     this.preview = createPreview(elements.previewHost, this.chart);
@@ -239,6 +243,7 @@ export class EditorController implements EditorHost, InspectorHost {
     this.layout = this.renderer.resize(
       Math.max(1, elements.canvasHost.clientWidth),
       Math.max(1, elements.canvasHost.clientHeight),
+      this.showSv,
     );
     this.inspector = new Inspector(elements.inspectorHost, this);
     this.overview = new OverviewTimeline(elements.overviewCanvas, this);
@@ -309,6 +314,12 @@ export class EditorController implements EditorHost, InspectorHost {
 
   get traceSnap(): boolean {
     return this.traceMode === 'snap';
+  }
+
+  toggleSv(): void {
+    this.showSv = !this.showSv;
+    this.resize();
+    this.elements.svToggle.classList.toggle('is-active', this.showSv);
   }
 
   toggleTraces(): void {
@@ -446,6 +457,8 @@ export class EditorController implements EditorHost, InspectorHost {
       this.toggleTraces();
       this.syncTraceUi();
     });
+    this.elements.svToggle.classList.toggle('is-active', this.showSv);
+    this.elements.svToggle.addEventListener('click', () => this.toggleSv());
     this.elements.guideToggle.addEventListener('click', () => {
       const on = !this.elements.guideToggle.classList.contains('is-active');
       this.elements.guideToggle.classList.toggle('is-active', on);
@@ -1146,6 +1159,7 @@ export class EditorController implements EditorHost, InspectorHost {
       traceHighlight: this.traceHighlight,
       timingHover: this.timingHover,
       svHover: this.svHover,
+      showSv: this.showSv,
     };
   }
 
@@ -1153,7 +1167,7 @@ export class EditorController implements EditorHost, InspectorHost {
     const width = this.elements.canvasHost.clientWidth;
     const height = this.elements.canvasHost.clientHeight;
     if (width < 10 || height < 10) return;
-    this.layout = this.renderer.resize(width, height);
+    this.layout = this.renderer.resize(width, height, this.showSv);
     this.renderer.setState(this.renderState());
     this.preview.invalidate();
     this.uiDirty = true;
