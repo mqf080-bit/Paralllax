@@ -177,6 +177,26 @@ export function noteEnd(note: Note): number {
   return note.time;
 }
 
+/** 某个时刻的谱面 SV（含 ramp 过渡）；没有 speed 数据时按 1×。 */
+export function chartSpeedAt(chart: Chart, timeMs: number): number {
+  const events = chart.speed;
+  if (events.length === 0) return 1;
+  let current = events[0]!;
+  for (const event of events) {
+    if (event.time <= timeMs) current = event;
+    else break;
+  }
+  const duration = current.duration ?? 0;
+  if (duration > 0 && timeMs < current.time + duration) {
+    const index = events.indexOf(current);
+    const previous = index > 0 ? events[index - 1] : undefined;
+    const from = previous ? previous.multiplier : 1;
+    const u = Math.min(1, Math.max(0, (timeMs - current.time) / duration));
+    return from + (current.multiplier - from) * easeValue(current.easing ?? 'linear', u);
+  }
+  return current.multiplier;
+}
+
 /** 谱面内容结束时间（最后一颗 note 的尾端）。 */
 export function chartEnd(chart: Chart): number {
   let end = 0;

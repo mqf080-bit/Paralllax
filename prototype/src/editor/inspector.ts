@@ -15,6 +15,7 @@ import {
 import {
   appendTracePoint,
   arcDuration,
+  chartSpeedAt,
   arcTicks,
   chartDuration,
   clampLane,
@@ -187,6 +188,8 @@ export class Inspector {
   private timingExpanded = false;
   private shiftOpen = true;
   private shiftExpanded = false;
+  private speedOpen = true;
+  private speedExpanded = false;
 
   constructor(
     private readonly container: HTMLElement,
@@ -199,6 +202,7 @@ export class Inspector {
     this.renderMeta();
     this.renderSelection();
     this.renderTiming();
+    this.renderSpeedSection();
     this.renderTraceSection();
     this.renderShiftSection();
     this.renderAudio();
@@ -947,6 +951,118 @@ export class Inspector {
 
     const actions = el('div', 'inspector__actions');
     actions.append(button('ADD @ PLAYHEAD', () => host.addTiming()));
+    root.append(actions);
+    this.add(root);
+  }
+
+  private renderSpeedSection(): void {
+    const host = this.host;
+    const events = host.chart.speed;
+    const current = chartSpeedAt(host.chart, host.playhead);
+    const root = collapsibleSection(
+      'SPEED',
+      this.speedOpen ? `${events.length} EVENTS · 当前 ${current.toFixed(2)}×` : `${events.length} EVENTS · ${current.toFixed(2)}×`,
+      this.speedOpen,
+      () => {
+        this.speedOpen = !this.speedOpen;
+        this.render();
+      },
+    );
+    if (!this.speedOpen) {
+      this.add(root);
+      return;
+    }
+
+    if (events.length > 10) {
+      const index = selectInput<string>(
+        '',
+        [
+          { value: '', label: '—— JUMP TO ——' },
+          ...events.map((event, i) => ({
+            value: String(i),
+            label: `${formatTime(event.time)} · ${event.multiplier.toFixed(2)}×`,
+          })),
+        ],
+        (value) => {
+          const event = events[Number(value)];
+          if (event) host.seek(event.time);
+        },
+      );
+      index.classList.add('inspector__index');
+      root.append(index);
+    }
+
+    const head = el('div', 'eventrow eventrow--head');
+    head.append(el('span', undefined, 'TIME'), el('span', undefined, 'MULT'), el('span', undefined, 'RAMP'), el('span'));
+    root.append(head);
+
+    const limit = this.speedExpanded ? events.length : Math.min(10, events.length);
+    events.slice(0, limit).forEach((event) => {
+      const row = el('div', 'eventrow');
+      row.append(
+        numberInput(
+          event.time,
+          (value) =>
+            edit(host, () => {
+              event.time = Math.max(0, Math.round(value));
+            }),
+          { min: 0 },
+        ),
+        numberInput(
+          event.multiplier,
+          (value) =>
+            edit(host, () => {
+              event.multiplier = Math.round(value * 100) / 100;
+            }),
+          { step: 0.05 },
+        ),
+        numberInput(
+          event.duration ?? 0,
+          (value) =>
+            edit(host, () => {
+              event.duration = Math.max(0, Math.round(value));
+            }),
+          { min: 0 },
+        ),
+        button('×', () => {
+          if (events.length <= 1) return;
+          host.beginGesture();
+          events.splice(events.indexOf(event), 1);
+          host.commit({ preview: false });
+          host.endGesture();
+        }, 'button button--tiny button--danger'),
+      );
+      row.addEventListener('click', (click) => {
+        if ((click.target as HTMLElement).closest('button, input, select')) return;
+        host.select({ kind: 'speed', event });
+      });
+      root.append(row);
+    });
+
+    if (events.length > 10) {
+      root.append(
+        button(
+          this.speedExpanded ? 'SHOW LESS' : `SHOW ALL (${events.length})`,
+          () => {
+            this.speedExpanded = !this.speedExpanded;
+            this.render();
+          },
+          'button button--small',
+        ),
+      );
+    }
+
+    const actions = el('div', 'inspector__actions');
+    actions.append(
+      button('ADD @ PLAYHEAD', () => {
+        host.beginGesture();
+        const event = { time: Math.max(0, Math.round(host.playhead)), multiplier: current, duration: 0 };
+        events.push(event);
+        host.select({ kind: 'speed', event });
+        host.commit({ preview: false });
+        host.endGesture();
+      }),
+    );
     root.append(actions);
     this.add(root);
   }
