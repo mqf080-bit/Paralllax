@@ -262,6 +262,13 @@ export class Inspector {
       this.renderArcPoint(root, selection.note, selection.index);
     } else if (selection.kind === 'speed') {
       this.renderSpeed(root, selection.event);
+    } else if (selection.kind === 'trace' || selection.kind === 'trace-point') {
+      const trace = selection.trace;
+      const index = host.chart.traces?.indexOf(trace) ?? -1;
+      root.append(
+        el('p', 'inspector__hint', `TRACE · ${trace.points.length} 点 · 纯视觉，不判定`),
+        el('p', 'inspector__hint', index >= 0 ? `选中第 ${index + 1} 条（点检查器 TRACE 段改点）` : ''),
+      );
     } else {
       this.renderShiftEvent(root, selection.event);
     }
@@ -879,9 +886,9 @@ export class Inspector {
       const list = el('div', 'pointlist');
       traces.forEach((trace, index) => {
         const active = host.activeTrace === index;
-        const row = el('div', active ? 'pointlist__row is-active' : 'pointlist__row');
+        const row = el('div', active ? 'trace-row is-active' : 'trace-row');
         row.append(
-          button(`${formatTime(trace.time)} · ${trace.points.length} P`, () => host.setActiveTrace(index), 'pointlist__pick'),
+          button(`${formatTime(trace.time)} · ${trace.points.length} P`, () => host.setActiveTrace(index), 'trace-row__pick'),
           button(
             '×',
             () => {
@@ -1190,6 +1197,8 @@ function selectionTime(selection: Selection): number {
   if (selection.kind === 'note') return selection.note.time;
   if (selection.kind === 'notes') return Math.min(...selection.notes.map((note) => note.time));
   if (selection.kind === 'arc-point') return selection.note.time + selection.note.points[selection.index]!.time;
+  if (selection.kind === 'trace') return selection.trace.time;
+  if (selection.kind === 'trace-point') return selection.trace.time + selection.trace.points[selection.index]!.time;
   return selection.event.time;
 }
 

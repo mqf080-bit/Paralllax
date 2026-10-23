@@ -1,5 +1,5 @@
-import type { ArcNote, Note } from '../chart/schema';
-import { sampleArcPoint, type Selection } from './model';
+import type { ArcNote, Note, Trace } from '../chart/schema';
+import { sampleArcPoint, sampleTracePoint, traceDuration, type Selection } from './model';
 import { noteHeight, noteX, type Chart } from '../chart/schema';
 import {
   GUTTER,
@@ -31,6 +31,8 @@ export interface PickState {
 export type Pick =
   | { kind: 'note'; note: Note; zone: 'head' | 'body' | 'tail' }
   | { kind: 'arc-point'; note: ArcNote; index: number }
+  | { kind: 'trace'; trace: Trace }
+  | { kind: 'trace-point'; trace: Trace; index: number }
   | { kind: 'speed'; event: Chart['speed'][number] }
   | { kind: 'shift'; event: Chart['shift'][number] };
 
@@ -74,6 +76,16 @@ export function pickLane(state: PickState, x: number, y: number): Pick | null {
       const px = timeToX(view, note.time + point.time);
       const py = laneToY(layout, point.x);
       if (Math.hypot(px - x, py - y) <= 7) return { kind: 'arc-point', note, index };
+    }
+  }
+
+  // 1.5) trace 的顶点把手（trace 比 arc 细，把手也小一点）
+  for (const trace of chart.traces ?? []) {
+    for (let index = 0; index < trace.points.length; index += 1) {
+      const point = trace.points[index]!;
+      const px = timeToX(view, trace.time + point.time);
+      const py = laneToY(layout, point.x);
+      if (Math.hypot(px - x, py - y) <= 6) return { kind: 'trace-point', trace, index };
     }
   }
 
@@ -131,6 +143,26 @@ export function pickLane(state: PickState, x: number, y: number): Pick | null {
     }
   }
 
+  // 4) trace 的线身（比 arc 更窄的容差）
+  for (const trace of chart.traces ?? []) {
+    const headX = timeToX(view, trace.time);
+    const tailX = timeToX(view, trace.time + traceDuration(trace));
+    if (x < headX - 6 || x > tailX + 6) continue;
+    let previousX = headX;
+    let previousY = laneToY(layout, sampleTracePoint(trace.points, 0).x);
+    const steps = Math.max(2, Math.min(64, Math.round((tailX - headX) / 8) + 2));
+    for (let i = 1; i <= steps; i += 1) {
+      const sx = headX + ((tailX - headX) * i) / steps;
+      const st = xToTime(view, sx) - trace.time;
+      const sy = laneToY(layout, sampleTracePoint(trace.points, st).x);
+      if (distanceToSegment(x, y, previousX, previousY, sx, sy) <= 4) {
+        return { kind: 'trace', trace };
+      }
+      previousX = sx;
+      previousY = sy;
+    }
+  }
+
   return null;
 }
 
@@ -146,6 +178,16 @@ export function pickHeight(state: PickState, x: number, y: number): Pick | null 
       const px = timeToX(view, note.time + point.time);
       const py = heightToY(layout, domain, point.z);
       if (Math.hypot(px - x, py - y) <= 8) return { kind: 'arc-point', note, index };
+    }
+  }
+
+  // trace 顶点
+  for (const trace of chart.traces ?? []) {
+    for (let index = 0; index < trace.points.length; index += 1) {
+      const point = trace.points[index]!;
+      const px = timeToX(view, trace.time + point.time);
+      const py = heightToY(layout, domain, point.z);
+      if (Math.hypot(px - x, py - y) <= 7) return { kind: 'trace-point', trace, index };
     }
   }
 
@@ -209,6 +251,10 @@ export function toSelection(pick: Pick): Selection {
       return { kind: 'note', note: pick.note };
     case 'arc-point':
       return { kind: 'arc-point', note: pick.note, index: pick.index };
+    case 'trace':
+      return { kind: 'trace', trace: pick.trace };
+    case 'trace-point':
+      return { kind: 'trace-point', trace: pick.trace, index: pick.index };
     case 'speed':
       return { kind: 'speed', event: pick.event };
     case 'shift':

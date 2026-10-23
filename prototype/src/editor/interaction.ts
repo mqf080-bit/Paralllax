@@ -18,7 +18,7 @@ import {
   clampLane,
   clampX,
   appendTracePoint,
-  curveAt,
+  traceAt,
   insertArcPoint,
   removeArcPoint,
   sampleArcPoint,
@@ -33,6 +33,7 @@ import {
   type SnapSpec,
   type ToolId,
 } from './model';
+import type { Trace } from '../chart/schema';
 import {
   bandAt,
   pickHeight,
@@ -78,6 +79,8 @@ export interface EditorHost {
   /** 当前正在编辑的引导线（TRACE 工具往它上面加点）。 */
   readonly activeTrace: number | null;
   setActiveTrace(index: number | null): void;
+  /** 放置 note 时即将吸附到的 trace（高亮用）。 */
+  setTraceHighlight(index: number | null): void;
   select(selection: Selection | null): void;
   seek(timeMs: number): void;
   setTool(tool: ToolId): void;
@@ -108,6 +111,25 @@ type Drag =
       baseX: number[];
     }
   | { kind: 'arc-height-move'; note: ArcNote; originY: number; baseY: number[] }
+  | {
+      kind: 'trace-point-lane';
+      trace: Trace;
+      index: number;
+      originTime: number;
+      originLane: number;
+      baseAbsTime: number;
+      baseX: number;
+    }
+  | {
+      kind: 'trace-lane-move';
+      trace: Trace;
+      originTime: number;
+      originLane: number;
+      baseTime: number;
+      baseX: number[];
+    }
+  | { kind: 'trace-point-height'; trace: Trace; index: number; baseZ: number }
+  | { kind: 'trace-height-move'; trace: Trace; originY: number; baseZ: number[] }
   | {
       kind: 'notes-move';
       entries: Array<{ note: Note; baseTime: number; baseX: number; arcX?: number[] }>;
@@ -218,6 +240,12 @@ export function deleteSelection(host: EditorHost, recorded = true): void {
     for (const note of selection.notes) removeNote(host, note);
   } else if (selection.kind === 'arc-point') {
     if (!removeArcPoint(selection.note, selection.index)) removeNote(host, selection.note);
+  } else if (selection.kind === 'trace-point') {
+    if (selection.trace.points.length > 2) selection.trace.points.splice(selection.index, 1);
+  } else if (selection.kind === 'trace') {
+    const traces = host.chart.traces ?? [];
+    const index = traces.indexOf(selection.trace);
+    if (index >= 0) traces.splice(index, 1);
   } else if (selection.kind === 'speed') {
     removeEvent(host.chart.speed, selection.event);
   } else {
@@ -244,6 +272,12 @@ function deleteAt(host: EditorHost, band: ReturnType<typeof bandAt>, x: number, 
     if (!removeArcPoint(pick.note, pick.index)) removeNote(host, pick.note);
   } else if (pick.kind === 'speed') {
     removeEvent(host.chart.speed, pick.event);
+  } else if (pick.kind === 'trace-point') {
+    if (pick.trace.points.length > 2) pick.trace.points.splice(pick.index, 1);
+  } else if (pick.kind === 'trace') {
+    const traces = host.chart.traces ?? [];
+    const index = traces.indexOf(pick.trace);
+    if (index >= 0) traces.splice(index, 1);
   } else {
     removeEvent(host.chart.shift, pick.event);
   }
@@ -297,6 +331,33 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
         baseAbsTime: pick.note.time + pick.note.points[pick.index]!.time,
         baseX: pick.note.points[pick.index]!.x,
       };
+      return;
+    }
+
+    if (pick && (pick.kind === 'trace-point' || pick.kind === 'trace')) {
+      host.beginGesture();
+      host.select(toSelection(pick));
+      if (pick.kind === 'trace-point') {
+        const point = pick.trace.points[pick.index]!;
+        drag = {
+          kind: 'trace-point-lane',
+          trace: pick.trace,
+          index: pick.index,
+          originTime: time,
+          originLane: lane,
+          baseAbsTime: pick.trace.time + point.time,
+          baseX: point.x,
+        };
+      } else {
+        drag = {
+          kind: 'trace-lane-move',
+          trace: pick.trace,
+          originTime: time,
+          originLane: lane,
+          baseTime: pick.trace.time,
+          baseX: pick.trace.points.map((point) => point.x),
+        };
+      }
       return;
     }
 
@@ -381,7 +442,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
     if (host.tool === 'hit' || host.tool === 'drag') {
       host.beginGesture();
       // 落在 arc / trace 上时贴着曲线放，坐标直接取曲线在该时间的点
-      const curve = curveAt(host.chart, snapped, snappedX);
+      const curve = traceAt(host.chart, snapped, snappedX);
       const placeX = curve ? curve.x : snappedX;
       const placeZ = curve ? curve.z : 0;
       const note: Note =
@@ -409,8 +470,8 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       const note: HoldNote = {
         type: 'hold',
         time: start,
-        lane: clampLane(Math.round(curveAt(host.chart, start, snappedX)?.x ?? snappedX)),
-        x: curveAt(host.chart, start, snappedX)?.x ?? snappedX,
+        lane: clampLane(Math.round(traceAt(host.chart, start, snappedX)?.x ?? snappedX)),
+        x: traceAt(host.chart, start, snappedX)?.x ?? snappedX,
         duration,
         objects: 4,
       };
@@ -464,6 +525,30 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       host.beginGesture();
       host.select(toSelection(pick));
       drag = { kind: 'arc-point-height', note: pick.note, index: pick.index };
+      return;
+    }
+
+    if (pick && pick.kind === 'trace-point') {
+      host.beginGesture();
+      host.select(toSelection(pick));
+      drag = {
+        kind: 'trace-point-height',
+        trace: pick.trace,
+        index: pick.index,
+        baseZ: pick.trace.points[pick.index]!.z,
+      };
+      return;
+    }
+
+    if (pick && pick.kind === 'trace') {
+      host.beginGesture();
+      host.select(toSelection(pick));
+      drag = {
+        kind: 'trace-height-move',
+        trace: pick.trace,
+        originY: y,
+        baseZ: pick.trace.points.map((point) => point.z),
+      };
       return;
     }
 
@@ -630,6 +715,15 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
     if (!drag) {
       const band = bandAt(host.layout, x, y);
       canvas.style.cursor = cursorFor(band, x, y);
+      // 放置类工具悬停在 trace 附近时，把那条线点亮（告诉玩家「会吸到这条」）
+      if (band === 'lanes' && (host.tool === 'hit' || host.tool === 'drag' || host.tool === 'hold')) {
+        const time = snapTimeMaybe(host, xToTime(host.view, x), event.ctrlKey || event.metaKey);
+        const lane = yToLane(host.layout, y);
+        const hit = traceAt(host.chart, time, lane);
+        host.setTraceHighlight(hit ? hit.index : null);
+      } else {
+        host.setTraceHighlight(null);
+      }
       return;
     }
 
@@ -760,6 +854,63 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       const clamped = Math.min(maxHeight - max, Math.max(-min, dy));
       state.note.points.forEach((point, index) => {
         point.z = Math.round(((state.baseY[index] ?? 0) + clamped) * 1000) / 1000;
+      });
+      host.commit();
+      return;
+    }
+
+    if (drag.kind === 'trace-point-lane') {
+      const point = drag.trace.points[drag.index];
+      if (!point) return;
+      const dt = time - drag.originTime;
+      const abs = snapTimeMaybe(host, drag.baseAbsTime + dt, event.ctrlKey || event.metaKey);
+      if (drag.index === 0) {
+        drag.trace.time = Math.max(0, abs);
+        point.time = 0;
+      } else {
+        const previous = drag.trace.points[drag.index - 1]!;
+        const next = drag.trace.points[drag.index + 1];
+        const lower = previous.time + 1;
+        const upper = next ? next.time - 1 : Number.POSITIVE_INFINITY;
+        point.time = Math.min(upper, Math.max(lower, abs - drag.trace.time));
+      }
+      point.x = snapArcX(drag.baseX + (lane - drag.originLane), host.gridSnap, event.ctrlKey || event.metaKey);
+      host.commit();
+      return;
+    }
+
+    if (drag.kind === 'trace-lane-move') {
+      const dt = time - drag.originTime;
+      const dx = lane - drag.originLane;
+      const free = event.ctrlKey || event.metaKey;
+      const baseX = drag.baseX;
+      drag.trace.time = Math.max(0, snapTimeMaybe(host, drag.baseTime + dt, free));
+      drag.trace.points.forEach((point, index) => {
+        point.x = snapArcX(baseX[index]! + dx, host.gridSnap, free);
+      });
+      host.commit();
+      return;
+    }
+
+    if (drag.kind === 'trace-point-height') {
+      const point = drag.trace.points[drag.index];
+      if (!point) return;
+      const domain = heightDomain(host.chart);
+      let value = yToHeight(host.layout, domain, y);
+      value = event.shiftKey
+        ? snapHeightLevel(host.chart, value)
+        : snapSpatialY(value, host.gridSnap, event.ctrlKey || event.metaKey);
+      point.z = clampHeight(host.chart, value);
+      host.commit();
+      return;
+    }
+
+    if (drag.kind === 'trace-height-move') {
+      const domain = heightDomain(host.chart);
+      const dy = yToHeight(host.layout, domain, y) - yToHeight(host.layout, domain, drag.originY);
+      const baseZ = drag.baseZ;
+      drag.trace.points.forEach((point, index) => {
+        point.z = clampHeight(host.chart, baseZ[index]! + dy);
       });
       host.commit();
       return;

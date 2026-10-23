@@ -11,6 +11,7 @@ import {
   type HitNote,
   type HoldNote,
   type Note,
+  type Trace,
 } from '../chart/schema';
 import {
   arcTicks,
@@ -18,7 +19,9 @@ import {
   formatTime,
   LANE_COUNT,
   sampleArcPoint,
+  sampleTracePoint,
   snapBeats,
+  traceDuration,
   type Selection,
   type SnapSpec,
   type ToolId,
@@ -86,6 +89,10 @@ export interface TimelineState {
   /** `meta.offset`：波形按它平移。 */
   audioOffset: number;
   svDomain: SvDomain;
+  /** 2D 里是否画 trace（细线，默认开）。 */
+  showTraces: boolean;
+  /** 即将吸附到的 trace 下标（高亮）。 */
+  traceHighlight: number | null;
 }
 
 const COLORS = {
@@ -243,6 +250,11 @@ function roundRect(
   ctx.arcTo(x, y + height, x, y, r);
   ctx.arcTo(x, y, x + width, y, r);
   ctx.closePath();
+}
+
+function isTraceSelected(state: TimelineState, trace: Trace): boolean {
+  const selection = state.selection;
+  return (selection?.kind === 'trace' || selection?.kind === 'trace-point') && selection.trace === trace;
 }
 
 /** 选中的对象是否就是它。 */
@@ -570,6 +582,10 @@ export class TimelineRenderer {
       if (note.type === 'arc') arcs.push(note);
       else ground.push(note);
     }
+    // trace 更细、更暗，压在最底下
+    if (state.showTraces) {
+      (state.chart.traces ?? []).forEach((trace, index) => this.drawTraceLane(state, trace, index));
+    }
     for (const note of arcs) this.drawArcLane(state, note);
     for (const note of ground) this.drawGroundNote(state, note, timeline);
     for (const note of arcs) {
@@ -720,6 +736,94 @@ export class TimelineRenderer {
     ctx.restore();
   }
 
+  /** trace 在主视图：比 arc 细（1.0px vs 2.0px）、更暗，顶点是小圆点。 */
+  private drawTraceLane(state: TimelineState, trace: Trace, index: number): void {
+    const ctx = this.staticCtx;
+    const { layout, view } = state;
+    const headX = timeToX(view, trace.time);
+    const tailX = timeToX(view, trace.time + traceDuration(trace));
+    if (tailX < GUTTER - 20 || headX > layout.width + 20) return;
+
+    const selected = isTraceSelected(state, trace);
+    const hot = selected || state.traceHighlight === index;
+    ctx.save();
+    ctx.strokeStyle = hot ? '#ffffff' : 'rgba(156, 200, 255, 0.52)';
+    ctx.lineWidth = hot ? 1.6 : 1.0;
+    ctx.beginPath();
+    let started = false;
+    for (let x = Math.max(GUTTER, headX); x <= Math.min(layout.width, tailX); x += 2) {
+      const time = xToTime(view, x);
+      const point = sampleTracePoint(trace.points, time - trace.time);
+      const y = laneToY(layout, point.x);
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    if (started) ctx.stroke();
+
+    trace.points.forEach((point, pointIndex) => {
+      const px = timeToX(view, trace.time + point.time);
+      if (px < GUTTER || px > layout.width) return;
+      const py = laneToY(layout, point.x);
+      const active =
+        state.selection?.kind === 'trace-point' &&
+        state.selection.trace === trace &&
+        state.selection.index === pointIndex;
+      ctx.fillStyle = active ? '#ffffff' : 'rgba(156, 200, 255, 0.75)';
+      ctx.beginPath();
+      ctx.arc(px, py, active ? 3.6 : 2.0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
+  /** trace 在高度视图：同样比 arc 细。 */
+  private drawTraceHeight(state: TimelineState, trace: Trace): void {
+    const ctx = this.staticCtx;
+    const { layout, view } = state;
+    const domain = heightDomain(state.chart);
+    const headX = timeToX(view, trace.time);
+    const tailX = timeToX(view, trace.time + traceDuration(trace));
+    if (tailX < GUTTER - 20 || headX > layout.width + 20) return;
+
+    const selected = isTraceSelected(state, trace);
+    ctx.save();
+    ctx.strokeStyle = selected ? '#ffffff' : 'rgba(156, 200, 255, 0.52)';
+    ctx.lineWidth = selected ? 1.6 : 1.0;
+    ctx.beginPath();
+    let started = false;
+    for (let x = Math.max(GUTTER, headX); x <= Math.min(layout.width, tailX); x += 2) {
+      const time = xToTime(view, x);
+      const point = sampleTracePoint(trace.points, time - trace.time);
+      const y = heightToY(layout, domain, point.z);
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    if (started) ctx.stroke();
+
+    trace.points.forEach((point, pointIndex) => {
+      const px = timeToX(view, trace.time + point.time);
+      if (px < GUTTER || px > layout.width) return;
+      const py = heightToY(layout, domain, point.z);
+      const active =
+        state.selection?.kind === 'trace-point' &&
+        state.selection.trace === trace &&
+        state.selection.index === pointIndex;
+      ctx.fillStyle = active ? '#ffffff' : 'rgba(156, 200, 255, 0.75)';
+      ctx.beginPath();
+      ctx.arc(px, py, active ? 3.6 : 2.0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.restore();
+  }
+
   private drawArcLane(state: TimelineState, note: ArcNote, lifted = false): void {
     const ctx = this.staticCtx;
     const { layout, view } = state;
@@ -860,6 +964,10 @@ export class TimelineRenderer {
       ctx.moveTo(GUTTER, y + 0.5);
       ctx.lineTo(layout.width, y + 0.5);
       ctx.stroke();
+    }
+
+    if (state.showTraces) {
+      (state.chart.traces ?? []).forEach((trace) => this.drawTraceHeight(state, trace));
     }
 
     for (const note of state.chart.notes) {

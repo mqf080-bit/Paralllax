@@ -590,6 +590,37 @@ select {
   letter-spacing: 0.08em;
 }
 
+.trace-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+}
+
+.trace-row.is-active {
+  border-color: rgba(176, 141, 87, 0.55);
+  background: rgba(176, 141, 87, 0.1);
+}
+
+.trace-row__pick {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-dim);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.trace-row__pick:hover {
+  color: var(--ink);
+  background: rgba(160, 180, 205, 0.06);
+}
+
 .pointlist {
   display: flex;
   flex-direction: column;

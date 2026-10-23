@@ -13,6 +13,7 @@ import type { CoverAsset } from './persistence';
 import {
   appendTracePoint,
   arcDuration,
+  traceAt,
   arcToTrace,
   traceToArc,
   arcTicks,
@@ -81,6 +82,7 @@ export interface EditorElements {
   edit3d: HTMLButtonElement;
   toggle2d: HTMLButtonElement;
   guideToggle: HTMLButtonElement;
+  tracesToggle: HTMLButtonElement;
   previewHint: HTMLElement;
   work: HTMLElement;
   splitter: HTMLElement;
@@ -176,6 +178,8 @@ export class EditorController implements EditorHost, InspectorHost {
   private uiDirty = true;
   private lastUiTime = Number.NaN;
   private activeTraceIndex: number | null = null;
+  private showTraces = true;
+  private traceHighlight: number | null = null;
   private readonly lastUi = { play: '', overview: '', time: '', audio: '', reverse: '', status: '' };
   /** 播放头所在段的拍号分母；SNAP 预设按它重建。 */
   private snapDenominator = 4;
@@ -273,6 +277,22 @@ export class EditorController implements EditorHost, InspectorHost {
     return this.preview.state.timeMs;
   }
 
+  setTraceHighlight(index: number | null): void {
+    if (this.traceHighlight === index) return;
+    this.traceHighlight = index;
+    this.uiDirty = true;
+  }
+
+  toggleTraces(): void {
+    this.showTraces = !this.showTraces;
+    this.uiDirty = true;
+    this.updateUi();
+  }
+
+  get tracesVisible(): boolean {
+    return this.showTraces;
+  }
+
   get activeTrace(): number | null {
     return this.activeTraceIndex;
   }
@@ -366,6 +386,11 @@ export class EditorController implements EditorHost, InspectorHost {
       button.addEventListener('click', () => this.setTool(tool));
     }
     this.syncSnapUi();
+    this.elements.tracesToggle.classList.toggle('is-active', this.showTraces);
+    this.elements.tracesToggle.addEventListener('click', () => {
+      this.toggleTraces();
+      this.elements.tracesToggle.classList.toggle('is-active', this.showTraces);
+    });
     this.elements.guideToggle.addEventListener('click', () => {
       const on = !this.elements.guideToggle.classList.contains('is-active');
       this.elements.guideToggle.classList.toggle('is-active', on);
@@ -463,6 +488,11 @@ export class EditorController implements EditorHost, InspectorHost {
 
   select(selection: Selection | null): void {
     this.selection = selection;
+    // 选中 trace / trace 点时，检查器的 TRACE 段跟着切到那一条
+    if (selection?.kind === 'trace' || selection?.kind === 'trace-point') {
+      const index = this.chart.traces?.indexOf(selection.trace) ?? -1;
+      this.activeTraceIndex = index >= 0 ? index : null;
+    }
     this.renderer.setState(this.renderState());
     this.uiDirty = true;
     const primary =
@@ -596,8 +626,10 @@ export class EditorController implements EditorHost, InspectorHost {
   /** 3D 视图放置：在播放头时间、给定的 x/z 生成当前工具的 note。 */
   private placeAt(x: number, y: number, time: number): Note | null {
     const maxHeight = chartLimits(this.chart).maxHeight;
-    const px = clampX(x);
-    const py = Math.min(maxHeight, Math.max(0, y));
+    // 3D 里也会吸到 trace：先按鼠标位置找线，命中就用线上那一点的坐标
+    const snap = traceAt(this.chart, time, clampX(x));
+    const px = snap ? snap.x : clampX(x);
+    const py = snap ? Math.min(maxHeight, snap.z) : Math.min(maxHeight, Math.max(0, y));
     const t = Math.max(0, Math.round(time));
     const lane = clampLane(Math.round(px));
     let note: Note | null = null;
@@ -1042,6 +1074,8 @@ export class EditorController implements EditorHost, InspectorHost {
       waveform: this.waveform,
       audioOffset: this.chart.meta.offset,
       svDomain: this.svDomain,
+      showTraces: this.showTraces,
+      traceHighlight: this.traceHighlight,
     };
   }
 

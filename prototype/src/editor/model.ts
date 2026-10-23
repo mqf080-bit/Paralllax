@@ -37,8 +37,18 @@ export type Selection =
   /** 2D 多选：地图上的 note 集合（arc 顶点仍是单点编辑）。 */
   | { kind: 'notes'; notes: Note[] }
   | { kind: 'arc-point'; note: ArcNote; index: number }
+  | { kind: 'trace'; trace: Trace }
+  | { kind: 'trace-point'; trace: Trace; index: number }
   | { kind: 'speed'; event: SpeedEvent }
   | { kind: 'shift'; event: ShiftEvent };
+
+/** 选区里的 trace（没有就返回 null）。 */
+export function selectionTrace(selection: Selection | null): Trace | null {
+  if (!selection) return null;
+  if (selection.kind === 'trace') return selection.trace;
+  if (selection.kind === 'trace-point') return selection.trace;
+  return null;
+}
 
 /** 当前选区里的所有 note（单 note / 多选 / arc 顶点都归一到 note 列表）。 */
 export function selectionNotes(selection: Selection | null): Note[] {
@@ -516,40 +526,34 @@ export function sampleTracePoint(points: TracePoint[], tRel: number): { x: numbe
   return { x: last.x, z: last.z };
 }
 
-export interface CurveHit {
-  kind: 'arc' | 'trace';
+export interface TraceHit {
+  /** 命中的 trace 下标。 */
+  index: number;
   x: number;
   z: number;
 }
 
+/** trace 的长度（毫秒）。 */
+export function traceDuration(trace: Trace): number {
+  return trace.points[trace.points.length - 1]?.time ?? 0;
+}
+
 /**
- * 在 `timeMs` 处找离鼠标横向位置最近的曲线（arc 或 trace）。
+ * 在 `timeMs` 处找离鼠标横向位置最近的 **trace**（arc 不吸附，见 FUTURE §0.4）。
  * `lane` 是鼠标所在的轨号，`threshold` 是横向吸附半径（轨）。
  */
-export function curveAt(chart: Chart, timeMs: number, lane: number, threshold = 0.45): CurveHit | null {
-  let best: CurveHit | null = null;
+export function traceAt(chart: Chart, timeMs: number, lane: number, threshold = 0.45): TraceHit | null {
+  let best: TraceHit | null = null;
   let bestDistance = threshold;
-  for (const note of chart.notes) {
-    if (note.type !== 'arc') continue;
-    const start = note.time;
-    const end = start + arcDuration(note);
-    if (timeMs < start || timeMs > end) continue;
-    const point = sampleArcPoint(note.points, timeMs - start);
-    const distance = Math.abs(point.x - lane);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = { kind: 'arc', x: point.x, z: point.z };
-    }
-  }
-  for (const trace of chart.traces ?? []) {
-    const last = trace.points[trace.points.length - 1];
-    const end = trace.time + (last?.time ?? 0);
-    if (timeMs < trace.time || timeMs > end) continue;
+  const traces = chart.traces ?? [];
+  for (let index = 0; index < traces.length; index += 1) {
+    const trace = traces[index]!;
+    if (timeMs < trace.time || timeMs > trace.time + traceDuration(trace)) continue;
     const point = sampleTracePoint(trace.points, timeMs - trace.time);
     const distance = Math.abs(point.x - lane);
     if (distance < bestDistance) {
       bestDistance = distance;
-      best = { kind: 'trace', x: point.x, z: point.z };
+      best = { index, x: point.x, z: point.z };
     }
   }
   return best;
