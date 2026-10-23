@@ -16,17 +16,19 @@ export function easeValue(easing: Easing, u: number): number {
     case 'cosine':
       return 1 - Math.cos((t * Math.PI) / 2);
     case 'bezier':
-      // 近似 cubic ease-in-out。
-      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      // cubic-bezier(1/3, 0, 2/3, 1) —— 和 AFF 的 `b` 是同一条曲线。
+      // 这两个控制点的 x 分量正好是 1/3、2/3，所以 x(s) = s，直接取 y：
+      // y = 3s² - 2s³（smoothstep）。
+      return t * t * (3 - 2 * t);
   }
 }
 
-/** 编辑器里的缓动名。 */
+/** 编辑器里的缓动名（括号里是 AFF 的对应写法）。 */
 export const EASING_LABELS: Record<Easing, string> = {
-  linear: '直线',
-  sine: '缓入',
-  cosine: '缓出',
-  bezier: '缓入缓出',
+  linear: '直线 (s)',
+  sine: '缓入 (si)',
+  cosine: '缓出 (so)',
+  bezier: '贝塞尔 (b)',
 };
 
 export const EASING_OPTIONS: Easing[] = ['linear', 'sine', 'cosine', 'bezier'];

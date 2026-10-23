@@ -123,6 +123,31 @@ bar  = beat × numerator
 - **平面与高度分开**：`easing: 'linear', easingZ: 'sine'` = 横向匀速、高度缓入；
 - **任意形状**：点列本身就是折线 / 曲线混合。
 
+### 4.1 与 Arcaea（AFF）的弧线缓动对照
+
+AFF 的 arc 缓动字符串是**两根轴各一个字母**：`x` 缓动 + `y`（高度）缓动，`y` 为 `s` 时省略。
+四种单缓动是 `s` = 直线、`si` = 正弦、`so` = 余弦、`b` = 贝塞尔。
+我们的 `easing` / `easingZ` 正好就是这两根轴，所以一个 AFF arc = 我们的一段：
+
+| AFF | `easing`（x） | `easingZ`（高度） |
+| --- | --- | --- |
+| `s` | `linear` | `linear` |
+| `b` | `bezier` | `linear` |
+| `si` | `sine` | `linear` |
+| `so` | `cosine` | `linear` |
+| `sisi` | `sine` | `sine` |
+| `soso` | `cosine` | `cosine` |
+| `siso` | `sine` | `cosine` |
+| `sosi` | `cosine` | `sine` |
+
+- `bezier` 用的是 `cubic-bezier(1/3, 0, 2/3, 1)`，和 AFF `b` 的默认控制点相同（smoothstep），
+  不是“近似 ease-in-out”；
+- `sine` = `sin(πu/2)`（缓入）、`cosine` = `1 − cos(πu/2)`（缓出），和 AFF `si` / `so` 同形；
+- 我们比 AFF 多出来的能力：一段之内可以再插点（多段弧）、每段 x / 高度各自选缓动、
+  高度可以沿途任意起伏（AFF 只给两端高度）。
+
+参考：[arcfutil 缓动文档](https://docs.arcaea.icu/guide/easing.html)（`s`/`si`/`so`/`b` 与两轴组合的说明）。
+
 示例（一个直角 + 一段曲线）：
 
 ```json
