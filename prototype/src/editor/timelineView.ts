@@ -99,6 +99,8 @@ export interface TimelineState {
   svHover: number | null;
   /** 是否显示 SV 带（窄屏 / 不需要变速时可以让出空间）。 */
   showSv: boolean;
+  /** 主视图 / 高度带的高度比例（0.3–0.85）。 */
+  laneSplit: number;
 }
 
 const COLORS = {
@@ -138,18 +140,24 @@ export function xToTime(view: Viewport, x: number): number {
   return view.start + (x - GUTTER) / view.pxPerMs;
 }
 
-export function computeLayout(width: number, height: number, showSv = true): Layout {
+export function computeLayout(
+  width: number,
+  height: number,
+  showSv = true,
+  /** 主视图占「主视图 + 高度」的比例（0.3–0.85），由中间的分隔条拖动。 */
+  laneSplit = 0.62,
+): Layout {
   const rulerH = 26;
   const waveH = 56;
   const gap = 5;
-  // 四条带：标尺 / 主视图 / 高度 / SV，波形放在最底下。
-  // SV 是可选的：关掉时它的高度让给主视图和高度带。
+  const split = clamp(laneSplit, 0.3, 0.85);
+  const rulerTop = 0;
+  const lanesTop = rulerTop + rulerH;
+
   if (!showSv) {
-    const available = Math.max(240, height - rulerH - waveH - gap * 3);
-    const heightH = clamp(available * 0.32, 100, 150);
-    const lanesH = Math.max(180, available - heightH);
-    const rulerTop = 0;
-    const lanesTop = rulerTop + rulerH;
+    const total = Math.max(240, height - rulerH - waveH - gap * 3);
+    const heightH = clamp(total * (1 - split), 88, total - 180);
+    const lanesH = total - heightH;
     const heightTop = lanesTop + lanesH + gap;
     const svTop = heightTop + heightH + gap;
     return {
@@ -168,20 +176,13 @@ export function computeLayout(width: number, height: number, showSv = true): Lay
       svH: 0,
     };
   }
-  const available = Math.max(240, height - rulerH - waveH - gap * 4);
-  let heightH = clamp(available * 0.24, 88, 132);
-  let svH = clamp(available * 0.24, 88, 132);
-  let lanesH = available - heightH - svH;
-  if (lanesH < 170) {
-    const deficit = 170 - lanesH;
-    const takeHeight = Math.min(deficit / 2, heightH - 80);
-    heightH -= takeHeight;
-    const takeSv = Math.min(deficit - takeHeight, svH - 80);
-    svH -= takeSv;
-    lanesH = available - heightH - svH;
-  }
-  const rulerTop = 0;
-  const lanesTop = rulerTop + rulerH;
+
+  // 四条带：标尺 / 主视图 / 高度 / SV，波形放在最底下。
+  const total = Math.max(300, height - rulerH - waveH - gap * 4);
+  const svH = clamp(total * 0.22, 80, 120);
+  const body = total - svH;
+  const heightH = clamp(body * (1 - split), 88, body - 170);
+  const lanesH = body - heightH;
   const heightTop = lanesTop + lanesH + gap;
   const svTop = heightTop + heightH + gap;
   const waveTop = svTop + svH + gap;
@@ -202,7 +203,6 @@ export function computeLayout(width: number, height: number, showSv = true): Lay
   };
 }
 
-/** lane 坐标（0–5，可带小数）→ 主视图 y。lane 2 的中心 = 2.5 个轨高。 */
 export function laneToY(layout: Layout, lane: number): number {
   return layout.lanesTop + (lane + 0.5) * layout.rowH;
 }
@@ -320,6 +320,7 @@ export class TimelineRenderer {
   private cssHeight = 1;
   private layout: Layout = computeLayout(1, 1);
   private showSv = true;
+  private laneSplit = 0.62;
   private state: TimelineState | null = null;
   private dirty = true;
 
@@ -333,8 +334,9 @@ export class TimelineRenderer {
     this.staticCtx = staticCtx;
   }
 
-  resize(width: number, height: number, showSv = true): Layout {
+  resize(width: number, height: number, showSv = true, laneSplit = 0.62): Layout {
     this.showSv = showSv;
+    this.laneSplit = laneSplit;
     this.cssWidth = Math.max(1, Math.round(width));
     this.cssHeight = Math.max(1, Math.round(height));
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -346,7 +348,7 @@ export class TimelineRenderer {
     }
     this.canvas.style.width = `${this.cssWidth}px`;
     this.canvas.style.height = `${this.cssHeight}px`;
-    this.layout = computeLayout(this.cssWidth, this.cssHeight, this.showSv);
+    this.layout = computeLayout(this.cssWidth, this.cssHeight, this.showSv, this.laneSplit);
     this.dirty = true;
     return this.layout;
   }
@@ -356,9 +358,10 @@ export class TimelineRenderer {
   }
 
   setState(state: TimelineState): void {
-    if (state.showSv !== this.showSv) {
+    if (state.showSv !== this.showSv || state.laneSplit !== this.laneSplit) {
       this.showSv = state.showSv;
-      this.layout = computeLayout(this.cssWidth, this.cssHeight, this.showSv);
+      if (state.laneSplit !== this.laneSplit) this.laneSplit = state.laneSplit;
+      this.layout = computeLayout(this.cssWidth, this.cssHeight, this.showSv, this.laneSplit);
     }
     this.state = state;
     this.dirty = true;
@@ -408,6 +411,25 @@ export class TimelineRenderer {
     this.drawShiftLines(state);
     this.drawSelectionGuide(state);
     this.drawGutterLabels(state);
+    this.drawBandSplitter(state);
+  }
+
+  /** 主视图 / 高度带之间的分隔条：一条细线 + 中间三个点，提示可拖。 */
+  private drawBandSplitter(state: TimelineState): void {
+    const ctx = this.staticCtx;
+    const { layout } = state;
+    const y = layout.lanesTop + layout.lanesH + 2.5;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(156, 200, 255, 0.16)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(GUTTER, y + 0.5);
+    ctx.lineTo(layout.width, y + 0.5);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(156, 200, 255, 0.3)';
+    const center = (GUTTER + layout.width) / 2;
+    for (const dx of [-5, 0, 5]) ctx.fillRect(center + dx - 1, y + 0.5, 2, 2);
+    ctx.restore();
   }
 
   // —— 标尺 ——

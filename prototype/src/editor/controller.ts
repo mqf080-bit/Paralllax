@@ -188,6 +188,16 @@ export class EditorController implements EditorHost, InspectorHost {
   private svHover: number | null = null;
   /** SV 带默认关（不是每张谱都要变速），在 VIEW 里开。 */
   private showSv = false;
+  /** 主视图 / 高度带的高度比例，中间分隔条可拖。 */
+  private laneSplitValue = (() => {
+    try {
+      const raw = window.localStorage.getItem('parallax.editor.laneSplit');
+      const value = raw === null ? Number.NaN : Number(raw);
+      return Number.isFinite(value) ? Math.min(0.85, Math.max(0.3, value)) : 0.62;
+    } catch {
+      return 0.62;
+    }
+  })();
   private readonly lastUi = { play: '', overview: '', time: '', audio: '', reverse: '', status: '' };
   /** 播放头所在段的拍号分母；SNAP 预设按它重建。 */
   private snapDenominator = 4;
@@ -208,6 +218,7 @@ export class EditorController implements EditorHost, InspectorHost {
       Math.max(1, elements.canvasHost.clientWidth),
       Math.max(1, elements.canvasHost.clientHeight),
       this.showSv,
+      this.laneSplitValue,
     );
 
     this.preview = createPreview(elements.previewHost, this.chart);
@@ -244,6 +255,7 @@ export class EditorController implements EditorHost, InspectorHost {
       Math.max(1, elements.canvasHost.clientWidth),
       Math.max(1, elements.canvasHost.clientHeight),
       this.showSv,
+      this.laneSplitValue,
     );
     this.inspector = new Inspector(elements.inspectorHost, this);
     this.overview = new OverviewTimeline(elements.overviewCanvas, this);
@@ -314,6 +326,26 @@ export class EditorController implements EditorHost, InspectorHost {
 
   get traceSnap(): boolean {
     return this.traceMode === 'snap';
+  }
+
+  get laneSplit(): number {
+    return this.laneSplitValue;
+  }
+
+  get laneSplitRatio(): number {
+    return this.laneSplitValue;
+  }
+
+  setLaneSplit(ratio: number): void {
+    const next = Math.min(0.85, Math.max(0.3, ratio));
+    if (Math.abs(next - this.laneSplitValue) < 0.002) return;
+    this.laneSplitValue = next;
+    try {
+      window.localStorage.setItem('parallax.editor.laneSplit', String(next));
+    } catch {
+      // 存不了就算了，只影响下次打开
+    }
+    this.resize();
   }
 
   toggleSv(): void {
@@ -1160,6 +1192,7 @@ export class EditorController implements EditorHost, InspectorHost {
       timingHover: this.timingHover,
       svHover: this.svHover,
       showSv: this.showSv,
+      laneSplit: this.laneSplitValue,
     };
   }
 
@@ -1167,7 +1200,7 @@ export class EditorController implements EditorHost, InspectorHost {
     const width = this.elements.canvasHost.clientWidth;
     const height = this.elements.canvasHost.clientHeight;
     if (width < 10 || height < 10) return;
-    this.layout = this.renderer.resize(width, height, this.showSv);
+    this.layout = this.renderer.resize(width, height, this.showSv, this.laneSplitValue);
     this.renderer.setState(this.renderState());
     this.preview.invalidate();
     this.uiDirty = true;

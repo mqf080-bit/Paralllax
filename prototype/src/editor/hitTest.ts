@@ -36,13 +36,20 @@ export type Pick =
   | { kind: 'speed'; event: Chart['speed'][number] }
   | { kind: 'shift'; event: Chart['shift'][number] };
 
-export type Band = 'ruler' | 'wave' | 'lanes' | 'height' | 'sv' | 'gutter';
+export type Band = 'ruler' | 'wave' | 'lanes' | 'height' | 'sv' | 'gutter' | 'divider';
 
 export function bandAt(layout: Layout, x: number, y: number): Band {
   if (x < GUTTER) return 'gutter';
   if (y >= layout.rulerTop && y < layout.rulerTop + layout.rulerH) return 'ruler';
-  if (y >= layout.lanesTop && y < layout.lanesTop + layout.lanesH) return 'lanes';
-  if (y >= layout.heightTop && y < layout.heightTop + layout.heightH) return 'height';
+  if (y >= layout.lanesTop && y < layout.lanesTop + layout.lanesH) {
+    // 主视图下边缘就是「主视图 / 高度」的分隔条
+    if (y >= layout.lanesTop + layout.lanesH - 3) return 'divider';
+    return 'lanes';
+  }
+  if (y >= layout.heightTop && y < layout.heightTop + layout.heightH) {
+    if (y < layout.heightTop + 3) return 'divider';
+    return 'height';
+  }
   if (y >= layout.svTop && y < layout.svTop + layout.svH) return 'sv';
   if (y >= layout.waveTop && y < layout.waveTop + layout.waveH) return 'wave';
   return 'ruler';

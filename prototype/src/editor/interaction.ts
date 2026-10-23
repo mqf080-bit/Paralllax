@@ -88,6 +88,9 @@ export interface EditorHost {
   setTimingHover(index: number | null): void;
   /** 悬停在哪个 SV 点上。 */
   setSvHover(index: number | null): void;
+  /** 主视图 / 高度带的高度比例（中间分隔条拖动）。 */
+  readonly laneSplit: number;
+  setLaneSplit(ratio: number): void;
   select(selection: Selection | null): void;
   seek(timeMs: number): void;
   setTool(tool: ToolId): void;
@@ -101,6 +104,7 @@ export interface EditorHost {
 type Drag =
   | { kind: 'seek' }
   | { kind: 'pan'; startX: number; startStart: number }
+  | { kind: 'lane-split'; startY: number; startSplit: number; bodyH: number }
   | {
       kind: 'note-move';
       note: Exclude<Note, ArcNote>;
@@ -303,6 +307,7 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
   }
 
   function cursorFor(band: ReturnType<typeof bandAt>, x: number, y: number): string {
+    if (band === 'divider') return 'ns-resize';
     if (band === 'ruler' || band === 'wave') return 'ew-resize';
     if (band === 'sv') return pickSv(host, x, y) ? 'ns-resize' : 'copy';
     if (band === 'height') return pickHeight(host, x, y) ? 'move' : 'default';
@@ -675,6 +680,22 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       // 同上
     }
 
+    if (band === 'divider') {
+      drag = {
+        kind: 'lane-split',
+        startY: y,
+        startSplit: host.laneSplit,
+        bodyH: Math.max(120, host.layout.lanesH + host.layout.heightH),
+      };
+      pointerId = event.pointerId;
+      try {
+        canvas.setPointerCapture(event.pointerId);
+      } catch {
+        // ignore
+      }
+      return;
+    }
+
     if (band === 'ruler') {
       const pick = pickShift(host, x);
       if (pick && pick.kind === 'shift') {
@@ -768,6 +789,11 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
 
     if (drag.kind === 'pan') {
       host.setView({ start: drag.startStart - (x - drag.startX) / host.view.pxPerMs });
+      return;
+    }
+
+    if (drag.kind === 'lane-split') {
+      host.setLaneSplit(drag.startSplit + (y - drag.startY) / drag.bodyH);
       return;
     }
 

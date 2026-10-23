@@ -123,6 +123,8 @@ npm run dev
 - 空中的 hit / drag 在主视图上多一个向上的小三角；精确高度看高度轨。
 - **高度轨**：arc 是曲线，hit / drag 是点；hold 固定贴地，不参与高度编辑。
 - 选中对象时会出现白色竖线；arc 选中后，主视图和高度轨同时显示所有顶点。
+- **主视图 / 高度带之间可拖**：中间那条细线（带三个点）可以上下拖，重新分配两条带的高度
+  （比例限制在 30%–85%），比例会记在 localStorage 里，下次打开保持。
 - 导出的谱面可以直接放在 `prototype/public/charts/`，游戏页用
   `?chart=/charts/文件名.json` 打开（示例：`/charts/example.json`、`/charts/air-example.json`）。
 
