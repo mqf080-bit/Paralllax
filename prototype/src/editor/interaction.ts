@@ -86,6 +86,8 @@ export interface EditorHost {
   readonly traceSnap: boolean;
   /** 悬停在哪个 timing 点上（显示 BPM / 拍号 / 区间）。 */
   setTimingHover(index: number | null): void;
+  /** 悬停在哪个 SV 点上。 */
+  setSvHover(index: number | null): void;
   select(selection: Selection | null): void;
   seek(timeMs: number): void;
   setTool(tool: ToolId): void;
@@ -732,6 +734,21 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
           }
         });
         host.setTimingHover(nearest);
+      }
+      // SV 标签悬停：只在 SV 带里生效
+      {
+        let nearest: number | null = null;
+        let best = 8;
+        if (band === 'sv') {
+          host.chart.speed.forEach((event, index) => {
+            const distance = Math.abs(timeToX(host.view, event.time) - x);
+            if (distance <= best) {
+              best = distance;
+              nearest = index;
+            }
+          });
+        }
+        host.setSvHover(nearest);
       }
       // 放置类工具悬停在 trace 附近时，把那条线点亮（告诉玩家「会吸到这条」）
       if (

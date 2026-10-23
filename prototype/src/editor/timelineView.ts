@@ -95,6 +95,8 @@ export interface TimelineState {
   traceHighlight: number | null;
   /** 鼠标悬停的 timing 点下标。 */
   timingHover: number | null;
+  /** 鼠标悬停的 SV 点下标。 */
+  svHover: number | null;
 }
 
 const COLORS = {
@@ -1259,27 +1261,65 @@ export class TimelineRenderer {
     }
     ctx.stroke();
 
-    // 点
-    for (const event of state.chart.speed) {
+    // 点 + 标签
+    let lastLabelX = -Infinity;
+    for (let index = 0; index < state.chart.speed.length; index += 1) {
+      const event = state.chart.speed[index]!;
       const x = timeToX(view, event.time);
       if (x < GUTTER - 10 || x > layout.width + 10) continue;
       const y = svToY(layout, domain, event.multiplier);
       const selected = state.selection?.kind === 'speed' && state.selection.event === event;
+      const hot = state.svHover === index;
       ctx.beginPath();
-      ctx.arc(x, y, selected ? 6 : 4, 0, Math.PI * 2);
-      ctx.fillStyle = selected ? '#ffffff' : COLORS.cyan;
+      ctx.arc(x, y, selected || hot ? 6 : 4, 0, Math.PI * 2);
+      ctx.fillStyle = selected || hot ? '#ffffff' : COLORS.cyan;
       ctx.fill();
       ctx.strokeStyle = 'rgba(8, 10, 16, 0.9)';
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      if (selected) {
-        ctx.fillStyle = COLORS.select;
+      if (selected) continue;
+
+      // 标签：和 timing 标签不同带（SV 带顶部），密集时才省略
+      if (!hot && x - lastLabelX < 46) continue;
+      if (x < GUTTER) continue;
+      lastLabelX = x;
+      const label = `${event.multiplier.toFixed(2)}×`;
+      ctx.font = `9px ${MONO}`;
+      const width = ctx.measureText(label).width;
+      const above = y - 12 >= layout.svTop + 10;
+      const labelY = above ? y - 8 : y + 14;
+      const labelX = Math.min(layout.width - width - 10, Math.max(GUTTER + 2, x + 6));
+      ctx.fillStyle = 'rgba(8, 12, 18, 0.86)';
+      ctx.fillRect(labelX - 3, labelY - 8, width + 6, 11);
+      ctx.fillStyle = hot ? COLORS.cyan : 'rgba(111, 227, 242, 0.8)';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(label, labelX, labelY);
+      void above;
+    }
+
+    // 悬停详情
+    if (state.svHover !== null) {
+      const event = state.chart.speed[state.svHover];
+      if (event) {
+        const x = Math.min(layout.width - 150, Math.max(GUTTER + 4, timeToX(view, event.time) + 10));
+        const y = layout.svTop + 6;
+        const line1 = `${event.multiplier.toFixed(2)}× · RAMP ${Math.round(event.duration ?? 0)}ms`;
+        const line2 = `${formatTime(event.time)} · ${event.easing ?? 'linear'}`;
         ctx.font = `9px ${MONO}`;
-        ctx.textAlign = x > layout.width - 60 ? 'right' : 'left';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(`${event.multiplier.toFixed(2)}×`, x + (x > layout.width - 60 ? -8 : 8), y - 6);
+        const width = Math.max(ctx.measureText(line1).width, ctx.measureText(line2).width) + 16;
+        ctx.fillStyle = 'rgba(8, 12, 18, 0.94)';
+        ctx.fillRect(x, y, width, 30);
+        ctx.strokeStyle = COLORS.cyan;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x + 0.5, y + 0.5, width - 1, 29);
+        ctx.fillStyle = COLORS.cyan;
+        ctx.fillText(line1, x + 8, y + 12);
+        ctx.fillStyle = COLORS.textDim;
+        ctx.fillText(line2, x + 8, y + 24);
       }
     }
+
     ctx.restore();
   }
 
