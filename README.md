@@ -9,7 +9,7 @@ VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处�
 
 ## 截图
 
-| 制谱器（v0.3.11） | 游戏（Infinity Heaven 谱面包） |
+| 制谱器（v0.4.0） | 游戏（Infinity Heaven 谱面包） |
 | --- | --- |
 | ![Parallax 制谱器](docs/images/editor.jpg) | ![Parallax 游戏画面](docs/images/game.png) |
 
@@ -19,13 +19,13 @@ VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处�
 
 - WebXR 游戏原型可玩，Quest 3 头显实测 **72Hz+**；
 - 桌面制谱器已能完成从导入音频、制谱、频谱定位到导出 `.parallax` 的完整流程；
-- 当前版本 **0.3.11**；
+- 当前版本 **0.4.0**；
 - 下一步进入 Unity 时，编辑器的 3D 预览定位、包 / 资源库方案见
   [`prototype/FUTURE.md`](prototype/FUTURE.md)。
 
 ---
 
-## 快速使用（v0.3.11）
+## 快速使用（v0.4.0）
 
 ### 1. 启动
 
@@ -110,7 +110,7 @@ theme/ background/   提前预留的资源（游戏暂未消费）
 | 2 | 四种键型 + 判定 | ✅ |
 | 3 | shift（4 轨窗口整体滑动） | ✅ |
 | 4 | 谱面播放 / 流速 / 渲染裁剪 / 音频 / UI | ✅ Quest 3 头显实测 **72Hz+** |
-| 5 | 简易制谱器 | ✅ **v0.3.11** 独立页面 `/editor.html`；空中 note / x,z、3D arc 编辑、多选、封面 / 时长、单文件 `.parallax`；**已验收** |
+| 5 | 简易制谱器 | ✅ **v0.4.0** 独立页面 `/editor.html`；空中 note / x,z、3D arc 编辑、多选、自由拍号、trace 引导线、封面 / 时长、单文件 `.parallax`；**已验收** |
 
 已经能完整打一首 41.6 秒的谱（两次 shift、四种键型、SV 变速），有计分、血条、结算、暂停和设置；
 也能在桌面制谱器里写谱、导入音频对 offset、用同一个播放器预览并导出单文件 `.parallax`。

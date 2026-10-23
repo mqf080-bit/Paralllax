@@ -1,6 +1,6 @@
 # Parallax — prototype
 
-Phase 1 的 WebXR 原型。**v0.3.11 / Step 0–5 已完成并验收**：游戏可玩，桌面制谱器可用；Quest 3 实测 72Hz+。
+Phase 1 的 WebXR 原型。**v0.4.0 / Step 0–5 已完成并验收**：游戏可玩，桌面制谱器可用；Quest 3 实测 72Hz+。
 
 > 项目总览：[`../README.md`](../README.md) ｜ 谱面格式：[`CHART.md`](CHART.md) ｜
 > 制谱器：[`EDITOR.md`](EDITOR.md) ｜ 谱面包：[`PACKAGE.md`](PACKAGE.md) ｜ 迭代记录：[`STATUS.md`](STATUS.md) ｜ UI 待办：[`UI-BACKLOG.md`](UI-BACKLOG.md) ｜ 无线上头显：[`DEPLOY.md`](DEPLOY.md) ｜ 设计工作流：[`../DESIGN-WORKFLOW.md`](../DESIGN-WORKFLOW.md)
@@ -35,6 +35,9 @@ npm run dev
   `Shift+点` 多选 note，拖任意选中项整组移动；z 在高度轨直接拖，hold 固定贴地；
 - arc 点列可插点、删点、每段选缓动；X / Z 缓动可分开（`easing` / `easingZ`）；
   `linear` 是直线、直角是硬角；`STRAIGHTEN` 一键拉直；
+- 自由拍号：`timing` 用 `N / D` 输入（`5/6`、`4/3` 都行），SNAP 预设随拍号变，小节线按段重算；
+- trace 引导线：`TRACE` 工具在 2D / 3D 落点，可拖点 / 拖整条 / 改缓动，和 arc 互转；
+  `TRACES ●/○/×` 控制显示与吸附；
 - 时间吸附改成预设 + `DIV / DOT / 三连` 自定义参数；暂停无操作时 3D / 2D / 总览不空转；
 - 没音轨时默认不播合成鼓组，走带 `DRUMS` 勾选才响；
 - arc 的 `ticks[]` 可以只保留需要结算的物量（直角蛇拐角不放 tick）；

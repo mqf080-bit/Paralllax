@@ -1,6 +1,6 @@
 # prototype / STATUS
 
-> 更新：2026-10-22 ｜ 版本：**0.3.11** ｜ 阶段：**Phase 1 完成；手感调参基本合格**
+> 更新：2026-10-23 ｜ 版本：**0.4.0** ｜ 阶段：**Phase 1 完成；手感调参基本合格**
 > 当前个人进度：**Infinity Heaven 初谱制作中**（用户估计约 1 周）；期间只做小修。
 > 设计真相：[`../parallax-idea.md`](../parallax-idea.md) ｜ Phase 1 旧协议：[`../agent_old.md`](../agent_old.md)（**OLD / 已归档**） ｜ 后续架构 / 近期玩法计划：[`FUTURE.md`](FUTURE.md) §0
 > 完整逐轮历史（55 节 / 90KB）在 git：`git show ad37349:prototype/STATUS.md > /tmp/parallax-status-full.md`。本文件是 2026-10-20 的压缩版。
@@ -25,7 +25,7 @@
   - **arc**：更多曲线过渡；
   - **游玩 UI**：P0–P2 流程 / 选歌 / 视觉已做；余下准备页与 Quest 3 验收；
   - **VR panel**：小幅扩展。
-- 约束：保持 v0.3.11 可玩；**不启动 Unity / 资源库 / 大重构**；每次小修只碰一个面。
+- 约束：保持 v0.4.0 可玩；**不启动 Unity / 资源库 / 大重构**；每次小修只碰一个面。
 - 游玩端 UI 问题已单独记录：[`UI-BACKLOG.md`](UI-BACKLOG.md)（入口 / 选歌 / 暂停层级 / 激光误触 / 视觉方向）。
 - **设计实验工作流**：外观 / 版式没定时可以先在 `design/` 做干净夹具，但移植后主代码是唯一事实来源，必须在头显 / 真实视口验收；见 [`DESIGN-WORKFLOW.md`](../DESIGN-WORKFLOW.md)。
 - **P0 UI 已实现（2026-10-20）**：进 VR 先到主页、`START` 才播放；游玩中无常驻按钮；暂停 / 设置分层；暂停走左手 Y 长按（menu 键在 Quest 3 上读不到）。已在头显验收。
@@ -133,6 +133,7 @@
 | Step 4 | 谱面 v0；SV 积分；音频时钟；计分 / 血条 / VR UI；视距淡出；高度上限；41.6s 测试谱 |
 | Step 5 / 0.2.0 | 桌面制谱器；`.parallax` 包；封面 / 时长；本地包加载 |
 | 0.3.0–0.3.11 | 频谱；3D arc 编辑；多选；X / Z 缓动；3D SPEED；offset / 频谱修复；性能优化 |
+| 0.4.0 | 自由拍号（n/d + SNAP 自适应）；trace 引导线 + arc↔trace + 3D 手柄；结算评级（EQV）；双押连线；时间线 timing 标记；检查器折叠 |
 
 ---
 

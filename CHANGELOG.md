@@ -1,6 +1,31 @@
 # CHANGELOG
 
-## Unreleased — 2026-10-22
+## 0.4.0 — 2026-10-23
+
+编辑器升到 **0.4.0**：自由拍号、trace 引导线（含 arc ↔ trace 互转与 3D 手柄）、结算评级，以及时间线 / 检查器的一批可用性改动。
+
+### 编辑器
+
+- 版本号 0.3.11 → **0.4.0**（`package.json` / `EDITOR_VERSION` / 顶栏 / 文档同步）。
+- 自由拍号：`timing` 支持 `numerator` / `denominator`（`5/6`、`4/3` 这类分母也行），BPM 以四分音符为参照；编辑器用 `N / D` 两个输入，网格按段重算、小节线单独补画、小节号跨段连续；合成鼓组改成拍号感知；旧谱的 `beats` 仍按 `n/4` 读。
+- SNAP 预设随拍号变：分母 = 基准拍，`4/4` 给 1/4 · 1/8 · 1/12 · 1/16 · 1/20…，`5/6` 给 1/6 · 1/12 · 1/18 · 1/24 · 1/30…；当前 DIV 不在新列表里时显示 `CUSTOM · 1/n`，不静默改掉吸附。
+- 小节内换拍号：把新 timing 行的 `TIME` 写成毫秒即可，残小节保留编号，下一段从下一个编号继续（`ceil` 计数，不会撞号）。
+- 时间线 timing 标记：每个 timing 点一条淡绿虚线 + `BPM · n/d` 标签，悬停出 BPM / 拍号 / 本段起止；标签密集时自动省略。
+- 检查器 `TIMING` / `SHIFT` 可收起；超过 10 条只列前 10 条，`SHOW ALL` 展开；`TIMING` 顶部有 `JUMP TO` 索引（时间 · BPM · 拍号）。
+- trace 引导线：`chart.traces[]` 独立于 `notes`（无物量 / 不判定），运行时细线 + 淡出窗口；编辑器 `TRACE` 工具、检查器只显示选中项、2D 主视图 / 高度视图画 1px 细线（比 arc 细）；`?traces=0` 可关。
+- trace 编辑复用 arc 的那套：2D / 高度视图选中、拖点、拖整条、删点；3D 里每个点有小球手柄可拖 x / z；悬停高亮。
+- arc ↔ trace 互转：arc→trace 保留形状、丢掉 hand / keyObjects / ticks；trace→arc 默认右手、物量按自动规则生成。
+- `TRACES` 三态：显示并吸附 / 只显示 / 关闭，统一控制 2D、3D 的显示、吸附与高亮。
+- HIT / DRAG / HOLD 贴 trace 吸附（0.45 轨阈值，2D 悬停高亮）；**收回 arc 吸附**。
+- 顶栏精简：`SNAP XZ`、缩放 `−` / `＋`、`TRACES` 常驻；其余收进 `VIEW ▾` 浮层（不再被顶栏裁切）。
+- 修 `TRACES` 开关要重开视图才生效：trace 画在静态层，开关 / 高亮现在会重建静态层。
+- arc 缓动的 `bezier` 改成 `cubic-bezier(1/3, 0, 2/3, 1)`（smoothstep），和 AFF 的 `b` 同一条曲线；`si` / `so` 对应 `sine` / `cosine`，AFF 的 8 种弧线缓动都能一一映射。
+
+### 玩法 / 表现
+
+- 结算画面加入评级：`<80 D / 80 C / 85 B / 90 A / 95 APX / 97 ASM / 98 CGR / 99 EQV- / 100 EQV`；评级锁版（三字母 + 自绘数学记号）在右栏顶部，CLEAR / FAILED 升为 27px 大字。
+- 顶级评级 `IDN` / `IDN+` 改名 `EQV-` / `EQV`（equivalence）：三条横线 + IDN 的字形容易读成 IDF 宣传风格。
+- 双押提示：同一时间的 hit 用细线连起来；竖直引导网改成和 3D 编辑网格同源（1/4 轨 / 5cm），暖黄只在 perfect 的 −100 / +80ms 内出现，`?guide=0` 可关。
 
 ### UI
 
@@ -9,15 +34,6 @@
 - 修复 Combo HUD 出现在玩家头里的问题：`?comboZ` 缺省时 `Number(null) === 0`，把位置读成了 `(0, 0, 0)`；缺参数现在按 `null` 处理，不覆盖默认位置。同时加「离头 1.9m 起淡出、1.1m 完全消失」，避免前倾时怼到脸上。
 - Quest 3 上 menu 键不暴露给 WebXR，暂停实际只走左手 Y 长按 400ms；面板 footer / 首页提示文案改为 `Y HOLD = PAUSE`，诊断提示同步。
 - 编辑器新谱默认难度改为空（不再自动写 `IN 1`）；`meta.difficulty` 仍兼容旧谱字符串。浮空显示对空难度回退为 `—`。
-- 时间线加 timing 标记（BPM / 拍号 / 悬停详情）；TIMING / SHIFT 可收起、超过 10 条折叠 + JUMP TO 索引；TRACE 检查器只显示选中项。
-- TRACES 改三态（显示+吸附 / 只显示 / 关闭），统一影响 2D / 3D 吸附与高亮；3D 加 trace 点手柄可拖、悬停高亮；SNAP XZ 与缩放回到顶栏。
-- 编辑器顶栏精简：`SNAP XZ` / `3D EDIT` / `2D` / `GUIDE` / `TRACES` / `SPECTRUM` / 缩放收进 `VIEW ▾` 面板；修 `TRACES` 开关要重开视图才生效的问题。
-- arc ↔ trace 互转（arc→trace 丢物量，trace→arc 自动生成物量）；HIT/DRAG/HOLD 贴 trace 吸附（2D 悬停高亮；arc 不再吸附）；trace 在 2D 主视图 / 高度视图以 1px 细线显示，可选中 / 拖点 / 拖动整条。
-- trace 引导线：`chart.traces[]` 独立数据、运行时细线渲染、编辑器 TRACE 工具与检查器、2D 总览区间、`?traces=0` 开关。
-- 双押提示：同一时间的 hit 用细线连起来；竖直引导网与 3D 编辑网格对齐，暖黄只在 perfect 窗口出现，可开关（编辑器 `GUIDE` / 游戏 `?guide=0`）。
-- 自由拍号：`timing` 支持 `numerator` / `denominator`（含 `5/6` 这类分母），BPM 以四分音符为准；编辑器 `/` 输入、SNAP 预设随拍号变（含 5/6 的 1/6 · 1/12 · 1/18…）、网格按段重算、小节线单独补画、小节号连续、状态栏显示当前拍号；合成鼓组改成拍号感知。旧谱 `beats` 兼容。
-- 结算画面加入评级：`<80 D / 80 C / 85 B / 90 A / 95 APX / 97 ASM / 98 CGR / 99 EQV- / 100 EQV`，
-  评级锁版（三字母 + 自绘数学记号）画在右栏顶部；CLEAR / FAILED 升为 27px 大字状态。
 - 五个难度 tier 的主题色与动效定稿并写入文档（`parallax-idea.md` §3 / `FUTURE.md` §0.1）：钢灰、绿（呼吸）、琥珀（警报闪烁）、荧光洋红（自发光）、Wien ∞ K 蓝 `#7F9FFF`（更亮自发光 + 选歌界面除封面外降饱和）。**未实现任何 tier UI**。
 - 进入 VR 先到主页，不再自动开谱；主页显示当前谱面信息，`START` 后播放；
 - 游玩中移除常驻 `SETTINGS / PAUSE / RETRY` 控制条，面板点击只在主页 / 暂停 / 设置 / 结算时生效；
