@@ -13,6 +13,8 @@ import type { CoverAsset } from './persistence';
 import {
   appendTracePoint,
   arcDuration,
+  arcToTrace,
+  traceToArc,
   arcTicks,
   beatMs,
   chartDuration,
@@ -273,6 +275,34 @@ export class EditorController implements EditorHost, InspectorHost {
 
   get activeTrace(): number | null {
     return this.activeTraceIndex;
+  }
+
+  /** arc → trace：保留形状，丢掉 hand / 物量（keyObjects / ticks）。 */
+  convertArcToTrace(note: ArcNote): void {
+    this.beginGesture();
+    const index = this.chart.notes.indexOf(note);
+    if (index >= 0) this.chart.notes.splice(index, 1);
+    this.chart.traces ??= [];
+    this.chart.traces.push(arcToTrace(note));
+    this.setActiveTrace(this.chart.traces.length - 1);
+    this.select(null);
+    this.commit({ preview: true });
+    this.endGesture();
+  }
+
+  /** trace → arc：默认右手，物量交给 arc 的自动规则。 */
+  convertActiveTraceToArc(): void {
+    const index = this.activeTraceIndex;
+    const trace = index !== null ? this.chart.traces?.[index] : undefined;
+    if (index === null || !trace) return;
+    this.beginGesture();
+    this.chart.traces!.splice(index, 1);
+    const note = traceToArc(trace);
+    this.chart.notes.push(note);
+    this.setActiveTrace(null);
+    this.select({ kind: 'note', note });
+    this.commit({ preview: true });
+    this.endGesture();
   }
 
   setActiveTrace(index: number | null): void {

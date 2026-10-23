@@ -9,6 +9,7 @@
 - 修复 Combo HUD 出现在玩家头里的问题：`?comboZ` 缺省时 `Number(null) === 0`，把位置读成了 `(0, 0, 0)`；缺参数现在按 `null` 处理，不覆盖默认位置。同时加「离头 1.9m 起淡出、1.1m 完全消失」，避免前倾时怼到脸上。
 - Quest 3 上 menu 键不暴露给 WebXR，暂停实际只走左手 Y 长按 400ms；面板 footer / 首页提示文案改为 `Y HOLD = PAUSE`，诊断提示同步。
 - 编辑器新谱默认难度改为空（不再自动写 `IN 1`）；`meta.difficulty` 仍兼容旧谱字符串。浮空显示对空难度回退为 `—`。
+- arc ↔ trace 互转（arc→trace 丢物量，trace→arc 自动生成物量）；2D 里 HIT/DRAG/HOLD 可贴着 arc / trace 落点。
 - trace 引导线：`chart.traces[]` 独立数据、运行时细线渲染、编辑器 TRACE 工具与检查器、2D 总览区间、`?traces=0` 开关。
 - 双押提示：同一时间的 hit 用细线连起来；竖直引导网与 3D 编辑网格对齐，暖黄只在 perfect 窗口出现，可开关（编辑器 `GUIDE` / 游戏 `?guide=0`）。
 - 自由拍号：`timing` 支持 `numerator` / `denominator`（含 `5/6` 这类分母），BPM 以四分音符为准；编辑器 `/` 输入、SNAP 预设随拍号变（含 5/6 的 1/6 · 1/12 · 1/18…）、网格按段重算、小节线单独补画、小节号连续、状态栏显示当前拍号；合成鼓组改成拍号感知。旧谱 `beats` 兼容。

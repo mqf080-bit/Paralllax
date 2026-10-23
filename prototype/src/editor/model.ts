@@ -19,6 +19,7 @@ import {
   type SpeedEvent,
   type TimingPoint,
   type Trace,
+  type TracePoint,
 } from '../chart/schema';
 
 /**
@@ -488,6 +489,101 @@ export function appendTracePoint(
     ],
   });
   return list.length - 1;
+}
+
+/** trace 在相对时间处的坐标（和 arc 的采样同一套缓动）。 */
+export function sampleTracePoint(points: TracePoint[], tRel: number): { x: number; z: number } {
+  const first = points[0];
+  if (!first) return { x: 0, z: 0 };
+  const duration = points[points.length - 1]?.time ?? 0;
+  const t = Math.min(Math.max(tRel, 0), duration);
+  let previous = first;
+  for (let i = 1; i < points.length; i += 1) {
+    const next = points[i]!;
+    if (t <= next.time) {
+      const span = next.time - previous.time;
+      const u = span > 0 ? (t - previous.time) / span : 1;
+      const easedX = easeValue(next.easing, u);
+      const easedZ = easeValue(next.easingZ ?? next.easing, u);
+      return {
+        x: previous.x + (next.x - previous.x) * easedX,
+        z: previous.z + (next.z - previous.z) * easedZ,
+      };
+    }
+    previous = next;
+  }
+  const last = points[points.length - 1]!;
+  return { x: last.x, z: last.z };
+}
+
+export interface CurveHit {
+  kind: 'arc' | 'trace';
+  x: number;
+  z: number;
+}
+
+/**
+ * 在 `timeMs` 处找离鼠标横向位置最近的曲线（arc 或 trace）。
+ * `lane` 是鼠标所在的轨号，`threshold` 是横向吸附半径（轨）。
+ */
+export function curveAt(chart: Chart, timeMs: number, lane: number, threshold = 0.45): CurveHit | null {
+  let best: CurveHit | null = null;
+  let bestDistance = threshold;
+  for (const note of chart.notes) {
+    if (note.type !== 'arc') continue;
+    const start = note.time;
+    const end = start + arcDuration(note);
+    if (timeMs < start || timeMs > end) continue;
+    const point = sampleArcPoint(note.points, timeMs - start);
+    const distance = Math.abs(point.x - lane);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = { kind: 'arc', x: point.x, z: point.z };
+    }
+  }
+  for (const trace of chart.traces ?? []) {
+    const last = trace.points[trace.points.length - 1];
+    const end = trace.time + (last?.time ?? 0);
+    if (timeMs < trace.time || timeMs > end) continue;
+    const point = sampleTracePoint(trace.points, timeMs - trace.time);
+    const distance = Math.abs(point.x - lane);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = { kind: 'trace', x: point.x, z: point.z };
+    }
+  }
+  return best;
+}
+
+/** arc → trace：保留形状，丢掉 hand / keyObjects / ticks（物量信息）。 */
+export function arcToTrace(note: ArcNote): Trace {
+  return {
+    time: note.time,
+    points: note.points.map((point) => ({
+      time: point.time,
+      x: point.x,
+      z: arcPointZ(point),
+      easing: point.easing,
+      ...(point.easingZ ? { easingZ: point.easingZ } : {}),
+    })),
+  };
+}
+
+/** trace → arc：默认右手，物量按 arc 的自动规则生成。 */
+export function traceToArc(trace: Trace): ArcNote {
+  return {
+    type: 'arc',
+    time: trace.time,
+    hand: 'right',
+    points: trace.points.map((point) => ({
+      time: point.time,
+      x: point.x,
+      z: point.z,
+      easing: point.easing,
+      ...(point.easingZ ? { easingZ: point.easingZ } : {}),
+    })),
+    keyObjects: [],
+  };
 }
 
 /** 运行时物量统计（和 player.ts 的口径一致）。 */

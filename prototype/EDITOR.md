@@ -158,6 +158,10 @@ npm run dev
 - ARC 工具在 **3D 点住已有弧身**：在该时间（SNAP 吸附）插入一个点并直接拖着走。
 - `TRACE`（6）：引导线工具。2D / 3D 里落点，点会追加到**当前 trace**（检查器 `TRACE` 段里选）；
   没有可追加的就新建一条。trace 没有物量、不参与判定，只是视觉参考。
+- **贴着曲线放 note**：HIT / DRAG / HOLD 工具在 2D 里靠近 arc 或 trace 时，落点直接取曲线
+  在该时间的 x / z（横向阈值 0.45 轨），不用手动对坐标。
+- **arc ↔ trace 互转**：选中的 arc 有 `→ TRACE`（保留形状，丢掉 hand / keyObjects / ticks），
+  当前 trace 有 `→ ARC`（默认右手，物量按 arc 自动规则生成）。
 - 检查器 `TRACE` 段：列出所有 trace（起点 + 点数，点一下设为当前），展开当前 trace 的点
   （`TIME / X / Z` 可改，`×` 删点；`ADD @ PLAYHEAD` 在播放头追加），整条可删。
 - 检查器列出全部顶点：`# / time / x / z / EASE X / Z`。点一行选中它；

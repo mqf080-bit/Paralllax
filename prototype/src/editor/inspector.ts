@@ -43,6 +43,8 @@ export interface InspectorHost {
   readonly playhead: number;
   readonly activeTrace: number | null;
   setActiveTrace(index: number | null): void;
+  convertArcToTrace(note: ArcNote): void;
+  convertActiveTraceToArc(): void;
   readonly issues: string[];
   readonly draftSavedAt: number | null;
   readonly audioTrackName: string;
@@ -592,6 +594,7 @@ export class Inspector {
           });
         }),
       ),
+      button('→ TRACE', () => host.convertArcToTrace(note), 'button button--small'),
       button('ADD POINT', () => {
         const relative = Math.min(arcDuration(note), Math.max(0, host.playhead - note.time));
         const sample = sampleArcPoint(note.points, relative);
@@ -938,15 +941,29 @@ export class Inspector {
       });
     }
 
+    if (active) {
+      root.append(
+        (() => {
+          const row = el('div', 'inspector__actions');
+          row.append(
+            button('→ ARC', () => host.convertActiveTraceToArc(), 'button button--small'),
+            el('span', 'inspector__hint', '转换后物量按 arc 自动规则生成'),
+          );
+          return row;
+        })(),
+      );
+    }
+
     const actions = el('div', 'inspector__actions');
     actions.append(
       button('ADD @ PLAYHEAD', () => {
         const trace = host.activeTrace !== null ? traces[host.activeTrace] : undefined;
         const last = trace?.points[trace.points.length - 1];
+        // 播放头在线的末尾之前时，接到末尾（不然会另起一条新线，很意外）
+        const end = trace ? trace.time + (last?.time ?? 0) : 0;
+        const at = trace ? Math.max(host.playhead, end + 1) : host.playhead;
         host.beginGesture();
-        host.setActiveTrace(
-          appendTracePoint(host.chart, host.activeTrace, host.playhead, last?.x ?? 2.5, last?.z ?? 0),
-        );
+        host.setActiveTrace(appendTracePoint(host.chart, host.activeTrace, at, last?.x ?? 2.5, last?.z ?? 0));
         host.commit({ preview: false });
         host.endGesture();
       }),

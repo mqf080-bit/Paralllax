@@ -18,6 +18,7 @@ import {
   clampLane,
   clampX,
   appendTracePoint,
+  curveAt,
   insertArcPoint,
   removeArcPoint,
   sampleArcPoint,
@@ -379,10 +380,14 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
     // 空处：按工具放置
     if (host.tool === 'hit' || host.tool === 'drag') {
       host.beginGesture();
+      // 落在 arc / trace 上时贴着曲线放，坐标直接取曲线在该时间的点
+      const curve = curveAt(host.chart, snapped, snappedX);
+      const placeX = curve ? curve.x : snappedX;
+      const placeZ = curve ? curve.z : 0;
       const note: Note =
         host.tool === 'hit'
-          ? { type: 'hit', time: snapped, lane: clampLane(Math.round(snappedX)), x: snappedX, z: 0 }
-          : { type: 'drag', time: snapped, lane: clampLane(Math.round(snappedX)), x: snappedX };
+          ? { type: 'hit', time: snapped, lane: clampLane(Math.round(placeX)), x: placeX, z: placeZ }
+          : { type: 'drag', time: snapped, lane: clampLane(Math.round(placeX)), x: placeX, z: placeZ };
       host.chart.notes.push(note);
       host.select({ kind: 'note', note });
       host.commit({ preview: true });
@@ -404,8 +409,8 @@ export function attachInteraction(canvas: HTMLCanvasElement, host: EditorHost): 
       const note: HoldNote = {
         type: 'hold',
         time: start,
-        lane: clampLane(Math.round(snappedX)),
-        x: snappedX,
+        lane: clampLane(Math.round(curveAt(host.chart, start, snappedX)?.x ?? snappedX)),
+        x: curveAt(host.chart, start, snappedX)?.x ?? snappedX,
         duration,
         objects: 4,
       };
