@@ -96,6 +96,8 @@ const elements: EditorElements = {
   overviewPlay: byId('overview-play'),
   overviewTime: byId('overview-time'),
   guideToggle: byId('guide-toggle'),
+  viewToggle: byId('view-toggle'),
+  viewPanel: byId('view-panel'),
   tracesToggle: byId('traces-toggle'),
   spectrumToggle: byId('spectrum-toggle'),
   spectrumPanel: byId('spectrum-panel'),

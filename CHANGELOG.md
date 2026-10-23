@@ -9,6 +9,7 @@
 - 修复 Combo HUD 出现在玩家头里的问题：`?comboZ` 缺省时 `Number(null) === 0`，把位置读成了 `(0, 0, 0)`；缺参数现在按 `null` 处理，不覆盖默认位置。同时加「离头 1.9m 起淡出、1.1m 完全消失」，避免前倾时怼到脸上。
 - Quest 3 上 menu 键不暴露给 WebXR，暂停实际只走左手 Y 长按 400ms；面板 footer / 首页提示文案改为 `Y HOLD = PAUSE`，诊断提示同步。
 - 编辑器新谱默认难度改为空（不再自动写 `IN 1`）；`meta.difficulty` 仍兼容旧谱字符串。浮空显示对空难度回退为 `—`。
+- 编辑器顶栏精简：`SNAP XZ` / `3D EDIT` / `2D` / `GUIDE` / `TRACES` / `SPECTRUM` / 缩放收进 `VIEW ▾` 面板；修 `TRACES` 开关要重开视图才生效的问题。
 - arc ↔ trace 互转（arc→trace 丢物量，trace→arc 自动生成物量）；HIT/DRAG/HOLD 贴 trace 吸附（2D 悬停高亮；arc 不再吸附）；trace 在 2D 主视图 / 高度视图以 1px 细线显示，可选中 / 拖点 / 拖动整条。
 - trace 引导线：`chart.traces[]` 独立数据、运行时细线渲染、编辑器 TRACE 工具与检查器、2D 总览区间、`?traces=0` 开关。
 - 双押提示：同一时间的 hit 用细线连起来；竖直引导网与 3D 编辑网格对齐，暖黄只在 perfect 窗口出现，可开关（编辑器 `GUIDE` / 游戏 `?guide=0`）。

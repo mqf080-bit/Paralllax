@@ -83,6 +83,8 @@ export interface EditorElements {
   toggle2d: HTMLButtonElement;
   guideToggle: HTMLButtonElement;
   tracesToggle: HTMLButtonElement;
+  viewToggle: HTMLButtonElement;
+  viewPanel: HTMLElement;
   previewHint: HTMLElement;
   work: HTMLElement;
   splitter: HTMLElement;
@@ -280,11 +282,15 @@ export class EditorController implements EditorHost, InspectorHost {
   setTraceHighlight(index: number | null): void {
     if (this.traceHighlight === index) return;
     this.traceHighlight = index;
+    // trace 画在静态层里：高亮变化必须重建静态层，只 render() 不会变
+    this.renderer.setState(this.renderState());
     this.uiDirty = true;
   }
 
   toggleTraces(): void {
     this.showTraces = !this.showTraces;
+    // 同上：显示 / 隐藏 trace 也要重建静态层
+    this.renderer.setState(this.renderState());
     this.uiDirty = true;
     this.updateUi();
   }
@@ -386,10 +392,30 @@ export class EditorController implements EditorHost, InspectorHost {
       button.addEventListener('click', () => this.setTool(tool));
     }
     this.syncSnapUi();
+    this.elements.viewToggle.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.elements.viewPanel.hidden = !this.elements.viewPanel.hidden;
+    });
+    document.addEventListener('pointerdown', (event) => {
+      if (this.elements.viewPanel.hidden) return;
+      const target = event.target as Node | null;
+      if (target && (this.elements.viewPanel.contains(target) || this.elements.viewToggle.contains(target))) return;
+      this.elements.viewPanel.hidden = true;
+    });
     this.elements.tracesToggle.classList.toggle('is-active', this.showTraces);
     this.elements.tracesToggle.addEventListener('click', () => {
       this.toggleTraces();
-      this.elements.tracesToggle.classList.toggle('is-active', this.showTraces);
+      this.elements.viewToggle.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.elements.viewPanel.hidden = !this.elements.viewPanel.hidden;
+    });
+    document.addEventListener('pointerdown', (event) => {
+      if (this.elements.viewPanel.hidden) return;
+      const target = event.target as Node | null;
+      if (target && (this.elements.viewPanel.contains(target) || this.elements.viewToggle.contains(target))) return;
+      this.elements.viewPanel.hidden = true;
+    });
+    this.elements.tracesToggle.classList.toggle('is-active', this.showTraces);
     });
     this.elements.guideToggle.addEventListener('click', () => {
       const on = !this.elements.guideToggle.classList.contains('is-active');

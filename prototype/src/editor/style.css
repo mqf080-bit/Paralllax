@@ -61,7 +61,8 @@ select {
   padding: 0 14px;
   border-bottom: 1px solid var(--hairline);
   background: var(--panel);
-  overflow-x: auto;
+  /* 顶栏要能弹出 VIEW 面板，所以不能裁切；顶栏本身已经很短 */
+  overflow: visible;
   white-space: nowrap;
 }
 
@@ -93,6 +94,43 @@ select {
 
 .topbar__group--grow {
   margin-left: auto;
+}
+
+.topbar__group--view {
+  position: relative;
+}
+
+.view-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 10px;
+  min-width: 236px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+
+.view-panel[hidden] {
+  display: none;
+}
+
+.view-panel .check {
+  white-space: nowrap;
+}
+
+.view-panel__zoom {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 6px;
+}
+
+.view-panel__zoom .button {
+  flex: 1;
 }
 
 .topbar__label {
