@@ -19,6 +19,7 @@ npm run dev
 
 - 游戏：<http://127.0.0.1:5173>
 - 制谱器：<http://127.0.0.1:5173/editor.html>
+- 背景实验台：<http://127.0.0.1:5173/bg-lab.html>（`?pal=dark&pitch=27&notes=0` 可直接定格）
 
 > 依赖装在 WSL 里时，npm 默认缓存目录可能只读；必要时加 `--cache /tmp/parallax-npm-cache`。
 
@@ -159,6 +160,7 @@ npm run preview    # 预览 dist/
 prototype/
 ├── index.html            # 游戏页
 ├── editor.html           # 制谱器页
+├── bg-lab.html           # 背景实验台（独立页面，不载入游戏）
 ├── public/charts/        # 导出的谱面（example.json / air-example.json）
 ├── public/packages/      # .parallax 谱面包 + index.json 索引
 ├── vite.config.ts        # 多页构建入口
@@ -169,6 +171,7 @@ prototype/
     ├── game/             # 播放器 / 判定 / 计分 / arc / hold / 手 / 粒子
     ├── audio/            # 音频时钟 + 程序化节拍轨
     ├── scene/            # 台面 / 浮空显示 / 背景 / 控制器 / 材质实验台
+    ├── lab/              # 背景实验台（程序化天空 / 台地 / 菱形，纯 three）
     ├── materials/        # 材质库 / 配色 / 程序化贴图 / 视距淡出
     ├── ui/               # 3D 面板 / 游戏 UI / 调试 / 诊断
     ├── xr/               # WebXR 探测

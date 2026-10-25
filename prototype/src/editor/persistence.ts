@@ -1,4 +1,5 @@
 import type { Chart } from '../chart/schema';
+import { DEFAULT_BACKGROUND_ID } from '../scene/background/spec';
 import { PACKAGE_EXTENSION, PACKAGE_MIME, isParallaxPackage, packPackage } from '../pack/format';
 import { audioFromPackage, chartJsonFromPackage, coverFromPackage, packageAssets, readPackageFile, type PackedAudio } from '../pack/io';
 import { normalizeChart } from './model';
@@ -161,12 +162,25 @@ export async function downloadPackage(
     files.push({ path, data: asset.data, type: asset.type });
   }
 
+  // 背景：包内自带一份描述（几百字节），保证换版本后同一个包还是原样。
+  // 当前谱面没指定背景时，写默认预设 light。
+  let backgroundPath = options.background ?? null;
+  if (!backgroundPath) {
+    backgroundPath = 'background/scene.json';
+    const spec = { format: 'parallax.background', version: 1, preset: DEFAULT_BACKGROUND_ID };
+    files.push({
+      path: backgroundPath,
+      data: new TextEncoder().encode(JSON.stringify(spec, null, 2)),
+      type: 'application/json',
+    });
+  }
+
   const bytes = packPackage(files, {
     chart: 'chart.json',
     audio: audioPath,
     cover: coverPath,
     theme: options.theme,
-    background: options.background,
+    background: backgroundPath,
   });
   const payload = new Uint8Array(bytes.byteLength);
   payload.set(bytes);

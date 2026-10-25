@@ -124,7 +124,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
   scene.environmentIntensity = 1.0;
 
   const lib: MaterialLibrary = createMaterialLibrary();
-  const backdrop = buildBackdrop(lib);
+  const backdrop = buildBackdrop('dark');
   scene.add(backdrop.group);
 
   const keyLight = new THREE.DirectionalLight(0xdbe7f8, 2.8);
@@ -145,7 +145,7 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
   lamp.target.position.set(0, 0.95, -0.75);
   scene.add(lamp, lamp.target);
 
-  const camera = new THREE.PerspectiveCamera(58, 1, 0.03, 80);
+  const camera = new THREE.PerspectiveCamera(58, 1, 0.03, 400);
   camera.position.set(0, 1.62, 0.52);
 
   const controls = new OrbitControls(camera, renderer.domElement);

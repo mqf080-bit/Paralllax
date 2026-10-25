@@ -38,6 +38,8 @@ export type GameUiMode = 'home' | 'songs' | 'packs' | 'playing' | 'paused' | 'se
 
 export interface GameUiSettings {
   flowSpeed: number;
+  /** 玩家选的默认背景（包没写背景时用）。 */
+  background?: 'light' | 'dark';
 }
 
 export interface GameUiStatus {
@@ -1273,27 +1275,35 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
 
     rule(ctx, M, 144, 488, INK.hair);
     const spots: PanelHotspot[] = [];
+    const background = settings.background ?? 'light';
     const rows: Array<
       | { kind: 'step'; id: string; label: string; value: string; y: number }
       | { kind: 'toggle'; id: string; label: string; on: boolean; y: number }
     > = [
-      { kind: 'step', id: 'speed', label: 'Speed', value: `x${settings.flowSpeed.toFixed(1)}`, y: 168 },
+      { kind: 'step', id: 'speed', label: 'Speed', value: `x${settings.flowSpeed.toFixed(1)}`, y: 162 },
       {
         kind: 'step',
         id: 'offset',
         label: 'Offset',
         value: `${audio.offsetMs > 0 ? '+' : ''}${Math.round(audio.offsetMs)}ms`,
-        y: 206,
+        y: 196,
       },
-      { kind: 'step', id: 'volume', label: 'Volume', value: `${Math.round(audio.volume * 100)}%`, y: 244 },
-      { kind: 'toggle', id: 'metronome', label: 'Metronome', on: audio.metronome, y: 282 },
-      { kind: 'toggle', id: 'groove', label: 'Groove', on: audio.groove !== false, y: 320 },
+      { kind: 'step', id: 'volume', label: 'Volume', value: `${Math.round(audio.volume * 100)}%`, y: 230 },
+      { kind: 'toggle', id: 'metronome', label: 'Metronome', on: audio.metronome, y: 264 },
+      { kind: 'toggle', id: 'groove', label: 'Groove', on: audio.groove !== false, y: 298 },
       {
         kind: 'step',
         id: 'lead-in',
         label: 'Lead-in',
         value: `${Math.round(audio.leadInMs)}ms`,
-        y: 358,
+        y: 332,
+      },
+      {
+        kind: 'step',
+        id: 'background',
+        label: 'Background',
+        value: background === 'dark' ? 'DARK' : 'LIGHT',
+        y: 366,
       },
     ];
     for (const row of rows) {
@@ -1478,6 +1488,7 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
       songsScroll,
       chartInfo.id,
       settings.flowSpeed,
+      settings.background,
       audio.offsetMs,
       audio.volume,
       audio.metronome,
@@ -1717,6 +1728,12 @@ export function createGameUi(settings: GameUiSettings, audio: AudioSettings, sta
           audio.leadInMs = Math.max(0, audio.leadInMs - 100);
         } else if (clicked === 'lead-in-up') {
           audio.leadInMs = Math.min(6000, audio.leadInMs + 100);
+        } else if (clicked === 'background-down' || clicked === 'background-up') {
+          const current = settings.background ?? 'light';
+          const next = clicked === 'background-up'
+            ? (current === 'light' ? 'dark' : 'light')
+            : (current === 'dark' ? 'light' : 'dark');
+          settings.background = next;
         }
         panel.redraw();
       }

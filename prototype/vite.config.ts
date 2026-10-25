@@ -15,6 +15,7 @@ export default defineConfig({
       input: {
         game: 'index.html',
         editor: 'editor.html',
+        bgLab: 'bg-lab.html',
       },
     },
   },

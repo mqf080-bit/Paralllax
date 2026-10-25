@@ -17,6 +17,10 @@ import { readLocalPackage, saveLocalPackage } from './pack/local';
 import { createEnvironment } from './materials/environment';
 import { createMaterialLibrary } from './materials/library';
 import { buildBackdrop } from './scene/backdrop';
+import type { BackdropBuild } from './scene/backdrop';
+import { DEFAULT_BACKGROUND_ID } from './scene/background/spec';
+import type { BackgroundId } from './scene/background/selection';
+import { loadUserBackground, resolveSelection, saveUserBackground } from './scene/background/selection';
 import { createControllers } from './scene/controllers';
 import { buildDisplay, createDisplayTextures, DEFAULT_DISPLAY, DISPLAY_GAP, DISPLAY_WIDTH, type DisplayPlacement } from './scene/display';
 import { createComboHud, DEFAULT_COMBO_PLACEMENT } from './scene/comboHud';
@@ -24,7 +28,7 @@ import { buildMaterialLab } from './scene/materialLab';
 import { buildNotesPreview } from './scene/notes';
 import { buildTable } from './scene/table';
 import { createDiagnostics } from './ui/diagnostics';
-import { createGameUi, type GameUiStatus, type SongView } from './ui/gameUi';
+import { createGameUi, type GameUiSettings, type GameUiStatus, type SongView } from './ui/gameUi';
 import { probeXr } from './xr/xr-support';
 import './ui/style.css';
 
@@ -173,6 +177,8 @@ interface ChartEntry extends SongView {
   cover: PackedAudio | null;
   packUrl?: string;
   loading?: Promise<void> | null;
+  /** 包头部 `background`：`builtin:light` / 包内路径 / undefined。 */
+  packageBackground?: string | null;
 }
 
 function chartDuration(chart: Chart): number {
@@ -479,8 +485,31 @@ scene.environment = environment.texture;
 scene.environmentIntensity = 1.0;
 
 const lib = createMaterialLibrary();
-const backdrop = buildBackdrop(lib);
+
+// —— 背景 ——
+// 优先级：`?bg=` > 包内 `background` > 玩家设置 > 默认。见 scene/background/selection.ts。
+const backgroundQuery = new URLSearchParams(window.location.search).get('bg');
+let userBackground: BackgroundId = loadUserBackground() ?? DEFAULT_BACKGROUND_ID;
+let backdrop: BackdropBuild = buildBackdrop(userBackground);
 scene.add(backdrop.group);
+let activeBackground: BackgroundId = userBackground;
+let packageBackground: string | null = null;
+
+function refreshBackground(): void {
+  const next = resolveSelection({
+    query: backgroundQuery,
+    packageBackground,
+    userChoice: userBackground,
+  });
+  if (next.id === activeBackground) return;
+  scene.remove(backdrop.group);
+  backdrop.dispose();
+  backdrop = buildBackdrop(next.id);
+  scene.add(backdrop.group);
+  activeBackground = next.id;
+  if (next.note) console.info(`[background] ${next.note}`);
+  console.info(`[background] ${next.id} (${next.source})`);
+}
 
 // 单主光 + 轮廓光。金属的体量感主要交给环境反射，直射光只负责给出方向。
 const keyLight = new THREE.DirectionalLight(0xdbe7f8, 2.8);
@@ -521,7 +550,8 @@ lamp.shadow.normalBias = 0.02;
 scene.add(lamp, lamp.target);
 
 // —— 相机 ——
-const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.03, 80);
+// far 必须 ≥ 背景天空球半径（320m）
+const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.03, 400);
 camera.position.set(0, 1.62, 0.52);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -684,7 +714,26 @@ const uiStatus: GameUiStatus = {
   tableHeight: params.tableHeight,
   inVr: false,
 };
-const gameUi = createGameUi(playSettings, audioSettings, uiStatus);
+// UI 的设置对象：flowSpeed 读写穿到 playSettings；background 是玩家选的默认背景。
+const uiSettings: GameUiSettings = {
+  get flowSpeed(): number {
+    return playSettings.flowSpeed;
+  },
+  set flowSpeed(value: number) {
+    playSettings.flowSpeed = value;
+  },
+  background: userBackground,
+};
+const gameUi = createGameUi(uiSettings, audioSettings, uiStatus);
+
+// 调试：`?panel=settings` 直接打开某个面板，省得一路点进去。
+{
+  const panel = new URLSearchParams(window.location.search).get('panel');
+  if (panel === 'home' || panel === 'songs' || panel === 'packs'
+    || panel === 'paused' || panel === 'settings' || panel === 'result') {
+    gameUi.debugShowPanel(panel, playfield.score);
+  }
+}
 gameUi.setChartInfo(toSongView(selectedEntry()));
 gameUi.setSongs(songEntries.map(toSongView), selectedChartId);
 scene.add(gameUi.group);
@@ -757,6 +806,7 @@ async function ensureChartEntry(entry: ChartEntry): Promise<boolean> {
   entry.ready = false;
   const task = (async () => {
     const pkg = await loadPackageUrl(packUrl);
+    entry.packageBackground = pkg.header.background ?? null;
     const chart = prepareChart(chartJsonFromPackage(pkg), packUrl);
     const durationMs = chartDuration(chart);
     entry.chart = chart;
@@ -828,6 +878,8 @@ async function switchChart(entry: ChartEntry): Promise<void> {
 
   gameUi.setChartInfo(toSongView(entry));
   gameUi.setSongs(songEntries.map(toSongView), selectedChartId);
+  packageBackground = entry.packageBackground ?? null;
+  refreshBackground();
   await rebuildDisplay(entry);
   playfield.group.visible = false;
   display.group.visible = false;
@@ -1260,6 +1312,13 @@ renderer.setAnimationLoop((frameTime: number) => {
   if (playfield.settings.flowSpeed !== appliedFlowSpeed) {
     appliedFlowSpeed = playfield.settings.flowSpeed;
     playfield.setFlowSpeed(appliedFlowSpeed);
+  }
+  // 设置里换了默认背景：记下来，并放弃当前包的背景覆盖。
+  if (uiSettings.background && uiSettings.background !== userBackground) {
+    userBackground = uiSettings.background;
+    saveUserBackground(userBackground);
+    packageBackground = null;
+    refreshBackground();
   }
   if (action === 'start' || action === 'restart') {
     const selected = selectedEntry();

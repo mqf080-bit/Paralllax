@@ -47,9 +47,51 @@ offset 18   头部 JSON（UTF-8）
 - 不做压缩：音频本身是压缩格式，谱面 / 主题很小；省掉解压依赖。
 - 文件路径不允许 `..` / 绝对路径 / 重复；解包时会校验长度和越界。
 - `audio` / `cover` 可以是 `null`：游戏退回合成鼓组 / 不画封面；`theme` / `background` 可选。
+- `background` 有两种写法，见下面「背景」。
 - 一个包当前只放**一张谱**；多谱、DLC、签名 / 加密以后可以升 `version`。
 
 格式实现：`src/pack/format.ts`；浏览器读取辅助：`src/pack/io.ts`。
+
+## 背景
+
+背景是**程序化**的（天空渐变 + 体素台地 + 菱形巨构，见 `design/bg-lab/`），
+没有一个「背景图片」可以引用——它是一套配色 + 一组几何参数，约 400 字节。
+所以**包内自带**：头部 `background` 只是**指向包内那个 JSON 的路径**，不引用外部库。
+
+```json
+// background: "background/scene.json"
+{
+  "format": "parallax.background",
+  "version": 1,
+  "preset": "dark",
+  "palette": { "skyBand": "#2f6f9e", "terrain": "#1e2f47" },
+  "geometry": {
+    "domeRadius": 320,
+    "diamond": { "dist": 45, "apexElevDeg": -8.5, "slope": 0.9, "halfH": 50.4, "rim": 0.3, "depth": 3 }
+  }
+}
+```
+
+- `preset` 可选：先取内置预设（`light` / `dark`），再被 `palette` / `geometry` 里的字段覆盖；
+- 所有字段都可省略，省略 = 继承 `preset`，再省略 = 用 `light`（当前默认）；
+- 头部也可以直接写 `"background": "builtin:dark"`（或 `"light"` / `"dark"`），表示「用游戏自带的那个」；
+- 头部不写 `background` = `builtin:light`。
+
+**为什么不做一个全局背景库 + 包内只存 id**：包一旦发出去就不该再变。
+内置预设以后还会被调（这才是常态），如果包只存一个 id，两年后同一个包会长得不一样；
+而自带一份 400 字节的描述，代价可以忽略，换来的是「打开即原样」。
+
+解析入口：`src/scene/background/spec.ts` 的 `resolveBackgroundRef()` / `BACKGROUND_PRESETS`。
+完整规范（节点 / 时间线 / glTF / 音频参数 / Unity 映射）见 [`BACKGROUND.md`](BACKGROUND.md)。
+
+### 回退链
+
+```
+?bg=light|dark  →  包头部 background  →  玩家设置里的默认  →  light
+```
+
+包没写背景 = 用玩家默认；包写了但当前运行时还不支持（比如引用了 `scene.json` 里的 glTF 节点），
+退回上一级并打一条日志，不报错。
 
 ## 编辑器
 

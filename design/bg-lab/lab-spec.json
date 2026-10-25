@@ -1,0 +1,115 @@
+{
+  "camera": {
+    "loc": [
+      0.0,
+      -0.52,
+      1.62
+    ],
+    "fov_v": 58.0
+  },
+  "table": {
+    "top_z": 0.95,
+    "near_y": -0.34,
+    "far_y": 9.66,
+    "half_w": 0.81
+  },
+  "dome_r": 320.0,
+  "sky_stops": [
+    [
+      90.0,
+      "sky_zenith"
+    ],
+    [
+      38.0,
+      "sky_high"
+    ],
+    [
+      14.0,
+      "sky_mid"
+    ],
+    [
+      4.0,
+      "sky_near"
+    ],
+    [
+      0.4,
+      "sky_band"
+    ],
+    [
+      -1.6,
+      "sky_under1"
+    ],
+    [
+      -6.0,
+      "sky_under2"
+    ],
+    [
+      -22.0,
+      "sky_deep"
+    ],
+    [
+      -90.0,
+      "sky_deep"
+    ]
+  ],
+  "sky_rings": 51,
+  "sky_seg": 96,
+  "palettes": {
+    "dark": {
+      "sky_zenith": "#071528",
+      "sky_high": "#0a2440",
+      "sky_mid": "#103659",
+      "sky_near": "#1b4a74",
+      "sky_band": "#2f6f9e",
+      "sky_under1": "#14344f",
+      "sky_under2": "#08131f",
+      "sky_deep": "#04070c",
+      "mega_top": "#24384f",
+      "mega_bottom": "#16233a",
+      "mega_rim": "#4d7ba8",
+      "terrain": "#1e2f47",
+      "terrain_haze": "#1b3a55",
+      "stage": "#2b3440",
+      "stage_edge": "#63718a",
+      "note": "#e8f0ff",
+      "accent": "#C6F24E"
+    },
+    "light": {
+      "sky_zenith": "#6d8cb6",
+      "sky_high": "#8faac9",
+      "sky_mid": "#c3d6e6",
+      "sky_near": "#e9f0f4",
+      "sky_band": "#f4f6f6",
+      "sky_under1": "#cfd8de",
+      "sky_under2": "#5d6d80",
+      "sky_deep": "#131d29",
+      "mega_top": "#10151d",
+      "mega_bottom": "#0a0d13",
+      "mega_rim": "#3c4c62",
+      "terrain": "#2c3646",
+      "terrain_haze": "#aab8c8",
+      "stage": "#39424f",
+      "stage_edge": "#6b7787",
+      "note": "#eef4ff",
+      "accent": "#2F5BD0"
+    }
+  },
+  "variants": {
+    "bg": {
+      "diamond": {
+        "d": 45.0,
+        "apex_elev": -8.5,
+        "slope": 0.9,
+        "half_h": 50.4,
+        "rim": 0.3,
+        "depth": 3.0
+      }
+    }
+  },
+  "renders": [
+    "bg-light.png",
+    "bg-light-up.png",
+    "bg-dark.png",
+    "bg-dark-up.png"
+  ]
+}

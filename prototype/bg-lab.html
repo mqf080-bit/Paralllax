@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Parallax — Backdrop Lab</title>
+    <style>
+      :root {
+        --bg: #07090d;
+        --ink: #d7dee8;
+        --dim: #6d7885;
+        --line: #1e2630;
+        --accent: #9cc8ff;
+        --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--ink);
+        font: 11px/1.4 var(--mono);
+        letter-spacing: 0.02em;
+        overflow: hidden;
+      }
+
+      #view {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      #hud {
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        background: var(--line);
+        border: 1px solid var(--line);
+        user-select: none;
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        background: rgba(7, 9, 13, 0.86);
+      }
+
+      .k {
+        width: 72px;
+        color: var(--dim);
+        text-transform: uppercase;
+      }
+
+      button {
+        appearance: none;
+        padding: 3px 9px;
+        background: transparent;
+        border: 1px solid var(--line);
+        border-radius: 0;
+        color: var(--dim);
+        font: inherit;
+        letter-spacing: 0.08em;
+        cursor: pointer;
+      }
+
+      button:hover {
+        color: var(--ink);
+        border-color: var(--dim);
+      }
+
+      button[data-active="true"] {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+
+      input[type="range"] {
+        width: 148px;
+        height: 12px;
+        accent-color: var(--accent);
+      }
+
+      #pitch-out {
+        width: 36px;
+        color: var(--accent);
+        text-align: right;
+      }
+
+      #stat {
+        color: var(--dim);
+        font-variant-numeric: tabular-nums;
+      }
+
+      #hint {
+        position: fixed;
+        left: 16px;
+        bottom: 14px;
+        color: var(--dim);
+        opacity: 0.8;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+
+    <div id="hud">
+      <div class="row">
+        <span class="k">Palette</span>
+        <button data-pal="light" type="button">LIGHT</button>
+        <button data-pal="dark" type="button">DARK</button>
+      </div>
+      <div class="row">
+        <span class="k">Pitch</span>
+        <input id="pitch" type="range" min="-20" max="80" step="1" value="0" />
+        <span id="pitch-out">0°</span>
+      </div>
+      <div class="row">
+        <span class="k">Notes</span>
+        <button id="notes" type="button">ON</button>
+      </div>
+      <div class="row">
+        <span class="k">View</span>
+        <span id="stat">—</span>
+      </div>
+    </div>
+
+    <div id="hint">1 / 2 切配色 · N 切 note · ↑ ↓ 抬头低头</div>
+
+    <script type="module" src="/src/lab/backdropLab.ts"></script>
+  </body>
+</html>
