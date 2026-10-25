@@ -1,11 +1,24 @@
 # prototype / STATUS
 
-> 更新：2026-10-23 ｜ 版本：**0.4.0** ｜ 阶段：**Phase 1 完成；手感调参基本合格**
+> 更新：2026-10-25 ｜ 版本：**0.4.0+背景** ｜ 阶段：**Phase 1 完成；手感调参基本合格**
 > 当前个人进度：**Infinity Heaven 初谱制作中**（用户估计约 1 周）；期间只做小修。
 > 设计真相：[`../parallax-idea.md`](../parallax-idea.md) ｜ Phase 1 旧协议：[`../agent_old.md`](../agent_old.md)（**OLD / 已归档**） ｜ 后续架构 / 近期玩法计划：[`FUTURE.md`](FUTURE.md) §0
 > 完整逐轮历史（55 节 / 90KB）在 git：`git show ad37349:prototype/STATUS.md > /tmp/parallax-status-full.md`。本文件是 2026-10-20 的压缩版。
 
 ---
+
+### 2026-10-25 · 3D 背景落地
+
+- `design/bg-lab/` 出方向（Blender）：没有地面、体素台地只在余光里、悬空的菱形巨构；
+  实验室截图 / `.blend` / 生成脚本都在这个目录；
+- 迁进 `src/scene/background/`：三个程序化生成器 + 两个预设（light / dark），
+  5.6k 面 / 3 draw calls，无灯光 / 雾 / 贴图；相机 `far` 80 → 400（天空球 R=320）；
+- 游戏默认 light（`?bg=dark` 切），切谱时按包内 `background` 重建；
+- 设置页新增 `Background`；制谱器 `VIEW → BG`，导出写 `background/scene.json`；
+- 独立实验台 `bg-lab.html`（`?pal=dark&pitch=27`）；
+- 规范草案 [`BACKGROUND.md`](BACKGROUND.md)：节点集合封闭、glTF 2.0 承载模型 / 动画、
+  演出走时间线、音频走固定参数通道；
+- **未做**：`scene.json` 加载器、`gltf` / `text` 节点、时间线 / 音频参数运行时。
 
 ## 0. 现在看这里
 
