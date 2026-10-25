@@ -136,7 +136,7 @@ export async function downloadPackage(
   chart: Chart,
   audio: File | null,
   assets: Map<string, PackageAsset>,
-  options: { theme?: string; background?: string; cover?: CoverAsset | null } = {},
+  options: { theme?: string; background?: string; backgroundPreset?: 'light' | 'dark'; cover?: CoverAsset | null } = {},
 ): Promise<string> {
   const files: Array<{ path: string; data: Uint8Array; type?: string }> = [];
   files.push({
@@ -167,7 +167,7 @@ export async function downloadPackage(
   let backgroundPath = options.background ?? null;
   if (!backgroundPath) {
     backgroundPath = 'background/scene.json';
-    const spec = { format: 'parallax.background', version: 1, preset: DEFAULT_BACKGROUND_ID };
+    const spec = { format: 'parallax.background', version: 1, preset: options.backgroundPreset ?? DEFAULT_BACKGROUND_ID };
     files.push({
       path: backgroundPath,
       data: new TextEncoder().encode(JSON.stringify(spec, null, 2)),

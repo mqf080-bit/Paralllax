@@ -83,6 +83,7 @@ export interface EditorElements {
   toggle2d: HTMLButtonElement;
   guideToggle: HTMLButtonElement;
   svToggle: HTMLButtonElement;
+  bgToggle: HTMLButtonElement;
   tracesToggle: HTMLButtonElement;
   viewToggle: HTMLButtonElement;
   viewPanel: HTMLElement;
@@ -188,6 +189,14 @@ export class EditorController implements EditorHost, InspectorHost {
   private svHover: number | null = null;
   /** SV 带默认关（不是每张谱都要变速），在 VIEW 里开。 */
   private showSv = false;
+  /** 这个谱面包里默认带的背景（导出时写进 background/scene.json）。 */
+  private backgroundPreset: 'light' | 'dark' = (() => {
+    try {
+      return window.localStorage.getItem('parallax.editor.background') === 'dark' ? 'dark' : 'light';
+    } catch {
+      return 'light';
+    }
+  })();
   /** 主视图 / 高度带的高度比例，中间分隔条可拖。 */
   private laneSplitValue = (() => {
     try {
@@ -496,6 +505,18 @@ export class EditorController implements EditorHost, InspectorHost {
       this.elements.guideToggle.classList.toggle('is-active', on);
       this.preview.setGuide(on);
       this.preview.invalidate();
+    });
+    this.preview.setBackground(this.backgroundPreset);
+    this.syncBackgroundUi();
+    this.elements.bgToggle.addEventListener('click', () => {
+      this.backgroundPreset = this.backgroundPreset === 'light' ? 'dark' : 'light';
+      try {
+        window.localStorage.setItem('parallax.editor.background', this.backgroundPreset);
+      } catch {
+        // 存储不可用：只影响下次打开时的默认值
+      }
+      this.preview.setBackground(this.backgroundPreset);
+      this.syncBackgroundUi();
     });
     this.elements.snap.addEventListener('change', () => {
       const preset = snapPreset(this.elements.snap.value, this.snapDenominator);
@@ -920,6 +941,12 @@ export class EditorController implements EditorHost, InspectorHost {
   }
 
   /** TRACES 按钮的三态外观。 */
+  /** 背景按钮显示当前默认背景。 */
+  private syncBackgroundUi(): void {
+    this.elements.bgToggle.textContent = `BG ${this.backgroundPreset.toUpperCase()}`;
+    this.elements.bgToggle.classList.toggle('is-active', this.backgroundPreset === 'dark');
+  }
+
   private syncTraceUi(): void {
     const button = this.elements.tracesToggle;
     button.classList.toggle('is-active', this.traceMode === 'snap');
@@ -1062,6 +1089,7 @@ export class EditorController implements EditorHost, InspectorHost {
       const filename = await persistence.downloadPackage(this.chart, this.audioFile, this.packageAssets, {
         theme: this.packageTheme,
         background: this.packageBackground,
+        backgroundPreset: this.backgroundPreset,
         cover: this.cover,
       });
       this.showToast(`已导出谱面包 ${filename}`);

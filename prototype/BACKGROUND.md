@@ -131,7 +131,8 @@ background/
 - **模型 / 材质 / 动画**：在 Blender 里做，导出 `.glb`；背景编辑器只负责摆位、接时间线。
 - **背景编辑器（未来）**：节点列表 + 时间线 + 参数曲线，输出 `scene.json`。
 - **现在**：两个内置预设就是三个 `procedural.*` 节点的固定组合；
-  制谱器导出时写一份 `background/scene.json`（当前是 `preset: light`）。
+  制谱器的 `VIEW → BG` 选择这个包默认带的背景（记在本机），导出时写进
+  `background/scene.json`。
 
 ## 6. 版本
 

@@ -423,6 +423,8 @@ export function buildBackground(spec: BackgroundSpec, options: BackgroundOptions
     side: THREE.DoubleSide,
     // 游戏的雾只服务台面 / note 的远端淡出；背景是几百米外的天空，不能吃雾。
     fog: false,
+    // 制谱器预览用 ACES 色调映射（为材质调的）；背景是烘焙好的颜色，不该再被它压暗。
+    toneMapped: false,
   });
 
   const builder = new MeshBuilder();

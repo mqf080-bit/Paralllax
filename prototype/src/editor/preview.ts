@@ -86,6 +86,8 @@ export interface Preview {
   setDrums(enabled: boolean): void;
   /** 竖直引导网（判定提示）开关。 */
   setGuide(enabled: boolean): void;
+  /** 背景配色（这个谱面包里默认带的那个）。 */
+  setBackground(id: 'light' | 'dark'): void;
   setOffset(offsetMs: number): void;
   setChart(chart: Chart): void;
   setEditMode(enabled: boolean): void;
@@ -124,8 +126,15 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
   scene.environmentIntensity = 1.0;
 
   const lib: MaterialLibrary = createMaterialLibrary();
-  const backdrop = buildBackdrop('dark');
+  let backdrop = buildBackdrop('dark');
   scene.add(backdrop.group);
+
+  function applyBackground(id: 'light' | 'dark'): void {
+    scene.remove(backdrop.group);
+    backdrop.dispose();
+    backdrop = buildBackdrop(id);
+    scene.add(backdrop.group);
+  }
 
   const keyLight = new THREE.DirectionalLight(0xdbe7f8, 2.8);
   keyLight.position.set(2.2, 4.2, 2.4);
@@ -1012,6 +1021,11 @@ export function createPreview(container: HTMLElement, chart: Chart): Preview {
   }
 
   return {
+    setBackground(id: 'light' | 'dark'): void {
+      applyBackground(id);
+      renderer.render(scene, camera);
+    },
+
     get state(): PreviewState {
       return {
         timeMs,

@@ -95,7 +95,8 @@ offset 18   头部 JSON（UTF-8）
 
 ## 编辑器
 
-- `EXPORT` → 导出 `.parallax`（当前谱面 + 已导入的音轨 + 导入包时保留的其它资源）；
+- `EXPORT` → 导出 `.parallax`（当前谱面 + 已导入的音轨 + 背景 + 导入包时保留的其它资源）；
+  背景由 `VIEW → BG` 选（LIGHT / DARK），导出时写成 `background/scene.json`；
 - `JSON` → 仍导出旧的 `.parallax.json`，用于调试 / 兼容；
 - `IMPORT` 接受 `.parallax` 和 `.json`；
 - 导入包时会把音频自动载入，不需要再单独拖音频；
