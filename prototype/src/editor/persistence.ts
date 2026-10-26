@@ -1,5 +1,5 @@
 import type { Chart } from '../chart/schema';
-import { DEFAULT_BACKGROUND_ID } from '../scene/background/spec';
+import { BACKGROUND_PRESETS, DEFAULT_BACKGROUND_ID } from '../scene/background/spec';
 import { PACKAGE_EXTENSION, PACKAGE_MIME, isParallaxPackage, packPackage } from '../pack/format';
 import { audioFromPackage, chartJsonFromPackage, coverFromPackage, packageAssets, readPackageFile, type PackedAudio } from '../pack/io';
 import { normalizeChart } from './model';
@@ -167,10 +167,22 @@ export async function downloadPackage(
   let backgroundPath = options.background ?? null;
   if (!backgroundPath) {
     backgroundPath = 'background/scene.json';
-    const spec = { format: 'parallax.background', version: 1, preset: options.backgroundPreset ?? DEFAULT_BACKGROUND_ID };
+    const preset = options.backgroundPreset ?? DEFAULT_BACKGROUND_ID;
+    const source = BACKGROUND_PRESETS[preset];
+    // 展开成完整参数再写进包：运行时不需要族表，族以后怎么调都不影响这个包。
+    const hex = (value: number): string => `#${value.toString(16).padStart(6, '0')}`;
+    const payload = {
+      format: 'parallax.background',
+      version: 1,
+      preset,
+      palette: Object.fromEntries(
+        Object.entries(source.palette).map(([key, value]) => [key, hex(value)]),
+      ),
+      geometry: source.geometry,
+    };
     files.push({
       path: backgroundPath,
-      data: new TextEncoder().encode(JSON.stringify(spec, null, 2)),
+      data: new TextEncoder().encode(JSON.stringify(payload, null, 2)),
       type: 'application/json',
     });
   }
