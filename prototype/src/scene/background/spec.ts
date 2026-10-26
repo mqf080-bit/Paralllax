@@ -59,6 +59,12 @@ export interface TerrainParams {
   xExtent: number;
   /** 向前的最后一个格子。 */
   zEnd: number;
+  /** 走廊内边界：`innerBase + innerSlope × (z − 0.9)`，越小越窄。 */
+  innerBase: number;
+  innerSlope: number;
+  /** 台地抬升的高度与坡度：`floor + rise × (1 − e^(−k / riseScale))`。 */
+  rise: number;
+  riseScale: number;
 }
 
 export interface BackgroundGeometry {
@@ -81,7 +87,17 @@ export interface BackgroundSpec {
 const BASE_GEOMETRY: BackgroundGeometry = {
   domeRadius: 320,
   diamond: { dist: 45, apexElevDeg: -8.5, slope: 0.9, halfH: 50.4, rim: 0.3, depth: 3 },
-  terrain: { cell: 1, step: 0.3, floor: 0.92, xExtent: 15, zEnd: 8 },
+  terrain: {
+    cell: 1,
+    step: 0.3,
+    floor: 0.92,
+    xExtent: 15,
+    zEnd: 8,
+    innerBase: 1.25,
+    innerSlope: 0.6,
+    rise: 1.15,
+    riseScale: 1.6,
+  },
 };
 
 export const BACKGROUND_PRESETS: Record<'light' | 'dark', BackgroundSpec> = {

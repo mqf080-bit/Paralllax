@@ -17,6 +17,15 @@
 - **2026-10-22**：编辑器新谱默认难度已改为空（不再写 `IN 1`），作者显式填写；
 - `meta.difficulty` 目前仍是自由字符串；tier 主题色**已定稿**（见下），但 UI 还没实现。
 
+**曲目的难度构成（2026-10-26 定稿）**：
+
+- 每一首曲子**必定**有 `Stabilized` / `Accelerated` / `Ballistic` 三档；
+- `LINAC` 与 `CYCLOTRON` **不是每曲都有**，而且**不会同时出现在同一首曲子里**——
+  一首曲子最多四档：三档基础 + 一档最高档（LINAC 或 CYCLOTRON）；
+- 免费曲一般到 `Ballistic` 为止；`LINAC` / `CYCLOTRON` 主要出现在付费内容；
+- 例外：免费曲若有重量级，它的 `CYCLOTRON` 是**另一套独立编排**（付费），
+  不是把已有难度锁起来。
+
 计划（未做部分）：
 
 - 数据层保留 `meta.difficulty` 兼容旧谱，同时增加结构化字段：
@@ -40,7 +49,8 @@
 验收（未做部分）：
 
 - 选择 tier 后 Songs / Home / Result 的徽章和主题色同步；
-- tier 与 level 是独立信息；CYCLOTRON 不自动等于高数值。
+- tier 与 level 是独立信息；CYCLOTRON 不自动等于高数值；
+- 一首曲子最多出现四档：三档基础 + `linac` 或 `cyclotron` 之一，二者互斥（校验器要拒绝同曲同时出现）。
 
 ### 0.2 成绩评级与字体
 

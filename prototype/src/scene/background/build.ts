@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-import type { BackgroundPalette, BackgroundSpec, PaletteKey } from './spec';
+import type { BackgroundPalette, BackgroundSpec, PaletteKey, TerrainParams } from './spec';
 
 /**
  * 程序化背景：天空球 + 体素台地 + 菱形巨构。
@@ -221,20 +221,21 @@ function noise2(x: number, z: number): number {
 }
 
 /** z 是 Blender 的前向距离（= three 的 −z）。前方被切出一个楔形缺口。 */
-function terrainExists(x: number, z: number): boolean {
+function terrainExists(x: number, z: number, terrain: TerrainParams): boolean {
   if (z <= 0.9) return true;
-  return Math.abs(x) > 1.25 + (z - 0.9) * 0.6;
+  return Math.abs(x) > terrain.innerBase + (z - 0.9) * terrain.innerSlope;
 }
 
 function buildTerrain(spec: BackgroundSpec, into: MeshBuilder): void {
-  const { cell, step, floor, xExtent, zEnd } = spec.geometry.terrain;
+  const terrain = spec.geometry.terrain;
+  const { cell, step, floor, xExtent, zEnd } = terrain;
   const base = rgbOf(spec.palette, 'terrain');
   const haze = rgbOf(spec.palette, 'terrainHaze');
 
   const heightOf = (x: number, z: number): number => {
-    const inner = 1.25 + Math.max(0, z - 0.9) * 0.6;
+    const inner = terrain.innerBase + Math.max(0, z - 0.9) * terrain.innerSlope;
     const k = Math.max(0, Math.abs(x) - inner);
-    let h = floor + 1.15 * (1 - Math.exp(-k / 1.6));
+    let h = floor + terrain.rise * (1 - Math.exp(-k / terrain.riseScale));
     h += (noise2(x * 0.35, z * 0.35) - 0.5) * 0.3;
     return Math.round(h / step) * step;
   };
@@ -251,7 +252,7 @@ function buildTerrain(spec: BackgroundSpec, into: MeshBuilder): void {
     for (let iz = -8; iz <= zEnd; iz += 1) {
       const x = ix * cell;
       const z = iz * cell;
-      if (!terrainExists(x, z)) continue;
+      if (!terrainExists(x, z, terrain)) continue;
       heights.set(`${ix},${iz}`, heightOf(x, z));
     }
   }
