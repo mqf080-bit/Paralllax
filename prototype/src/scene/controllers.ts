@@ -21,7 +21,7 @@ const IDLE_OPACITY = 0.4;
 /** 按下后的驻留时间（毫秒）。 */
 const FLASH_MS = 140;
 /** 短棒长度（米）与 sustain 时的透明度。 */
-const STICK_LENGTH = 0.18;
+export const STICK_LENGTH = 0.18;
 const STICK_SUSTAIN_OPACITY = 0.28;
 
 export interface Controllers {

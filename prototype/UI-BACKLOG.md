@@ -83,7 +83,6 @@ Home → Songs → Playing → Paused → Settings
 | UI-13 | P2 | 包索引手工维护 | 重新导出 `.parallax` 后要手动更新 `index.json` 的 duration / notes / bpm 等；选中后会以包内 chart 为准 |
 | UI-14 | P2 | 本地包管理 | 没有移除 / 重命名；IndexedDB 按 origin 隔离，localhost 加的包不会出现在 pages.dev |
 | UI-15 | P2 | 无物量谱面立即结束 | 还没有按 `meta.duration` 等待；等 Infinity Heaven 补完再处理 |
-| FEEL-04 | P2 | 短棒与判定点 | 短棒只是视觉提示；如果玩家自然用棒尖打，需确认 0.18m 的偏移是否会造成手感偏差 |
 
 “待办”不代表都要做；UI-03 是下一步最有价值的。
 
@@ -96,6 +95,7 @@ Home → Songs → Playing → Paused → Settings
 | UI-18 | **已实现**：独立 Combo HUD（见 §3）；浮空显示里的 `COMBO n` 保留为信息板的一部分 |
 | FEEL-05 | **结束观察**：perfect `-100/+80`、good `-140/+160` 用户判定手感合格，不再收 / 放 |
 | FEEL-06 | **结束观察**：用户确认 hit 双层音 / drag 轻击音量与音色可用 |
+| FEEL-04 | **已实现**（2026-10-26）：hit / drag 的判定形状改成**沿短棒的长方条**（线段世界 AABB + 原有 X / Y 容差与 z 窗口），可以用棒尖打；arc / hold 仍用手部采样点，桌面指针退化为点判定。待头显试打确认手感 |
 
 ---
 
@@ -121,7 +121,7 @@ Home → Songs → Playing → Paused → Settings
   （`combo-hud.png`、`songs-scroll.png`、`songs-panel.png`）。
 - 已做过的桌面验证：主页 → 游玩 → 暂停 → Settings → Back；Songs 切歌 / 滚动；懒加载 18MB 包；hitbox GUI；WebXR 页调试 GUI。
 - 已闭环（2026-10-22 头显）：判定线 0.70m、暂停 Y 长按、hold 误触、arc `0.42` 暗度、Good 分布、打击音色。
-- 仍未闭环：短棒 / 棒尖手感（FEEL-04）、Songs 滚动在头显里的手速（新功能，待下一次试玩）。
+- 仍未闭环：FEEL-04 的**头显试打**（长方条判定已改，手感未确认）、Songs 滚动在头显里的手速（新功能，待下一次试玩）。
 
 ---
 

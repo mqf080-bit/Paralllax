@@ -17,6 +17,7 @@ import { createTimeline, type Timeline } from '../chart/timeline';
 import type { TableGeometry, TableParams } from '../config';
 import { applyDistanceFade } from '../materials/distanceFade';
 import type { MaterialLibrary } from '../materials/library';
+import { STICK_LENGTH } from '../scene/controllers';
 import { createArcNote, type ArcEvent, type ArcNote } from './arc';
 import { createJudgementGuide, GUIDE_START_MS, type GuideHit } from './guide';
 import { createTraceLayer } from './trace';
@@ -116,6 +117,21 @@ const HIT_ZONE_NEAR = 0.22;
 const HIT_ZONE_FAR = 0.38;
 const HIT_HALF_X = 0.13;
 const HIT_HALF_Y = 0.26;
+/**
+ * hit / drag 的判定形状：沿控制器短棒的「长方条」。
+ *
+ * 短棒视觉上从手沿控制器 −Z 伸出 `STICK_LENGTH`（0.18m，见 scene/controllers.ts），
+ * 判定就用这条线段的世界 AABB，再套上原来的 X / Y 容差与 z 窗口。
+ * 没有短棒（桌面指针、或控制器没连）时退化成原来的手部点判定。
+ * **arc / hold 不吃这个形状**，仍然是手部采样点。
+ */
+const hitTip = new THREE.Vector3();
+
+function hitSpan(hand: HandSample, out: THREE.Vector3): boolean {
+  if (hand.source !== 'xr' || !hand.ray) return false;
+  out.copy(hand.position).addScaledVector(hand.ray.direction, STICK_LENGTH);
+  return true;
+}
 
 /** 调参面板显示用：hit 判定盒的默认半宽 / 前后深度。 */
 export const HIT_JUDGE_BOX = {
@@ -580,10 +596,17 @@ export function createPlayer(
     for (const hand of hands) {
       if (!hand.active) continue;
       if (note.chart.hand && hand.side !== note.chart.hand) continue;
-      if (Math.abs(hand.position.x - x) > halfX) continue;
-      if (Math.abs(hand.position.y - y) > HIT_HALF_Y) continue;
-      const handZ = hand.position.z - geometry.bandZ;
-      if (handZ < -zoneFar || handZ > zoneNear) continue;
+      const hasStick = hitSpan(hand, hitTip);
+      const tipX = hasStick ? hitTip.x : hand.position.x;
+      const tipY = hasStick ? hitTip.y : hand.position.y;
+      const tipZ = hasStick ? hitTip.z : hand.position.z;
+      if (x < Math.min(hand.position.x, tipX) - halfX) continue;
+      if (x > Math.max(hand.position.x, tipX) + halfX) continue;
+      if (y < Math.min(hand.position.y, tipY) - HIT_HALF_Y) continue;
+      if (y > Math.max(hand.position.y, tipY) + HIT_HALF_Y) continue;
+      const zLo = Math.min(hand.position.z, tipZ) - geometry.bandZ;
+      const zHi = Math.max(hand.position.z, tipZ) - geometry.bandZ;
+      if (zHi < -zoneFar || zLo > zoneNear) continue;
       if (hand.velocity.length() < HIT_GOOD_SPEED) continue;
       if (hand.swing < HIT_MIN_SWING) continue;
 
@@ -617,9 +640,17 @@ export function createPlayer(
 
     for (const hand of hands) {
       if (!hand.active || hand.velocity.length() < MIN_SWEEP_SPEED) continue;
-      if (Math.abs(hand.position.x - x) > HIT_HALF_X) continue;
-      if (Math.abs(hand.position.y - y) > HIT_HALF_Y) continue;
-      if (Math.abs(hand.position.z - geometry.bandZ) > HAND_ZONE) continue;
+      const hasStick = hitSpan(hand, hitTip);
+      const tipX = hasStick ? hitTip.x : hand.position.x;
+      const tipY = hasStick ? hitTip.y : hand.position.y;
+      const tipZ = hasStick ? hitTip.z : hand.position.z;
+      if (x < Math.min(hand.position.x, tipX) - HIT_HALF_X) continue;
+      if (x > Math.max(hand.position.x, tipX) + HIT_HALF_X) continue;
+      if (y < Math.min(hand.position.y, tipY) - HIT_HALF_Y) continue;
+      if (y > Math.max(hand.position.y, tipY) + HIT_HALF_Y) continue;
+      const zLo = Math.min(hand.position.z, tipZ) - geometry.bandZ;
+      const zHi = Math.max(hand.position.z, tipZ) - geometry.bandZ;
+      if (zHi < -HAND_ZONE || zLo > HAND_ZONE) continue;
 
       note.resolved = true;
       note.group.visible = false;
