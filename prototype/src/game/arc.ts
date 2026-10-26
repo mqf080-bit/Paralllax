@@ -71,17 +71,22 @@ export interface ArcNote {
 }
 
 /** 跟随判定半径（只影响发光）。 */
-const FOLLOW_RADIUS = 0.2;
-/** 普通物量：判定半径与窗口。 */
-const NORMAL_RADIUS = 0.19;
+const FOLLOW_RADIUS = 0.18;
+/**
+ * 普通物量：判定半径与窗口。
+ *
+ * 2026-10-26 收紧：半径 0.19 → 0.16、BAND_ZONE 0.42 → 0.30；
+ * 时间窗保持 200ms（关键物量 80ms）不变——那是设计契约，收紧的是「手要离弧多近」。
+ */
+const NORMAL_RADIUS = 0.16;
 const NORMAL_WINDOW_MS = 200;
 /** 关键物量：半径与普通相同，只收窗口。 */
 const KEY_RADIUS = NORMAL_RADIUS;
 const KEY_WINDOW_MS = 80;
 /** 已过判定线、但没有手接上时的整体亮度。 */
 const UNCONNECTED_DIM = 0.42;
-/** 手在 z 方向离判定带多远还算在判定带上。 */
-const BAND_ZONE = 0.42;
+/** 手在 z 方向离判定带多远还算在判定带上（2026-10-26：0.42 → 0.30）。 */
+const BAND_ZONE = 0.3;
 /** 构建管几何时的采样数。 */
 const SEGMENTS = 160;
 const CURVE_SEGMENTS = 128;

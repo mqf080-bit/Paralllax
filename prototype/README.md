@@ -1,6 +1,6 @@
 # Parallax — prototype
 
-Phase 1 的 WebXR 原型。**v0.4.1 / Step 0–5 已完成并验收**：游戏可玩，桌面制谱器可用；Quest 3 实测 72Hz+。
+Phase 1 的 WebXR 原型。**v0.4.2 / Step 0–5 已完成并验收**：游戏可玩，桌面制谱器可用；Quest 3 实测 72Hz+。
 
 > 项目总览：[`../README.md`](../README.md) ｜ 谱面格式：[`CHART.md`](CHART.md) ｜
 > 制谱器：[`EDITOR.md`](EDITOR.md) ｜ 谱面包：[`PACKAGE.md`](PACKAGE.md) ｜ 背景规范：[`BACKGROUND.md`](BACKGROUND.md) ｜ 迭代记录：[`STATUS.md`](STATUS.md) ｜ UI 待办：[`UI-BACKLOG.md`](UI-BACKLOG.md) ｜ 无线上头显：[`DEPLOY.md`](DEPLOY.md) ｜ 设计工作流：[`../DESIGN-WORKFLOW.md`](../DESIGN-WORKFLOW.md)
@@ -144,7 +144,7 @@ Quest 休眠 / 重连后可能会掉，重跑 `adb connect` + `adb reverse` 即�
 `?chart=/charts/air-example.json` 空中 note / 显式 arc 物量 · `?auto=1` 自动完美演示 ·
 `?autostart=1` 跳过主页 · `?freeze=1` 冻结 · `?warp=2.4` 快进 · `?flow=4` 流速 · `?shift=left|right` ·
 `?panel=home|songs|packs|paused|settings|result` 摊开面板 · `?menuButton=6` 改 menu 键索引 · `?clock=0` 关掉音频时钟 ·
-`?offset=20&volume=0.6&lead=2000` 音频参数 · `?audio=/track.mp3` 真实音轨 · `?chrome=0` 隐藏桌面调试覆盖层 · `?panelScale=1.05&panelDistance=0.65&panelY=1.45` 调面板 · `?comboX=0&comboY=1.8&comboZ=-2.6` 调 Combo HUD · `?lane=0.27&band=0.70` 调轨宽 / 判定带 · `?hitboxX=1.25&hitboxZ=1.2` 调 hit 判定盒的空间倍率（不改时间窗） · `?hitrod=1` 额外启用短棒细条判定（默认手掌盒） · `?debug=0` 关闭调试 GUI；WebXR 浏览器默认显示，`?debug=1` 可强制打开。
+`?offset=20&volume=0.6&lead=2000` 音频参数 · `?audio=/track.mp3` 真实音轨 · `?chrome=0` 隐藏桌面调试覆盖层 · `?panelScale=1.05&panelDistance=0.65&panelY=1.45` 调面板 · `?comboX=0&comboY=1.8&comboZ=-2.6` 调 Combo HUD · `?lane=0.27&band=0.70` 调轨宽 / 判定带 · `?hitboxX=1.25&hitboxZ=1.2` 调 hit 手掌盒的空间倍率（细棒不受影响，不改时间窗） · `?hitrod=0` 关闭细棒判定（默认手掌盒 + 细棒都认） · `?debug=0` 关闭调试 GUI；WebXR 浏览器默认显示，`?debug=1` 可强制打开。
 
 ## 脚本
 
@@ -190,7 +190,8 @@ prototype/
 
 - **72fps**：Quest 3 头显实测 72Hz+（用户验收）。
 - **没有自动化测试 / CI**：验证靠 `npm run typecheck` / `npm run build` + 手动 smoke test；CI 进待办（2026-10-26）。
-- **FEEL-04 细棒判定未通过**（头显）：miss 明显变多；默认已回退到手掌盒，`?hitrod=1` 可试细棒路径。
+- **手感调参中**（2026-10-26）：默认手掌盒 + 细棒都认；手掌盒已收紧（减少 easy GOOD），
+  arc 的半径 / 深度也收紧；`?hitrod=0` 可退回纯手掌盒。
 - **音频**：「调度路径」验过，听感需要戴上确认；偏早 / 偏晚用 `AUDIO OFFSET` 微调。
 - 自动演示现在是直接完美判定，不再模拟手。
 - **菜单键**：Quest 3 浏览器不把 menu 键暴露给 WebXR（`buttons[6]` 读不到），实际用**左手 Y 长按 400ms**；代码保留 menu 分支，`?menuButton=N` 可继续试。

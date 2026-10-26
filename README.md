@@ -20,13 +20,13 @@ VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处�
 
 - WebXR 游戏原型可玩，Quest 3 头显实测 **72Hz+**；
 - 桌面制谱器已能完成从导入音频、制谱、频谱定位到导出 `.parallax` 的完整流程；
-- 当前版本 **0.4.1**；
+- 当前版本 **0.4.2**；
 - 正在做个人初谱 **Infinity Heaven**（未完成）；之后进入 Unity 的编辑器 3D 预览定位、包 / 资源库方案见
   [`prototype/FUTURE.md`](prototype/FUTURE.md)。
 
 ---
 
-## 快速使用（v0.4.1）
+## 快速使用（v0.4.2）
 
 ### 1. 启动
 
@@ -275,8 +275,8 @@ cd prototype && npm run dev
 | `?panel=home\|songs\|packs\|paused\|settings\|result` | 直接摊开指定面板 |
 | `?chrome=0` | 隐藏诊断 / lil-gui / Stats / 包加载器 / `ENTER VR`，只留 3D 画面（生产页也生效） |
 | `?lane=0.27` `?band=0.70` | 调轨宽 / 判定带前移距离（米；生产页也可用） |
-| `?hitboxX=1.25` `?hitboxZ=1.2` | 调 hit 判定盒空间倍率（不改时间窗；生产页也可用） |
-| `?hitrod=1` | 额外启用短棒细条判定（默认只用手掌盒；FEEL-04 未通过，见 STATUS） |
+| `?hitboxX=1.25` `?hitboxZ=1.2` | 调 hit **手掌盒**空间倍率（细棒不受影响；不改时间窗；生产页也可用） |
+| `?hitrod=0` | 关闭细棒判定，只用手掌盒（默认手掌盒 + 细棒都认） |
 | `?debug=0` `?debug=1` | 关闭 / 强制打开调试 GUI；检测到 immersive-vr 的浏览器默认打开 |
 | `?panelScale=1.05` `?panelDistance=0.65` `?panelY=1.45` | 调 VR 面板尺寸 / 距离 / 高度（生产也可用） |
 | `?comboX=0` `?comboY=1.8` `?comboZ=-2.6` | 调 Combo HUD 左右 / 高度 / 前后位置（生产也可用） |
@@ -335,12 +335,13 @@ prototype/
   没音轨时默认不播合成鼓点（走带 `DRUMS` 勾选才响）。
 - hold 只能贴地；hit / drag 可以浮空（设计文档同步为这个规则）。
 - **没有自动化测试 / CI**：靠 `typecheck` / `build` + 手动 smoke test；CI 已进待办（2026-10-26）。
-- **FEEL-04 细棒判定未通过**（头显）：miss 明显变多；默认已回退到手掌盒，`?hitrod=1` 可试细棒路径。
+- **手感调参中**（2026-10-26）：默认手掌盒 + 细棒都认；手掌盒已收紧（减少 easy GOOD），
+  arc 的半径 / 深度也收紧；待下一轮头显确认。`?hitrod=0` 可退回纯手掌盒。
 - 背景的 `glTF` / 时间线 / 音频参数运行时未做，等 Unity 项目开始。
 
 ## 下一步
 
-正在做个人初谱 **Infinity Heaven**（未完成）；期间只做小修（手感确认 → 游玩 UI 剩余 → 制谱流程）。
+正在做个人初谱 **Infinity Heaven**（未完成）；期间只做小修（手感确认：收紧后的手掌盒 / arc → 游玩 UI 剩余 → 制谱流程）。
 初谱完成后按 [`prototype/FUTURE.md`](prototype/FUTURE.md) 推进：**CI + golden tests** → Unity / 资源库
 （玩法契约、Unity importer、工作区与共享资源索引）。
 

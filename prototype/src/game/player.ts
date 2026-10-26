@@ -49,9 +49,8 @@ export interface PlayerSettings {
   /**
    * dev：hit / drag 是否额外认「沿短棒的细条」。
    *
-   * 默认 false = 只用手掌盒（2026-10-22 验收过的判定）；
-   * `?hitrod=1` 打开后，短棒那条细条也能命中（手掌盒仍然有效，不会被取代）。
-   * FEEL-04（细棒取代手掌盒）在头显上 miss 明显变多，已退回可选。
+   * **默认 true = 手掌盒 + 细棒都认**（2026-10-26 头显确认「两个都有」手感最好）；
+   * `?hitrod=0` 可关掉细棒，只留手掌盒。
    */
   stickHit: boolean;
   /** 竖直引导网开关（编辑器 / 游戏都可关）。 */
@@ -118,19 +117,28 @@ const HIT_PERFECT_LATE_MS = 80;
 const HIT_GOOD_EARLY_MS = 140;
 const HIT_GOOD_LATE_MS = 160;
 const DRAG_WINDOW_MS = 120;
-/** 手在 z 方向离判定带多远还算在判定带上。 */
-const HAND_ZONE = 0.4;
-/** hit 的 z 容差做成不对称：靠玩家的一侧收紧，减少提前挥入就结算。 */
-const HIT_ZONE_NEAR = 0.22;
-const HIT_ZONE_FAR = 0.38;
-const HIT_HALF_X = 0.13;
-const HIT_HALF_Y = 0.26;
+/** drag 的 z 容差：drag 没有 GOOD，保持宽松。 */
+const DRAG_ZONE = 0.4;
 /**
- * 短棒的判定体积（只在 `settings.stickHit` 打开时用）。
+ * hit 的手掌盒（2026-10-26 收紧）。
+ *
+ * 旧值 x ±0.13 / y ±0.26 / z 0.22–0.38 太宽：挥早了 / 挥偏了也照样结算，
+ * 于是 GOOD 很容易拿。收紧后：x ±0.12 / y ±0.20 / z 0.16–0.32。
+ * 仍然比 note 本身（0.232 × 0.084 × 0.096）大一圈，但不再「怎么挥都算」。
+ */
+const HIT_ZONE_NEAR = 0.16;
+const HIT_ZONE_FAR = 0.32;
+const HIT_HALF_X = 0.12;
+const HIT_HALF_Y = 0.2;
+/** drag 用手掌盒（比 hit 宽）：扫过就算完美，不需要 GOOD。 */
+const DRAG_HALF_X = 0.13;
+const DRAG_HALF_Y = 0.26;
+/**
+ * 短棒的判定体积（默认与手掌盒**同时生效**）。
  *
  * 横截面 = note 半尺寸 + 瞄准余量：0.16 / 0.10 / 0.12（全场 32 × 20 × 24cm）。
  * FEEL-04 最初收到 0.125 / 0.055 / 0.065（比手掌盒小一个数量级），头显实测 miss 明显变多；
- * 这里放宽一档，并且**手掌盒始终有效**，细棒只作为额外的「够到棒尖」路径。
+ * 后来确认「两个都有」手感最好：手掌盒保底，细棒补上够到棒尖的那一段。
  */
 const STICK_HALF_X = 0.16;
 const STICK_HALF_Y = 0.1;
@@ -203,7 +211,7 @@ function contactMotion(hand: HandSample, contact: number): { speed: number; swin
   };
 }
 
-/** 调参面板显示用：hit 判定盒的默认半宽 / 前后深度。 */
+/** 调参面板显示用：hit 手掌盒的默认半宽 / 前后深度（细棒另有固定体积）。 */
 export const HIT_JUDGE_BOX = {
   halfX: HIT_HALF_X,
   near: HIT_ZONE_NEAR,
@@ -674,7 +682,7 @@ export function createPlayer(
         Math.abs(y - stickClosest.y) <= STICK_HALF_Y &&
         Math.abs(geometry.bandZ - stickClosest.z) <= STICK_HALF_Z;
       const inPalm = palmHit(hand, x, y, halfX, HIT_HALF_Y, zoneNear, zoneFar, geometry.bandZ);
-      // 手掌盒是 2026-10-22 验收过的基线；细棒只是额外的「够到棒尖」路径，不会取代它。
+      // 手掌盒保底，细棒补上棒尖够到的一段；两种都认（2026-10-26 头显确认）。
       if (!inRod && !inPalm) continue;
 
       let speed = hand.velocity.length();
@@ -720,14 +728,14 @@ export function createPlayer(
     const useStick = settings.stickHit;
     for (const hand of hands) {
       if (!hand.active) continue;
-      // 默认只用手掌盒；`?hitrod=1` 时再加上棒身细条（两者都认，不互相取代）。
+      // 默认两种都认（`?hitrod=0` 可关掉细棒）；drag 的扫过判定也从宽。
       const contact = useStick ? stickContact(hand, x, y, geometry.bandZ, stickClosest) : -1;
       const inBar =
         contact >= 0 &&
         Math.abs(x - stickClosest.x) <= STICK_HALF_X &&
         Math.abs(y - stickClosest.y) <= STICK_HALF_Y &&
         Math.abs(geometry.bandZ - stickClosest.z) <= STICK_HALF_Z;
-      const inPalm = palmHit(hand, x, y, HIT_HALF_X, HIT_HALF_Y, HAND_ZONE, HAND_ZONE, geometry.bandZ);
+      const inPalm = palmHit(hand, x, y, DRAG_HALF_X, DRAG_HALF_Y, DRAG_ZONE, DRAG_ZONE, geometry.bandZ);
       if (!inBar && !inPalm) continue;
       let speed = hand.velocity.length();
       if (inBar) speed = Math.max(speed, contactMotion(hand, Math.max(contact, 0)).speed);

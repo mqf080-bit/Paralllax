@@ -363,7 +363,7 @@ const playSettings: PlayerSettings = {
   auto: false,
   hitboxX: Number.isFinite(hitboxXParam) && bootQuery.has('hitboxX') ? Math.min(2.5, Math.max(0.25, hitboxXParam)) : 1,
   hitboxZ: Number.isFinite(hitboxZParam) && bootQuery.has('hitboxZ') ? Math.min(2.5, Math.max(0.25, hitboxZParam)) : 1,
-  stickHit: hitRodParam === '1' || hitRodParam === 'true',
+  stickHit: hitRodParam !== '0' && hitRodParam !== 'false',
   guide: bootQuery.get('guide') !== '0',
   traces: bootQuery.get('traces') !== '0',
 };

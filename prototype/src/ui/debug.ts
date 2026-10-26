@@ -59,8 +59,8 @@ export function createDebug(options: DebugOptions): DebugHandle {
   playFolder.add(play, 'auto').name('自动打（演示）');
   playFolder.add({ restart: onPlayRestart }, 'restart').name('重开谱面');
 
-  // —— hit 判定盒：只改空间体积，时间窗保持不变 ——
-  const judgeFolder = gui.addFolder('hit 判定盒（时间窗不变）').open();
+  // —— hit 手掌盒：只改空间体积，时间窗 / 细棒不变 ——
+  const judgeFolder = gui.addFolder('hit 手掌盒（时间窗不变）').open();
   const hitboxReadout = {
     width: Math.round(HIT_JUDGE_BOX.halfX * 2 * play.hitboxX * 100) / 100,
     depth: Math.round((HIT_JUDGE_BOX.near + HIT_JUDGE_BOX.far) * play.hitboxZ * 100) / 100,
@@ -72,6 +72,7 @@ export function createDebug(options: DebugOptions): DebugHandle {
   };
   judgeFolder.add(play, 'hitboxX', 0.5, 2, 0.05).name('X 宽倍率').onChange(syncHitbox);
   judgeFolder.add(play, 'hitboxZ', 0.5, 2, 0.05).name('Z 深倍率').onChange(syncHitbox);
+  judgeFolder.add(play, 'stickHit').name('细棒判定（手掌盒仍有效）');
   judgeFolder.add(hitboxReadout, 'width').name('当前宽 m').disable();
   judgeFolder.add(hitboxReadout, 'depth').name('当前深 m').disable();
   judgeFolder
