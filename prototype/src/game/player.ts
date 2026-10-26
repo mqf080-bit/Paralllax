@@ -126,11 +126,41 @@ const HIT_HALF_Y = 0.26;
  * **arc / hold 不吃这个形状**，仍然是手部采样点。
  */
 const hitTip = new THREE.Vector3();
+const contactVelocity = new THREE.Vector3();
 
-function hitSpan(hand: HandSample, out: THREE.Vector3): boolean {
-  if (hand.source !== 'xr' || !hand.ray) return false;
-  out.copy(hand.position).addScaledVector(hand.ray.direction, STICK_LENGTH);
-  return true;
+/**
+ * 命中点落在短棒的哪个位置（0 = 手心，1 = 棒尖），顺便把棒尖写进 `outTip`。
+ *
+ * 判定盒覆盖整根棒之后，**打击处的速度**才是该看的量：手腕一抖，棒尖比手心快得多。
+ * 刚体上各点的速度沿棒线性变化，所以手心 / 棒尖两端插值就够。
+ */
+function stickContact(
+  hand: HandSample,
+  x: number,
+  y: number,
+  z: number,
+  outTip: THREE.Vector3,
+): number {
+  if (hand.source !== 'xr' || !hand.ray) {
+    outTip.copy(hand.position);
+    return 0;
+  }
+  const direction = hand.ray.direction;
+  outTip.copy(hand.position).addScaledVector(direction, STICK_LENGTH);
+  const along =
+    (x - hand.position.x) * direction.x +
+    (y - hand.position.y) * direction.y +
+    (z - hand.position.z) * direction.z;
+  return Math.min(1, Math.max(0, along / STICK_LENGTH));
+}
+
+/** 打击点上的速度（写入 `contactVelocity`）与挥动距离。 */
+function contactMotion(hand: HandSample, contact: number): { speed: number; swing: number } {
+  contactVelocity.copy(hand.velocity).lerp(hand.tipVelocity, contact);
+  return {
+    speed: contactVelocity.length(),
+    swing: hand.swing + (hand.tipSwing - hand.swing) * contact,
+  };
 }
 
 /** 调参面板显示用：hit 判定盒的默认半宽 / 前后深度。 */
@@ -596,10 +626,10 @@ export function createPlayer(
     for (const hand of hands) {
       if (!hand.active) continue;
       if (note.chart.hand && hand.side !== note.chart.hand) continue;
-      const hasStick = hitSpan(hand, hitTip);
-      const tipX = hasStick ? hitTip.x : hand.position.x;
-      const tipY = hasStick ? hitTip.y : hand.position.y;
-      const tipZ = hasStick ? hitTip.z : hand.position.z;
+      const contact = stickContact(hand, x, y, geometry.bandZ, hitTip);
+      const tipX = hitTip.x;
+      const tipY = hitTip.y;
+      const tipZ = hitTip.z;
       if (x < Math.min(hand.position.x, tipX) - halfX) continue;
       if (x > Math.max(hand.position.x, tipX) + halfX) continue;
       if (y < Math.min(hand.position.y, tipY) - HIT_HALF_Y) continue;
@@ -607,8 +637,9 @@ export function createPlayer(
       const zLo = Math.min(hand.position.z, tipZ) - geometry.bandZ;
       const zHi = Math.max(hand.position.z, tipZ) - geometry.bandZ;
       if (zHi < -zoneFar || zLo > zoneNear) continue;
-      if (hand.velocity.length() < HIT_GOOD_SPEED) continue;
-      if (hand.swing < HIT_MIN_SWING) continue;
+      const motion = contactMotion(hand, contact);
+      if (motion.speed < HIT_GOOD_SPEED) continue;
+      if (motion.swing < HIT_MIN_SWING) continue;
 
       note.resolved = true;
       note.group.visible = false;
@@ -620,7 +651,7 @@ export function createPlayer(
       if (grade === 'perfect') stats.perfect += 1;
       else stats.good += 1;
       popup.spawn(grade, popupPosition.set(x, y + 0.1, geometry.bandZ));
-      spawnHitFeedback(hand.side, grade, x, y, hand.velocity);
+      spawnHitFeedback(hand.side, grade, x, y, contactVelocity);
       hooks.onJudge?.(hand.side, grade, offsetMs, 'hit');
       return;
     }
@@ -639,11 +670,12 @@ export function createPlayer(
     if (offsetMs < -DRAG_WINDOW_MS) return;
 
     for (const hand of hands) {
-      if (!hand.active || hand.velocity.length() < MIN_SWEEP_SPEED) continue;
-      const hasStick = hitSpan(hand, hitTip);
-      const tipX = hasStick ? hitTip.x : hand.position.x;
-      const tipY = hasStick ? hitTip.y : hand.position.y;
-      const tipZ = hasStick ? hitTip.z : hand.position.z;
+      if (!hand.active) continue;
+      const contact = stickContact(hand, x, y, geometry.bandZ, hitTip);
+      if (contactMotion(hand, contact).speed < MIN_SWEEP_SPEED) continue;
+      const tipX = hitTip.x;
+      const tipY = hitTip.y;
+      const tipZ = hitTip.z;
       if (x < Math.min(hand.position.x, tipX) - HIT_HALF_X) continue;
       if (x > Math.max(hand.position.x, tipX) + HIT_HALF_X) continue;
       if (y < Math.min(hand.position.y, tipY) - HIT_HALF_Y) continue;
@@ -655,7 +687,7 @@ export function createPlayer(
       note.resolved = true;
       note.group.visible = false;
       notePerfect(hand.side, offsetMs, new THREE.Vector3(x, y, geometry.bandZ), 1, 'drag');
-      shatterDirection.copy(hand.velocity);
+      shatterDirection.copy(contactVelocity);
       shatter.spawn(new THREE.Vector3(x, y, geometry.bandZ), shatterDirection, 0xcfefff, 12, {
         size: 0.55,
         life: 0.75,

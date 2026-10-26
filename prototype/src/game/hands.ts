@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 import { createGlowTexture } from '../materials/textures';
+import { STICK_LENGTH } from '../scene/controllers';
 
 /**
  * 手的位置采样。
@@ -29,6 +30,13 @@ export interface HandSample {
   pressed: boolean;
   /** 最近 120ms 内走过的距离（米）——hit 的「挥击距离」用这个。 */
   swing: number;
+  /**
+   * 棒尖（`position + 指向 × STICK_LENGTH`）的速度与挥动距离。
+   * 判定延伸到棒身后，打击处的速度不再等于手心的速度：手腕一抖，棒尖比手心快得多。
+   * 没有短棒（桌面指针 / 控制器没连）时与 `velocity` / `swing` 相同。
+   */
+  tipVelocity: THREE.Vector3;
+  tipSwing: number;
   /**
    * 指向射线（世界空间）：
    * - XR：控制器 target-ray 的原点，沿控制器的 -Z；
@@ -211,6 +219,8 @@ export function createHands(
     active: false,
     pressed: false,
     swing: 0,
+    tipVelocity: new THREE.Vector3(),
+    tipSwing: 0,
     ray: new THREE.Ray(),
   };
   samples.push(pointerSample);
@@ -227,7 +237,7 @@ export function createHands(
 
   // 挥击距离：保留一小段位置历史，窗口内首尾距离就是「这一段手走了多远」。
   let elapsed = 0;
-  const swingHistory = new Map<HandSample, Array<{ t: number; p: THREE.Vector3 }>>();
+  const swingHistory = new Map<HandSample, Array<{ t: number; p: THREE.Vector3; tip: THREE.Vector3 }>>();
 
   // 菜单请求：左手 Y 长按 / 可选的附加 menu 键。每帧最多置位一次，由主循环取走。
   let menuLatch = false;
@@ -252,16 +262,39 @@ export function createHands(
     return 0;
   }
 
+  const tipScratch = new THREE.Vector3();
+  const rawTipVelocity = new THREE.Vector3();
+
+  /** 棒尖的世界坐标；没有指向（桌面指针 / 控制器没连）时就是手的位置。 */
+  function tipOf(sample: HandSample, out: THREE.Vector3): THREE.Vector3 {
+    out.copy(sample.position);
+    if (sample.source === 'xr' && sample.ray) out.addScaledVector(sample.ray.direction, STICK_LENGTH);
+    return out;
+  }
+
   function trackSwing(sample: HandSample): void {
     let history = swingHistory.get(sample);
     if (!history) {
       history = [];
       swingHistory.set(sample, history);
     }
-    history.push({ t: elapsed, p: sample.position.clone() });
+    const tip = tipOf(sample, tipScratch);
+    history.push({ t: elapsed, p: sample.position.clone(), tip: tip.clone() });
     while (history.length > 2 && elapsed - history[0]!.t > SWING_WINDOW) history.shift();
     const first = history[0];
     sample.swing = first ? first.p.distanceTo(sample.position) : 0;
+    sample.tipSwing = first ? first.tip.distanceTo(tip) : 0;
+
+    // 棒尖速度：用上一帧的棒尖位置算，再和手一样做平滑与尖峰剔除。
+    const pervious = history[history.length - 2];
+    if (pervious) {
+      const dt = Math.max(elapsed - pervious.t, 1e-4);
+      rawTipVelocity.copy(tip).sub(pervious.tip).divideScalar(dt);
+      if (rawTipVelocity.length() > SPIKE_SPEED) rawTipVelocity.set(0, 0, 0);
+      sample.tipVelocity.lerp(rawTipVelocity, VELOCITY_SMOOTHING);
+    } else {
+      sample.tipVelocity.set(0, 0, 0);
+    }
   }
 
   const raycaster = new THREE.Raycaster();
@@ -345,6 +378,8 @@ export function createHands(
       active: false,
       pressed: false,
       swing: 0,
+      tipVelocity: new THREE.Vector3(),
+      tipSwing: 0,
       ray: new THREE.Ray(),
     };
     samples.push(sample);
