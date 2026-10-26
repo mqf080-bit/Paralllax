@@ -1,6 +1,7 @@
 # Parallax — prototype
 
-Phase 1 的 WebXR 原型。**v0.4.2 / Step 0–5 已完成并验收**：游戏可玩，桌面制谱器可用；Quest 3 实测 72Hz+。
+Phase 1 的 WebXR 原型。**v0.4.2 / Step 0–5 已完成并验收**：游戏可玩，桌面制谱器可用；Quest 3 实测 72Hz+；
+手感（手掌盒 + 细棒）已头显验收。
 
 > 项目总览：[`../README.md`](../README.md) ｜ 谱面格式：[`CHART.md`](CHART.md) ｜
 > 制谱器：[`EDITOR.md`](EDITOR.md) ｜ 谱面包：[`PACKAGE.md`](PACKAGE.md) ｜ 背景规范：[`BACKGROUND.md`](BACKGROUND.md) ｜ 迭代记录：[`STATUS.md`](STATUS.md) ｜ UI 待办：[`UI-BACKLOG.md`](UI-BACKLOG.md) ｜ 无线上头显：[`DEPLOY.md`](DEPLOY.md) ｜ 设计工作流：[`../DESIGN-WORKFLOW.md`](../DESIGN-WORKFLOW.md)
@@ -190,8 +191,6 @@ prototype/
 
 - **72fps**：Quest 3 头显实测 72Hz+（用户验收）。
 - **没有自动化测试 / CI**：验证靠 `npm run typecheck` / `npm run build` + 手动 smoke test；CI 进待办（2026-10-26）。
-- **手感调参中**（2026-10-26）：默认手掌盒 + 细棒都认；手掌盒已收紧（减少 easy GOOD），
-  arc 的半径 / 深度也收紧；`?hitrod=0` 可退回纯手掌盒。
 - **音频**：「调度路径」验过，听感需要戴上确认；偏早 / 偏晚用 `AUDIO OFFSET` 微调。
 - 自动演示现在是直接完美判定，不再模拟手。
 - **菜单键**：Quest 3 浏览器不把 menu 键暴露给 WebXR（`buttons[6]` 读不到），实际用**左手 Y 长按 400ms**；代码保留 menu 分支，`?menuButton=N` 可继续试。

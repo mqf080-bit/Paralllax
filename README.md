@@ -21,6 +21,7 @@ VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处�
 - WebXR 游戏原型可玩，Quest 3 头显实测 **72Hz+**；
 - 桌面制谱器已能完成从导入音频、制谱、频谱定位到导出 `.parallax` 的完整流程；
 - 当前版本 **0.4.2**；
+- 手感已头显验收：**手掌盒 + 细棒都认**，手掌盒 / arc 已收紧；
 - 正在做个人初谱 **Infinity Heaven**（未完成）；之后进入 Unity 的编辑器 3D 预览定位、包 / 资源库方案见
   [`prototype/FUTURE.md`](prototype/FUTURE.md)。
 
@@ -335,13 +336,11 @@ prototype/
   没音轨时默认不播合成鼓点（走带 `DRUMS` 勾选才响）。
 - hold 只能贴地；hit / drag 可以浮空（设计文档同步为这个规则）。
 - **没有自动化测试 / CI**：靠 `typecheck` / `build` + 手动 smoke test；CI 已进待办（2026-10-26）。
-- **手感调参中**（2026-10-26）：默认手掌盒 + 细棒都认；手掌盒已收紧（减少 easy GOOD），
-  arc 的半径 / 深度也收紧；待下一轮头显确认。`?hitrod=0` 可退回纯手掌盒。
 - 背景的 `glTF` / 时间线 / 音频参数运行时未做，等 Unity 项目开始。
 
 ## 下一步
 
-正在做个人初谱 **Infinity Heaven**（未完成）；期间只做小修（手感确认：收紧后的手掌盒 / arc → 游玩 UI 剩余 → 制谱流程）。
+正在做个人初谱 **Infinity Heaven**（未完成）；期间只做小修（游玩 UI 剩余 → 制谱流程）。
 初谱完成后按 [`prototype/FUTURE.md`](prototype/FUTURE.md) 推进：**CI + golden tests** → Unity / 资源库
 （玩法契约、Unity importer、工作区与共享资源索引）。
 
