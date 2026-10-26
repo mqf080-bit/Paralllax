@@ -118,6 +118,16 @@ const HIT_ZONE_FAR = 0.38;
 const HIT_HALF_X = 0.13;
 const HIT_HALF_Y = 0.26;
 /**
+ * 短棒的判定体积：**细棒**，不是把手掌盒沿棒扫一遍。
+ *
+ * 横截面 = note 半尺寸 + 棒半径（note 0.232 × 0.084 × 0.096，棒 Ø0.012–0.014），
+ * 所以它比手掌盒（0.13 × 0.26 × 0.60）小得多，尤其在 y 和 z——
+ * 判定面变薄，才不会「note 还在远处就被扫到」而频繁 early。
+ */
+const STICK_HALF_X = 0.125;
+const STICK_HALF_Y = 0.055;
+const STICK_HALF_Z = 0.065;
+/**
  * hit / drag 的判定形状：沿控制器短棒的「长方条」。
  *
  * 短棒视觉上从手沿控制器 −Z 伸出 `STICK_LENGTH`（0.18m，见 scene/controllers.ts），
@@ -125,33 +135,55 @@ const HIT_HALF_Y = 0.26;
  * 没有短棒（桌面指针、或控制器没连）时退化成原来的手部点判定。
  * **arc / hold 不吃这个形状**，仍然是手部采样点。
  */
-const hitTip = new THREE.Vector3();
+const stickClosest = new THREE.Vector3();
 const contactVelocity = new THREE.Vector3();
 
 /**
- * 命中点落在短棒的哪个位置（0 = 手心，1 = 棒尖），顺便把棒尖写进 `outTip`。
+ * note 到短棒的最近点：返回命中点在棒上的位置（0 = 手心，1 = 棒尖），
+ * 并把最近点写进 `out`。没有短棒（桌面指针 / 控制器没连）返回 -1。
  *
- * 判定盒覆盖整根棒之后，**打击处的速度**才是该看的量：手腕一抖，棒尖比手心快得多。
- * 刚体上各点的速度沿棒线性变化，所以手心 / 棒尖两端插值就够。
+ * 用「最近点 + 细横截面」而不是沿棒扫一个手掌盒：扫出来的体积比手掌还大，
+ * note 还在远处就被扫到，于是又变回容易 early。
+ *
+ * 打击处的速度：刚体上各点的速度沿棒线性变化，手心 / 棒尖两端插值即可。
  */
 function stickContact(
   hand: HandSample,
   x: number,
   y: number,
   z: number,
-  outTip: THREE.Vector3,
+  out: THREE.Vector3,
 ): number {
-  if (hand.source !== 'xr' || !hand.ray) {
-    outTip.copy(hand.position);
-    return 0;
-  }
+  if (hand.source !== 'xr' || !hand.ray) return -1;
   const direction = hand.ray.direction;
-  outTip.copy(hand.position).addScaledVector(direction, STICK_LENGTH);
-  const along =
-    (x - hand.position.x) * direction.x +
-    (y - hand.position.y) * direction.y +
-    (z - hand.position.z) * direction.z;
-  return Math.min(1, Math.max(0, along / STICK_LENGTH));
+  const along = Math.min(
+    STICK_LENGTH,
+    Math.max(
+      0,
+      (x - hand.position.x) * direction.x +
+        (y - hand.position.y) * direction.y +
+        (z - hand.position.z) * direction.z,
+    ),
+  );
+  out.copy(hand.position).addScaledVector(direction, along);
+  return along / STICK_LENGTH;
+}
+
+/** 手掌盒（原来的判定体积）：没有短棒时用它，也是 drag 的备选。 */
+function palmHit(
+  hand: HandSample,
+  x: number,
+  y: number,
+  halfX: number,
+  halfY: number,
+  zoneNear: number,
+  zoneFar: number,
+  bandZ: number,
+): boolean {
+  if (Math.abs(hand.position.x - x) > halfX) return false;
+  if (Math.abs(hand.position.y - y) > halfY) return false;
+  const z = hand.position.z - bandZ;
+  return z >= -zoneFar && z <= zoneNear;
 }
 
 /** 打击点上的速度（写入 `contactVelocity`）与挥动距离。 */
@@ -626,18 +658,16 @@ export function createPlayer(
     for (const hand of hands) {
       if (!hand.active) continue;
       if (note.chart.hand && hand.side !== note.chart.hand) continue;
-      const contact = stickContact(hand, x, y, geometry.bandZ, hitTip);
-      const tipX = hitTip.x;
-      const tipY = hitTip.y;
-      const tipZ = hitTip.z;
-      if (x < Math.min(hand.position.x, tipX) - halfX) continue;
-      if (x > Math.max(hand.position.x, tipX) + halfX) continue;
-      if (y < Math.min(hand.position.y, tipY) - HIT_HALF_Y) continue;
-      if (y > Math.max(hand.position.y, tipY) + HIT_HALF_Y) continue;
-      const zLo = Math.min(hand.position.z, tipZ) - geometry.bandZ;
-      const zHi = Math.max(hand.position.z, tipZ) - geometry.bandZ;
-      if (zHi < -zoneFar || zLo > zoneNear) continue;
-      const motion = contactMotion(hand, contact);
+      const contact = stickContact(hand, x, y, geometry.bandZ, stickClosest);
+      if (contact >= 0) {
+        // 有短棒：只认棒身那条细条，手掌的大盒子不再参与。
+        if (Math.abs(x - stickClosest.x) > STICK_HALF_X) continue;
+        if (Math.abs(y - stickClosest.y) > STICK_HALF_Y) continue;
+        if (Math.abs(geometry.bandZ - stickClosest.z) > STICK_HALF_Z) continue;
+      } else if (!palmHit(hand, x, y, halfX, HIT_HALF_Y, zoneNear, zoneFar, geometry.bandZ)) {
+        continue;
+      }
+      const motion = contactMotion(hand, Math.max(contact, 0));
       if (motion.speed < HIT_GOOD_SPEED) continue;
       if (motion.swing < HIT_MIN_SWING) continue;
 
@@ -671,18 +701,16 @@ export function createPlayer(
 
     for (const hand of hands) {
       if (!hand.active) continue;
-      const contact = stickContact(hand, x, y, geometry.bandZ, hitTip);
-      if (contactMotion(hand, contact).speed < MIN_SWEEP_SPEED) continue;
-      const tipX = hitTip.x;
-      const tipY = hitTip.y;
-      const tipZ = hitTip.z;
-      if (x < Math.min(hand.position.x, tipX) - HIT_HALF_X) continue;
-      if (x > Math.max(hand.position.x, tipX) + HIT_HALF_X) continue;
-      if (y < Math.min(hand.position.y, tipY) - HIT_HALF_Y) continue;
-      if (y > Math.max(hand.position.y, tipY) + HIT_HALF_Y) continue;
-      const zLo = Math.min(hand.position.z, tipZ) - geometry.bandZ;
-      const zHi = Math.max(hand.position.z, tipZ) - geometry.bandZ;
-      if (zHi < -HAND_ZONE || zLo > HAND_ZONE) continue;
+      // drag 两种判定都认：棒身细条，或手掌盒。
+      const contact = stickContact(hand, x, y, geometry.bandZ, stickClosest);
+      const inBar =
+        contact >= 0 &&
+        Math.abs(x - stickClosest.x) <= STICK_HALF_X &&
+        Math.abs(y - stickClosest.y) <= STICK_HALF_Y &&
+        Math.abs(geometry.bandZ - stickClosest.z) <= STICK_HALF_Z;
+      const inPalm = palmHit(hand, x, y, HIT_HALF_X, HIT_HALF_Y, HAND_ZONE, HAND_ZONE, geometry.bandZ);
+      if (!inBar && !inPalm) continue;
+      if (contactMotion(hand, inBar ? contact : 0).speed < MIN_SWEEP_SPEED) continue;
 
       note.resolved = true;
       note.group.visible = false;
