@@ -287,8 +287,7 @@ export function validateChart(chart: Chart): string[] {
       if (i > 0 && point.time <= trace.points[i - 1]!.time) {
         issues.push(`trace@${trace.time}: 点的 time 必须递增`);
       }
-      if (point.x < -0.5 || point.x > 5.5) issues.push(`trace@${trace.time}: x 超出 0–5`);
-      if (point.z < 0) issues.push(`trace@${trace.time}: z 不能为负`);
+      // trace 只是视觉引导：x / z 允许越界，不做范围校验。
     }
   }
 

@@ -24,7 +24,7 @@ export const DEMO_CHART: Chart = {
     title: 'ANTAGONISM',
     artist: 'demo',
     charter: 'demo',
-    difficulty: 'IN 7',
+    difficulty: '',
     offset: 0,
   },
 

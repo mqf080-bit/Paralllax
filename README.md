@@ -9,7 +9,7 @@ VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处�
 
 ## 截图
 
-| 制谱器（v0.4.0） | 游玩 |
+| 制谱器 | 游玩 |
 | --- | --- |
 | ![Parallax 制谱器](docs/images/editor.jpg)<br>Infinity Heaven · 频谱定位 · 0:07.733 | ![Parallax 游戏画面](docs/images/game.png)<br>Proving Ground · COMBO 15 · note / arc / 引导网 |
 | ![Parallax 主页](docs/images/home.png)<br>主页 · `Y HOLD = PAUSE` | ![Parallax 结算](docs/images/result.png)<br>结算 · 10,000,000 · EQV（100%） |
@@ -20,13 +20,13 @@ VR 3D 音游的 WebXR 原型。玩家站在腰高的台面前，note 从远处�
 
 - WebXR 游戏原型可玩，Quest 3 头显实测 **72Hz+**；
 - 桌面制谱器已能完成从导入音频、制谱、频谱定位到导出 `.parallax` 的完整流程；
-- 当前版本 **0.4.0**；
-- 下一步进入 Unity 时，编辑器的 3D 预览定位、包 / 资源库方案见
+- 当前版本 **0.4.1**；
+- 正在做个人初谱 **Infinity Heaven**（未完成）；之后进入 Unity 的编辑器 3D 预览定位、包 / 资源库方案见
   [`prototype/FUTURE.md`](prototype/FUTURE.md)。
 
 ---
 
-## 快速使用（v0.4.0）
+## 快速使用（v0.4.1）
 
 ### 1. 启动
 
@@ -177,6 +177,14 @@ drag / arc / hold 没有 GOOD：接上物量就算完美，接不上就是漏。
 - note 只在判定带前 **9m** 内渲染，最后 4m 渐显；远处不会「凭空出现」。
 - 高度上限 **0.81m**（相对台面，= 头顶基准线），超限的 note 不生成。
 
+### 背景
+
+- 程序化 3D 舞台：**没有地面**，体素台地只在余光里，远处是悬空的菱形巨构；
+- 两个预设 `light` / `dark`（`?bg=dark` 切，设置页也能选）；全顶点色 + `MeshBasicMaterial`，
+  游戏里 5.6k 面 / 1 draw call；天空球 R=320，相机 `far` 400；
+- 包内可以带 `background/scene.json`（写展开后的完整参数，不存 preset id）；
+  `gltf` / `text` / 时间线演出与音频参数运行时**还没做**，等 Unity 项目开始。
+
 ---
 
 ## 制谱器（Step 5）
@@ -268,6 +276,7 @@ cd prototype && npm run dev
 | `?chrome=0` | 隐藏诊断 / lil-gui / Stats / 包加载器 / `ENTER VR`，只留 3D 画面（生产页也生效） |
 | `?lane=0.27` `?band=0.70` | 调轨宽 / 判定带前移距离（米；生产页也可用） |
 | `?hitboxX=1.25` `?hitboxZ=1.2` | 调 hit 判定盒空间倍率（不改时间窗；生产页也可用） |
+| `?hitrod=1` | 额外启用短棒细条判定（默认只用手掌盒；FEEL-04 未通过，见 STATUS） |
 | `?debug=0` `?debug=1` | 关闭 / 强制打开调试 GUI；检测到 immersive-vr 的浏览器默认打开 |
 | `?panelScale=1.05` `?panelDistance=0.65` `?panelY=1.45` | 调 VR 面板尺寸 / 距离 / 高度（生产也可用） |
 | `?comboX=0` `?comboY=1.8` `?comboZ=-2.6` | 调 Combo HUD 左右 / 高度 / 前后位置（生产也可用） |
@@ -288,6 +297,7 @@ references/          空间 / 材质参考
 resources/           作者源素材（谱面 / 音频 / 主题 / 背景；运行时不用）
 design/ui-2d/        2D UI study（A + C 的排版 / 配色 / 密度试验）
 design/hit-lab/      hit 造型样张（A/B/C 三个方向，已定 slim sandwich）
+design/bg-lab/       3D 背景实验室（Blender：台地 / 菱形巨构 / 预设色）
 docs/                截图与验收证据（ui-2d / ui-p2 / ui-vr2 / images）
 prototype/
   src/
@@ -295,12 +305,14 @@ prototype/
     game/            播放器、判定、计分、arc、hold/drag、手、粒子、弹字
     audio/           音频时钟、程序化节拍轨
     pack/            .parallax 自定义谱面包：容器格式 + 浏览器读取
-    scene/           台面、浮空显示、材质实验台、控制器
+    scene/           台面、浮空显示、程序化背景、控制器、Combo HUD
+    lab/             背景实验台（程序化天空 / 台地 / 菱形）
     materials/       材质库、配色、程序化贴图、视距淡出
     ui/              3D 面板、游戏内 UI、调试面板、诊断
     xr/              WebXR 能力探测
     editor/          制谱器（时间轴 / 交互 / 预览 / 检查器 / 波形 / 存取）
   editor.html        制谱器独立入口
+  bg-lab.html        背景实验台入口（独立页面，不载入游戏）
   public/charts/     旧格式谱面（example.json / air-example.json）
   public/packages/   .parallax 谱面包（air-example.parallax）
   PACKAGE.md         .parallax 包格式与资源约定
@@ -322,12 +334,19 @@ prototype/
   慢放和倒放是静音的（AudioContext 不能倒退）；3D 里 arc 点的时间仍要在 2D / 检查器改；
   没音轨时默认不播合成鼓点（走带 `DRUMS` 勾选才响）。
 - hold 只能贴地；hit / drag 可以浮空（设计文档同步为这个规则）。
+- **没有自动化测试 / CI**：靠 `typecheck` / `build` + 手动 smoke test；CI 已进待办（2026-10-26）。
+- **FEEL-04 细棒判定未通过**（头显）：miss 明显变多；默认已回退到手掌盒，`?hitrod=1` 可试细棒路径。
+- 背景的 `glTF` / 时间线 / 音频参数运行时未做，等 Unity 项目开始。
 
 ## 下一步
 
-Phase 1 已验收。后续按 [`prototype/FUTURE.md`](prototype/FUTURE.md) 推进 Unity /
-资源库：先抽玩法契约和 golden tests，再做 Unity importer、工作区与共享资源索引。
+正在做个人初谱 **Infinity Heaven**（未完成）；期间只做小修（手感确认 → 游玩 UI 剩余 → 制谱流程）。
+初谱完成后按 [`prototype/FUTURE.md`](prototype/FUTURE.md) 推进：**CI + golden tests** → Unity / 资源库
+（玩法契约、Unity importer、工作区与共享资源索引）。
+
+已暂缓：游玩前校准里的 offset 试听、身高校准 / 站姿、设置持久化（UI-03，2026-10-26）；
+背景的 `glTF` / 时间线运行时等 Unity 项目开始再做。
 
 游玩端 VR UI 的入口流程、暂停层级、激光误触与视觉方向记录在
-[`prototype/UI-BACKLOG.md`](prototype/UI-BACKLOG.md)；P0–P2 已实现，待 Quest 3 验收。
+[`prototype/UI-BACKLOG.md`](prototype/UI-BACKLOG.md)；P0–P2 与 4 轨可读性已在 Quest 3 验收（2026-10-22 / 10-26）。
 做新的视觉 / 版式实验前，先读 [`DESIGN-WORKFLOW.md`](DESIGN-WORKFLOW.md)。

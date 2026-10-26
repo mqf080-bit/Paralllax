@@ -3,7 +3,7 @@
     "title": "EXAMPLE LOOP",
     "artist": "",
     "charter": "",
-    "difficulty": "IN 2",
+    "difficulty": "",
     "offset": 0
   },
   "timing": [{ "time": 0, "bpm": 150, "beats": 4 }],

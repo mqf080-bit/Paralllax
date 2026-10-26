@@ -31,7 +31,7 @@
 
 | 段 | 作用 | 备注 |
 | --- | --- | --- |
-| `meta` | 标题 / 难度 / offset / duration / cover | `offset` 正 = 谱面比音频提前，运行时进入 `chartOffsetMs`；`difficulty` 目前是自由字符串（新谱默认留空，作者显式填 tier + level）；tier 主题色已定稿但 UI 未实现；`duration` 毫秒；`cover` 可放 URL / data URL |
+| `meta` | 标题 / 难度 / offset / duration / cover | `offset` 正 = 谱面比音频提前，运行时进入 `chartOffsetMs`；`difficulty` 仍是自由字符串（新谱默认留空，作者显式填 tier + level；**2026-10-26 起不再写 `IN n` 这类 legacy 值**，旧谱字符串原样读取）；tier 主题色已定稿但 UI 未实现；`duration` 毫秒；`cover` 可放 URL / data URL |
 | `audio` | 音轨文件名 | 只记录；`.parallax` 包里音频是真实文件，旧 JSON 用 `?audio=/track.mp3` |
 | `timing` | BPM + 拍号 | 画小节 / 对齐；**也是合成音轨的拍点**；不参与滚动速度。拍号用 `numerator` / `denominator`（`4/4`、`5/6` 都可以），旧谱只有 `beats` 时按 `beats/4` 读 |
 | `sections` | 段落标记 | 纯制谱器信息 |
@@ -266,7 +266,9 @@ AFF 用「BPM 变负」来表达 SV；我们把它拆成独立轨道，BPM 只�
 - 地面键的 `lane` 必须是 0–5 的整数；有效 `x` 必须在当时的连续窗口里；
 - `x` / `z` 范围（x 允许 −0.5–5.5，z ≥ 0）；
 - arc 至少两个点、首个点 time = 0、点时间递增、x / z 范围；
-- 显式 `ticks[]` 必须落在弧长内、按时间递增且不重复；旧 `keyObjects` 同样检查。
+- 显式 `ticks[]` 必须落在弧长内、按时间递增且不重复；旧 `keyObjects` 同样检查；
+- **trace 只检查结构**（至少两个点、首点 time = 0、点时间递增）；`x` / `z` **不做范围校验**——
+  引导线是视觉参考，允许画到轨外 / 台面下 / 超高度。
 
 ## 11. 示例谱
 

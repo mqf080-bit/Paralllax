@@ -46,6 +46,14 @@ export interface PlayerSettings {
   hitboxX: number;
   /** dev：hit 判定盒 Z 倍率（只改空间体积，不改时间窗）。 */
   hitboxZ: number;
+  /**
+   * dev：hit / drag 是否额外认「沿短棒的细条」。
+   *
+   * 默认 false = 只用手掌盒（2026-10-22 验收过的判定）；
+   * `?hitrod=1` 打开后，短棒那条细条也能命中（手掌盒仍然有效，不会被取代）。
+   * FEEL-04（细棒取代手掌盒）在头显上 miss 明显变多，已退回可选。
+   */
+  stickHit: boolean;
   /** 竖直引导网开关（编辑器 / 游戏都可关）。 */
   guide: boolean;
   /** 引导线（trace）显示开关；关掉不影响谱面数据。 */
@@ -118,15 +126,15 @@ const HIT_ZONE_FAR = 0.38;
 const HIT_HALF_X = 0.13;
 const HIT_HALF_Y = 0.26;
 /**
- * 短棒的判定体积：**细棒**，不是把手掌盒沿棒扫一遍。
+ * 短棒的判定体积（只在 `settings.stickHit` 打开时用）。
  *
- * 横截面 = note 半尺寸 + 棒半径（note 0.232 × 0.084 × 0.096，棒 Ø0.012–0.014），
- * 所以它比手掌盒（0.13 × 0.26 × 0.60）小得多，尤其在 y 和 z——
- * 判定面变薄，才不会「note 还在远处就被扫到」而频繁 early。
+ * 横截面 = note 半尺寸 + 瞄准余量：0.16 / 0.10 / 0.12（全场 32 × 20 × 24cm）。
+ * FEEL-04 最初收到 0.125 / 0.055 / 0.065（比手掌盒小一个数量级），头显实测 miss 明显变多；
+ * 这里放宽一档，并且**手掌盒始终有效**，细棒只作为额外的「够到棒尖」路径。
  */
-const STICK_HALF_X = 0.125;
-const STICK_HALF_Y = 0.055;
-const STICK_HALF_Z = 0.065;
+const STICK_HALF_X = 0.16;
+const STICK_HALF_Y = 0.1;
+const STICK_HALF_Z = 0.12;
 /**
  * hit / drag 的判定形状：沿控制器短棒的「长方条」。
  *
@@ -655,21 +663,31 @@ export function createPlayer(
     const zoneNear = HIT_ZONE_NEAR * Math.max(0.1, settings.hitboxZ);
     const zoneFar = HIT_ZONE_FAR * Math.max(0.1, settings.hitboxZ);
 
+    const useStick = settings.stickHit;
     for (const hand of hands) {
       if (!hand.active) continue;
       if (note.chart.hand && hand.side !== note.chart.hand) continue;
-      const contact = stickContact(hand, x, y, geometry.bandZ, stickClosest);
-      if (contact >= 0) {
-        // 有短棒：只认棒身那条细条，手掌的大盒子不再参与。
-        if (Math.abs(x - stickClosest.x) > STICK_HALF_X) continue;
-        if (Math.abs(y - stickClosest.y) > STICK_HALF_Y) continue;
-        if (Math.abs(geometry.bandZ - stickClosest.z) > STICK_HALF_Z) continue;
-      } else if (!palmHit(hand, x, y, halfX, HIT_HALF_Y, zoneNear, zoneFar, geometry.bandZ)) {
-        continue;
+      const contact = useStick ? stickContact(hand, x, y, geometry.bandZ, stickClosest) : -1;
+      const inRod =
+        contact >= 0 &&
+        Math.abs(x - stickClosest.x) <= STICK_HALF_X &&
+        Math.abs(y - stickClosest.y) <= STICK_HALF_Y &&
+        Math.abs(geometry.bandZ - stickClosest.z) <= STICK_HALF_Z;
+      const inPalm = palmHit(hand, x, y, halfX, HIT_HALF_Y, zoneNear, zoneFar, geometry.bandZ);
+      // 手掌盒是 2026-10-22 验收过的基线；细棒只是额外的「够到棒尖」路径，不会取代它。
+      if (!inRod && !inPalm) continue;
+
+      let speed = hand.velocity.length();
+      let swing = hand.swing;
+      if (inRod) {
+        const motion = contactMotion(hand, Math.max(contact, 0));
+        speed = Math.max(speed, motion.speed);
+        swing = Math.max(swing, motion.swing);
+      } else {
+        contactVelocity.copy(hand.velocity);
       }
-      const motion = contactMotion(hand, Math.max(contact, 0));
-      if (motion.speed < HIT_GOOD_SPEED) continue;
-      if (motion.swing < HIT_MIN_SWING) continue;
+      if (speed < HIT_GOOD_SPEED) continue;
+      if (swing < HIT_MIN_SWING) continue;
 
       note.resolved = true;
       note.group.visible = false;
@@ -699,10 +717,11 @@ export function createPlayer(
     }
     if (offsetMs < -DRAG_WINDOW_MS) return;
 
+    const useStick = settings.stickHit;
     for (const hand of hands) {
       if (!hand.active) continue;
-      // drag 两种判定都认：棒身细条，或手掌盒。
-      const contact = stickContact(hand, x, y, geometry.bandZ, stickClosest);
+      // 默认只用手掌盒；`?hitrod=1` 时再加上棒身细条（两者都认，不互相取代）。
+      const contact = useStick ? stickContact(hand, x, y, geometry.bandZ, stickClosest) : -1;
       const inBar =
         contact >= 0 &&
         Math.abs(x - stickClosest.x) <= STICK_HALF_X &&
@@ -710,7 +729,10 @@ export function createPlayer(
         Math.abs(geometry.bandZ - stickClosest.z) <= STICK_HALF_Z;
       const inPalm = palmHit(hand, x, y, HIT_HALF_X, HIT_HALF_Y, HAND_ZONE, HAND_ZONE, geometry.bandZ);
       if (!inBar && !inPalm) continue;
-      if (contactMotion(hand, inBar ? contact : 0).speed < MIN_SWEEP_SPEED) continue;
+      let speed = hand.velocity.length();
+      if (inBar) speed = Math.max(speed, contactMotion(hand, Math.max(contact, 0)).speed);
+      else contactVelocity.copy(hand.velocity);
+      if (speed < MIN_SWEEP_SPEED) continue;
 
       note.resolved = true;
       note.group.visible = false;

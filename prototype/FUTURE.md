@@ -15,6 +15,8 @@
 
 - `parallax-idea.md` 已定义五个 tier：**Stabilized / Accelerated / Ballistic / LINAC / CYCLOTRON**；
 - **2026-10-22**：编辑器新谱默认难度已改为空（不再写 `IN 1`），作者显式填写；
+- **2026-10-26**：内置谱 / 示例谱 / 包索引 / `air-example.parallax` 里的 `IN n` 已全部清空；
+  旧谱字符串仍按 legacy 原样读取，**不做映射、也不猜 tier**；
 - `meta.difficulty` 目前仍是自由字符串；tier 主题色**已定稿**（见下），但 UI 还没实现。
 
 **曲目的难度构成（2026-10-26 定稿）**：
@@ -44,7 +46,7 @@
 | LINAC | 荧光粉 / 洋红 | `#FF5CC8` | 自发光 |
 | CYCLOTRON | Wien ∞ K 蓝 | `#7F9FFF` | 更亮的自发光；选歌界面除封面外元素饱和度稍降 |
 
-- 旧谱的 `IN 7 / IN 8` 视为 legacy 字符串；迁移时再映射，不能猜成某个 tier。
+- 旧谱的 `IN 7 / IN 8` 视为 legacy 字符串；迁移时再映射，不能猜成某个 tier。新建内容已不再写这类字符串。
 
 验收（未做部分）：
 
@@ -184,6 +186,9 @@
 **状态：两个内置预设 `light` / `dark` 已经进游戏和制谱器**；格式（节点 / 时间线 /
 音频参数）是草案，运行时目前只实现了三个 `procedural.*` 节点。
 
+> **2026-10-26 决定**：`scene.json` 加载器、`gltf` / `text` / `image` 节点、时间线与音频参数运行时
+> **推迟到 Unity 项目开始**；在此之前只维护两个程序化预设、不改规范形状。
+
 实验室：`design/bg-lab/`（Blender）；网页实验台：`prototype/bg-lab.html`；
 格式规范：[`BACKGROUND.md`](BACKGROUND.md)。
 
@@ -229,7 +234,7 @@
 - 两端各实现一次分析器（Web Audio `AnalyserNode` / Unity `OnAudioFilterRead`），
   绑定表由数据驱动，**不回调、不跑作者代码**。
 
-#### 还没做
+#### 还没做（推迟到 Unity 项目开始）
 
 - `scene.json` 加载器（目前只解析到「用哪个内置预设」）；
 - `gltf` / `text` / `image` 节点与时间线运行时；
@@ -249,14 +254,17 @@
 1. ~~游玩 Combo HUD~~ ✅ 2026-10-22；
 2. ~~评级阈值 / 命名 / Result 排版~~ ✅ 2026-10-23；剩**评级字体**（独立 display 字，样张未做）；
 3. ~~自由拍号 / 动态小节~~ ✅ 2026-10-23；剩弱起 / 小节内换拍 / 拍号预设菜单；
-4. 难度 tier UI（默认 `IN` 已去掉 ✅ 2026-10-22；主题色已定稿，剩结构化字段与徽章）；
+4. 难度 tier UI（默认 `IN` 已去掉 ✅ 2026-10-22；legacy `IN n` 已清空 ✅ 2026-10-26；
+   主题色已定稿，剩结构化字段与徽章）；
 5. ~~Trace / 引导线~~ ✅ 2026-10-23；剩「在 trace 上放 note」的 3D 吸附、命中优先级说明；
-6. ~~3D 背景方向 + 迁移~~ ✅ 2026-10-25；剩包内 `scene.json` 加载器、`gltf` / `text` 节点、
-   时间线与音频参数运行时（见 [`BACKGROUND.md`](BACKGROUND.md)）。
+6. ~~3D 背景方向 + 迁移~~ ✅ 2026-10-25；`scene.json` / `gltf` / 时间线与音频参数运行时
+   **推迟到 Unity 项目开始**（2026-10-26）；
+7. **CI + golden tests**（待办，2026-10-26）：先接 `typecheck` / `build`，
+   再抽运行时契约；**谱面校验留在制谱器里，不进 CI**；这是 Unity vertical slice 的前置。
 
 timing 已经改过 schema（`numerator` / `denominator`，旧 `beats` 兼容）；trace 是纯增量字段，
 不影响旧谱面。背景已经落地并在包格式里留了位置（`background/scene.json`）；
-下一件会改规模的是 tier UI（先在实验室出样张），以及背景的 glTF / 时间线运行时。
+下一件会改规模的是 tier UI（先在实验室出样张），以及 CI + golden tests。
 
 ---
 
@@ -433,11 +441,13 @@ project/
 ## 3. 建议的推进顺序
 
 1. **冻结当前 v1 `.parallax`**：作为 Portable Snapshot，不再往里塞复杂资源逻辑；
-2. **抽玩法契约 + golden tests**：Web 与未来 Unity 共用；
-3. **编辑器加工作区**：资源缓存 + chart-only 保存 / 导出；
-4. **加 library 索引**：多谱、共享背景、按哈希去重；
-5. **Unity importer + Addressables**：读 `.parallax` 和 library；
-6. **Unity 远程预览**：需要看真实画面时再接，不阻塞日常制谱。
+2. **接 CI**（GitHub Actions）：每次 push / PR 跑 `typecheck` + `build`，
+   先把「不能合并坏代码」变成机器判断；谱面校验留在编辑器里，不重复到 CI；
+3. **抽玩法契约 + golden tests**：Web 与未来 Unity 共用，直接跑在 CI 里；
+4. **编辑器加工作区**：资源缓存 + chart-only 保存 / 导出；
+5. **加 library 索引**：多谱、共享背景、按哈希去重；
+6. **Unity importer + Addressables**：读 `.parallax` 和 library；
+7. **Unity 远程预览**：需要看真实画面时再接，不阻塞日常制谱。
 
 日常路径应该是：
 

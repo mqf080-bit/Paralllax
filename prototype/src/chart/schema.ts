@@ -222,9 +222,9 @@ export interface ChartLimits {
 export interface TracePoint {
   /** 相对 trace 起点的毫秒。 */
   time: number;
-  /** 横向位置（轨号单位，-0.5–5.5）。 */
+  /** 横向位置（轨号单位）。trace 只是视觉引导，允许越界，不做范围校验。 */
   x: number;
-  /** 台面上方的高度（米）。 */
+  /** 高度（米，相对台面）。允许为负 / 超高，不做范围校验。 */
   z: number;
   /** 横向缓动。 */
   easing: Easing;

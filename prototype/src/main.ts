@@ -356,12 +356,14 @@ const previewState = { visible: false };
 // dev / 头显试打：判定盒空间倍率。只改 hit 的 x / z 体积，时间窗仍是 -100/+80 perfect、-140/+160 good。
 const hitboxXParam = Number(bootQuery.get('hitboxX'));
 const hitboxZParam = Number(bootQuery.get('hitboxZ'));
+const hitRodParam = bootQuery.get('hitrod');
 const playSettings: PlayerSettings = {
   enabled: true,
   flowSpeed: 3.0,
   auto: false,
   hitboxX: Number.isFinite(hitboxXParam) && bootQuery.has('hitboxX') ? Math.min(2.5, Math.max(0.25, hitboxXParam)) : 1,
   hitboxZ: Number.isFinite(hitboxZParam) && bootQuery.has('hitboxZ') ? Math.min(2.5, Math.max(0.25, hitboxZParam)) : 1,
+  stickHit: hitRodParam === '1' || hitRodParam === 'true',
   guide: bootQuery.get('guide') !== '0',
   traces: bootQuery.get('traces') !== '0',
 };

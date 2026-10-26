@@ -28,7 +28,7 @@ export const TEST_CHART: Chart = {
     title: 'PROVING GROUND',
     artist: 'demo',
     charter: 'demo',
-    difficulty: 'IN 8',
+    difficulty: '',
     offset: 0,
   },
 

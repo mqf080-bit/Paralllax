@@ -33,13 +33,13 @@ offset 18   头部 JSON（UTF-8）
   "audio": "audio/track.mp3",
   "cover": "cover/front.jpg",
   "theme": "theme/dark.json",
-  "background": "background/stage.webp",
+  "background": "background/scene.json",
   "files": [
     { "path": "chart.json", "size": 12034, "type": "application/json" },
     { "path": "audio/track.mp3", "size": 4123456, "type": "audio/mpeg" },
     { "path": "cover/front.jpg", "size": 256888, "type": "image/jpeg" },
     { "path": "theme/dark.json", "size": 512, "type": "application/json" },
-    { "path": "background/stage.webp", "size": 98765, "type": "image/webp" }
+    { "path": "background/scene.json", "size": 412, "type": "application/json" }
   ]
 }
 ```
@@ -126,7 +126,6 @@ offset 18   头部 JSON（UTF-8）
       "pack": "/packages/infinity-heaven.parallax",
       "title": "Infinity Heaven",
       "artist": "HyuN",
-      "difficulty": "IN 1",
       "durationMs": 153816,
       "bpm": 160,
       "notes": 48,
@@ -139,6 +138,8 @@ offset 18   头部 JSON（UTF-8）
 
 - `id` 必须唯一；`pack` 可以写根路径，也可以相对 `packages/index.json`；
 - `durationMs` / `bpm` / `notes` / `shifts` / `types` 只用于加载前的列表和详情；加载完成后会用包内 chart 覆盖；
+- **`difficulty` 可省略**（2026-10-26 起不再写 `IN n` 这类 legacy 字符串）；省略 = 列表里显示 `—`，
+  选中加载后以包内 `chart.meta.difficulty` 为准；旧包里的字符串仍原样显示，不做 tier 映射；
 - 新增包时把 `.parallax` 放进 `public/packages/`，并在 `index.json` 增加一项；
 - `?pack=` 直接打开时，会把当前包作为 `current`；索引里同一个包会按 `pack` / 标题去重，不会出现两行。
 - 没有 `index.json` 时，菜单只显示当前包和两张内置谱。
@@ -181,5 +182,7 @@ resources/
 - 不做压缩 / 加密 / 签名；
 - 一个包一张谱；
 - 音频封面目前只解析 FLAC / MP3；M4A / OGG 的内嵌封面留到后续；
-- `theme` / `background` 只是被携带和保留，游戏还没有读取它们来切换外观；
+- `background` 已消费：`builtin:light|dark` 或包内 `parallax.background` JSON 都能用；
+  `scene.json` 的 `gltf` / `text` / 时间线 / 音频参数运行时**未做**，推迟到 Unity 项目开始（见 `BACKGROUND.md`）；
+- `theme` 仍只是被携带和保留，游戏还没有读取它来切换外观；
 - 浏览器下载 / 导入文件仍受 File API 限制，音频不会进 localStorage 草稿。
